@@ -1,0 +1,13 @@
+<!-- Kiosk Playlist View Component -->
+<div class="kiosk-component-container">
+    <div class="mb-3">
+        <h3 class="kiosk-artist mb-0">
+            <i class="mdi mdi-playlist-music"></i> Playlist
+        </h3>
+        <small id="kiosk-playlist-info" class="text-muted">{{ (playlist|length) if playlist else 0 }} tracks</small>
+    </div>
+    
+    <div id="kiosk-playlist-container" class="list-group list-group-flush flex-grow-1" style="overflow-y: auto;">
+        {% include 'components/kiosk/playlist/_playlist_container.html' %}
+    </div>
+</div>

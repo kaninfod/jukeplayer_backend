@@ -1,0 +1,13 @@
+{# Media Library Artist Card Partial #}
+<div class="col-6">
+    <div class="card library-artist-card"
+         onclick="window.kioskOpenLibraryArtist('{{ artist.id }}', '{{ artist.name|e }}', '{% if group %}{{ group }}{% endif %}');">
+        <div class="card-body">
+            <h2 class="card-title mb-0">
+                <i class="mdi mdi-account-music me-2"></i>
+                <strong>{{ artist.name|e }}</strong>
+            </h2>
+            <i class="mdi mdi-chevron-right chevron-icon"></i>
+        </div>
+    </div>
+</div>

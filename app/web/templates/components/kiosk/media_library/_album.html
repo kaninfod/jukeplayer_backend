@@ -1,0 +1,20 @@
+{# Album Card Partial for Media Library #}
+<div class="col-3">
+    <div class="card library-album-card">
+        <img src="{{ album.cover_url or '/assets/covers/_default/cover-180.jpg' }}" class="card-img-top" alt="{{ album.name|e }}">
+        <div class="card-body">
+            <h6 class="card-title text-truncate" style="max-width: 100%;">{{ album.name|e }}</h6>
+            <p class="card-text text-muted text-truncate mb-0" style="max-width: 100%;">{{ artist.name|e }}</p>
+            {% if album.year %}
+            <p class="card-text"><small class="text-muted">{{ album.year }}</small></p>
+            {% endif %}
+                <button type="button" class="btn btn-success w-100 mb-2"
+                    onclick="window.kioskPlayAlbum('{{ album.id }}'); return false;">
+                <i class="mdi mdi-play"></i> Play
+            </button>
+            <button type="button" class="btn btn-primary w-100" onclick="window.kioskOpenNfcEncoding('{{ album.id }}', '{{ album.name|e }}'); return false;">
+                <i class="mdi mdi-nfc-variant"></i> NFC
+            </button>
+        </div>
+    </div>
+</div>

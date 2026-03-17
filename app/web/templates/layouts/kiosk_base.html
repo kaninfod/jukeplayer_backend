@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" class="kiosk-mode">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Jukeplayer{% endblock %}</title>
+    <link rel="icon" href="data:,">
+    {% include '_global_styles.html' %}
+    <link rel="stylesheet" href="/static/css/mdi.css">
+    <link rel="stylesheet" href="/static/css/kiosk.css">
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="kiosk-layout">
+    <!-- Kiosk fixed layout structure (1280×720 landscape) -->
+    
+    <!-- Status Bar at top (increased by 25% for better touch) -->
+    <div style="height: 62px; min-height: 62px; max-height: 62px; flex-shrink: 0;">
+        {% include 'components/kiosk/_status_bar.html' %}
+    </div>
+
+    <!-- Main content area with navigation, dynamic content, and volume bar -->
+    <div class="kiosk-main-content d-flex">
+        <!-- Left navigation sidebar (increased by 50% for better touch) -->
+        {% include 'components/kiosk/_navigation.html' %}
+        
+        <!-- Dynamic content area -->
+        <div id="kiosk-content-area" class="flex-grow-1 position-relative">
+            {% block kiosk_content %}{% endblock %}
+        </div>
+        
+        <!-- Right volume bar (can be toggled) -->
+        <div id="kiosk-volume-sidebar" class="kiosk-volume-sidebar">
+            {% include 'components/kiosk/_volume_bar.html' %}
+        </div>
+    </div>
+
+    <!-- Controls fixed at bottom (can be toggled) -->
+    <div id="kiosk-controls-bar" style="height: 100px; min-height: 100px; max-height: 100px; flex-shrink: 0;">
+        {% include 'components/kiosk/_controls.html' %}
+    </div>
+
+    <!-- Toast container for global notifications -->
+    <div id="kiosk-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;"></div>
+    
+    <!-- Kiosk-specific JavaScript -->
+    <script src="/static/js/kiosk-toast.js"></script>
+    <!-- load htmx early so our new template fragments can use hx- attributes
+         (harmless if the old loader is still in use) -->
+    <script src="https://unpkg.com/htmx.org@1.9.3"></script>
+    <script>
+      // Global API configuration
+      const API_KEY = "{{ config.API_KEY }}";z
+      // Helper function for authenticated API calls
+      function apiFetch(url, options = {}) {
+        const headers = options.headers || {};
+        if (API_KEY) {
+          headers['X-API-Key'] = API_KEY;
+        }
+        return fetch(url, { ...options, headers });
+      }
+      
+      // Check URL parameters for UI visibility options
+      document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Hide controls if hidecontrols=1 parameter is present
+        if (urlParams.get('hidecontrols') === '1') {
+          const controlsBar = document.getElementById('kiosk-controls-bar');
+          if (controlsBar) {
+            controlsBar.classList.add('collapsed');
+          }
+        }
+        
+        // Hide volume if hidevolume=1 parameter is present
+        if (urlParams.get('hidevolume') === '1') {
+          const volumeSidebar = document.getElementById('kiosk-volume-sidebar');
+          if (volumeSidebar) {
+            volumeSidebar.classList.add('collapsed');
+          }
+        }
+      });
+    </script>
+    <script src="/static/js/kiosk-loader.js"></script>
+    <script src="/static/js/kiosk/player-status.js"></script>
+    <script src="/static/js/kiosk/device-selector.js"></script>
+    <script src="/static/js/kiosk/system-menu.js"></script>
+    <script src="/static/js/kiosk/nfc-encoding.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

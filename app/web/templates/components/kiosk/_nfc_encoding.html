@@ -1,0 +1,91 @@
+<!-- Kiosk NFC Encoding Component -->
+<div id="nfc-encoding-container"
+    class="kiosk-component-container d-flex flex-column align-items-center justify-content-center position-relative"
+    data-album-id="{{ album_id|default('', true) }}"
+    data-album-name="{{ album_name|default('', true) }}"
+    style="height: 100%; padding: 40px 20px;">
+    
+    <!-- Header -->
+    <h3 class="kiosk-artist mb-4">
+        <i class="mdi mdi-nfc-variant"></i> NFC Encoding
+    </h3>
+    
+    <!-- Album being encoded -->
+    <div id="nfc-album-name" class="kiosk-title mb-4" style="text-align: center;">
+        Album: <strong>Loading...</strong>
+    </div>
+    
+    <!-- Main status area -->
+    <div id="nfc-status-area" class="text-center mb-5" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <!-- Waiting/encoding state -->
+        <div id="nfc-waiting" style="display: none;">
+            <div style="font-size: 80px; margin-bottom: 20px; animation: pulse 1.5s infinite;">
+                <i class="mdi mdi-nfc-variant" style="color: #0074d9;"></i>
+            </div>
+            <p id="nfc-waiting-text" style="font-size: 20px; color: #666; margin: 0;">Insert card to encode...</p>
+        </div>
+        
+        <!-- Encoding in progress -->
+        <div id="nfc-encoding" style="display: none;">
+            <div style="font-size: 80px; margin-bottom: 20px;">
+                <i class="mdi mdi-nfc-variant mdi-spin" style="color: #0074d9;"></i>
+            </div>
+            <p style="font-size: 20px; color: #666; margin: 0;">Encoding card...</p>
+        </div>
+        
+        <!-- Success state -->
+        <div id="nfc-success" style="display: none;">
+            <div style="font-size: 80px; margin-bottom: 20px; color: #28a745;">
+                <i class="mdi mdi-check-circle"></i>
+            </div>
+            <p style="font-size: 24px; color: #28a745; margin: 0; font-weight: bold;">Card Encoded!</p>
+            <p id="nfc-encoded-uid" style="font-size: 14px; color: #666; margin-top: 10px;">UID: <code>-</code></p>
+        </div>
+        
+        <!-- Failure state -->
+        <div id="nfc-failure" style="display: none;">
+            <div style="font-size: 80px; margin-bottom: 20px; color: #dc3545;">
+                <i class="mdi mdi-alert-circle"></i>
+            </div>
+            <p style="font-size: 20px; color: #dc3545; margin: 0; font-weight: bold;">Encoding Failed</p>
+            <p id="nfc-error-message" style="font-size: 14px; color: #666; margin-top: 10px;">Unknown error</p>
+        </div>
+        
+        <!-- Cancelled state -->
+        <div id="nfc-cancelled" style="display: none;">
+            <div style="font-size: 80px; margin-bottom: 20px; color: #ffc107;">
+                <i class="mdi mdi-close-circle"></i>
+            </div>
+            <p style="font-size: 20px; color: #ffc107; margin: 0;">Encoding Cancelled</p>
+        </div>
+    </div>
+    
+    <!-- Control buttons at bottom right -->
+    <div style="position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px;">
+        <!-- Cancel button (visible during waiting/encoding) -->
+        <button id="nfc-cancel-btn" class="btn btn-outline-secondary" style="display: none;" onclick="window.cancelNfcEncoding()">
+            <i class="mdi mdi-close"></i> Cancel
+        </button>
+        
+        <!-- Return to Now Playing button (visible after completion) -->
+        <button id="nfc-return-btn" class="btn btn-primary" style="display: none;" onclick="window.kioskOpenPlayer()">
+            <i class="mdi mdi-music-note"></i> Now Playing
+        </button>
+    </div>
+</div>
+
+<style>
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    
+    .mdi-spin {
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>

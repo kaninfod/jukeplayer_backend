@@ -1,0 +1,8 @@
+{# Container partial for all artist cards for a group #}
+<div class="library-cards-container">
+  <div class="row" style="gap: 20px 0;">
+    {% for artist in artists %}
+      {% include 'components/kiosk/media_library/_artist.html' %}
+    {% endfor %}
+  </div>
+</div>

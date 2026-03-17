@@ -1,0 +1,30 @@
+<!-- Kiosk Media Library Component -->
+<div class="kiosk-component-container">
+    <!-- Header with back button and title -->
+    <div class="mb-3 d-flex align-items-center gap-3">
+        {% if back_url %}
+        <button id="library-back-btn" class="btn btn-outline-secondary" onclick="window.kioskNavigate('{{ back_url }}', true);">
+            <i class="mdi mdi-arrow-left"></i> Back
+        </button>
+        {% else %}
+        <button id="library-back-btn" class="btn btn-outline-secondary library-back-btn-hidden">
+            <i class="mdi mdi-arrow-left"></i> Back
+        </button>
+        {% endif %}
+        <h3 class="kiosk-artist mb-0">
+            <i class="mdi mdi-folder-music"></i> <span id="library-title">{{ title or 'Music Library' }}</span>
+        </h3>
+    </div>
+    
+    <!-- Content area that changes based on view -->
+    <div id="library-content" class="flex-grow-1" style="overflow-y: auto; max-height: calc(558px - 80px);">
+        {% if content_template %}
+            {% include content_template %}
+        {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="mdi mdi-loading mdi-spin" style="font-size: 48px;"></i>
+                <p class="mt-3">Loading...</p>
+            </div>
+        {% endif %}
+    </div>
+</div>

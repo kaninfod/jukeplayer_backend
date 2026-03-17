@@ -1,0 +1,68 @@
+<!-- Kiosk System Menu Component -->
+<div class="kiosk-component-container">
+    <div class="mb-4">
+        <h3 class="kiosk-artist mb-2">
+            <i class="mdi mdi-cog"></i> System Settings
+        </h3>
+    </div>
+    
+    <!-- 2 rows × 3 columns grid -->
+    <div class="kiosk-grid-3col">
+        <!-- Row 1, Col 1 -->
+        <div class="card h-100 system-action-card" onclick="window.exitKiosk()" style="cursor: pointer;">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center p-4">
+                <i class="mdi mdi-monitor" style="font-size: 48px; color: #0d6efd;"></i>
+                <h5 class="mt-3 mb-0">Exit Kiosk</h5>
+                <small class="text-muted">Return to desktop</small>
+            </div>
+        </div>
+        
+        <!-- Row 1, Col 2 -->
+        <div class="card h-100 system-action-card" onclick="window.restartApp()" style="cursor: pointer;">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center p-4">
+                <i class="mdi mdi-restart" style="font-size: 48px; color: #0dcaf0;"></i>
+                <h5 class="mt-3 mb-0">Restart App</h5>
+                <small class="text-muted">Restart jukebox</small>
+            </div>
+        </div>
+        
+        <!-- Row 1, Col 3 -->
+        <div class="card h-100 system-action-card" onclick="window.rebootSystem()" style="cursor: pointer;">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center p-4">
+                <i class="mdi mdi-restart-alert" style="font-size: 48px; color: #fd7e14;"></i>
+                <h5 class="mt-3 mb-0">Reboot RPi</h5>
+                <small class="text-muted">Restart device</small>
+            </div>
+        </div>
+        
+        <!-- Row 2, Col 1 -->
+        <div class="card h-100 system-action-card" onclick="window.shutdownSystem()" style="cursor: pointer;">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center p-4">
+                <i class="mdi mdi-power" style="font-size: 48px; color: #dc3545;"></i>
+                <h5 class="mt-3 mb-0">Shutdown</h5>
+                <small class="text-muted">Power off device</small>
+            </div>
+        </div>
+        
+        <!-- Row 2, Col 2 -->
+        <div class="card h-100 system-action-card" style="opacity: 0.5;">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center p-4">
+                <i class="mdi mdi-brightness-6" style="font-size: 48px; color: #6c757d;"></i>
+                <h5 class="mt-3 mb-0">Display</h5>
+                <small class="text-muted">Coming soon</small>
+            </div>
+        </div>
+        
+        <!-- Row 2, Col 3 -->
+        <div class="card h-100 system-action-card" style="opacity: 0.5;">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center p-4">
+                <i class="mdi mdi-information" style="font-size: 48px; color: #6c757d;"></i>
+                <h5 class="mt-3 mb-0">Info</h5>
+                <small class="text-muted">Coming soon</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Status message area -->
+    <div id="system-status" class="mt-4"></div>
+</div>

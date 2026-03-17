@@ -1,0 +1,20 @@
+{# Container partial for device cards #}
+{% if not status_data.devices %}
+<div style="grid-column: 1 / -1;" class="text-center text-muted py-5">
+    <i class="mdi mdi-speaker-off" style="font-size: 48px;"></i>
+    <p class="mt-3">No output devices found</p>
+</div>
+{% else %}
+<div class="device-grid-inner">
+    
+  {# Use 3 columns on md and larger so 3 devices fit in a single row; each column is a flex container so the card can stretch #}
+  <div class="row row-cols-1 row-cols-md-3 g-3 align-items-stretch justify-content-center">
+    {% for device in status_data.devices %}
+      {% set is_active = device.active %}
+      <div class="col">
+        {% include 'components/kiosk/device_selector/_device.html' %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

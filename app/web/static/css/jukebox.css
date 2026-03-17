@@ -1,0 +1,6 @@
+body { margin: 0; background: #f7f7f7; padding-top: 0px; }
+/* Minimal custom utility for fixed panel height */
+.panel-40vh { height: 40vh; }
+/* Thumb and info spacing */
+#track-thumb { margin-bottom: 18px; }
+#track-info { text-align: center; }

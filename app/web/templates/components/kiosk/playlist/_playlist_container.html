@@ -1,0 +1,26 @@
+{# Playlist container partial - renders the full playlist #}
+<div class="list-group list-group-flush">
+  {% if playlist and playlist|length > 0 %}
+    {% for track in playlist %}
+      {% set is_current = (current_track and (track.track_number == current_track.track_number)) %}
+      {% set duration_seconds = (track.duration|int) if track.duration else 0 %}
+      <div class="list-group-item kiosk-playlist-item d-flex justify-content-between align-items-center {{ 'active' if is_current else '' }}"
+           style="cursor: pointer;"
+           onclick="window.kioskPlayTrackAtIndex({{ loop.index0 }});">
+        <div class="d-flex align-items-center gap-3 flex-grow-1">
+          <div class="track-number">{{ track.track_number or loop.index }}</div>
+          <div class="flex-grow-1">
+            <div class="fw-bold">{{ track.title or 'Unknown Title' }}</div>
+            <div class="text-muted small">{{ track.artist or '' }}</div>
+          </div>
+        </div>
+        <div class="text-muted small">{% if duration_seconds > 0 %}{{ (duration_seconds // 60) }}:{{ '%02d' % (duration_seconds % 60) }}{% endif %}</div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="mdi mdi-music-note-off" style="font-size: 48px;"></i>
+      <p class="mt-3">No playlist loaded</p>
+    </div>
+  {% endif %}
+</div>

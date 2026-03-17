@@ -1,0 +1,8 @@
+{# Container partial for all album cards for an artist #}
+<div class="library-cards-container">
+  <div class="row g-3">
+    {% for album in albums %}
+      {% include 'components/kiosk/media_library/_album.html' %}
+    {% endfor %}
+  </div>
+</div>

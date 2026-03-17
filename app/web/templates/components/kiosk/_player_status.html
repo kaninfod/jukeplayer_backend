@@ -1,0 +1,20 @@
+<!-- Kiosk Player Status Component -->
+<!-- Album art + track info display in horizontal layout -->
+<div class="kiosk-player-status d-flex flex-row align-items-center justify-content-center gap-4 p-4 position-relative h-100">
+    <div id="kiosk-track-thumb" class="kiosk-album-art flex-shrink-0">
+        <div class="kiosk-no-cover">
+            <i class="mdi mdi-music"></i>
+        </div>
+    </div>
+    <div id="kiosk-track-info" class="kiosk-track-details flex-grow-1">
+        <div class="kiosk-no-track">Loading...</div>
+    </div>
+    
+    <!-- Progress bar at absolute bottom -->
+    <div class="kiosk-progress-container position-absolute bottom-0 start-0 end-0">
+        <div class="kiosk-progress-bar">
+            <div id="kiosk-progress-fill" class="kiosk-progress-fill"></div>
+        </div>
+        <div id="kiosk-progress-time" class="kiosk-progress-time">0:00 / 0:00</div>
+    </div>
+</div>

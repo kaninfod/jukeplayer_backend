@@ -1,0 +1,17 @@
+<!-- Kiosk Device Selector Component -->
+<div class="kiosk-component-container">
+    <div class="mb-4">
+        <h3 class="kiosk-artist mb-2">
+            <i class="mdi mdi-speaker-multiple"></i> Output Devices
+        </h3>
+        <p class="text-muted">Select where playback should go</p>
+    </div>
+    
+    <!-- Device grid -->
+    <div id="device-grid" class="kiosk-grid-3col">
+        {% include 'components/kiosk/device_selector/_devices_container.html' %}
+    </div>
+    
+    <!-- Status message area -->
+    <div id="device-status" class="mt-4"></div>
+</div>
