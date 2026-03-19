@@ -1,0 +1,104 @@
+version: "3.8"
+
+services:
+  # Gonic - Subsonic-compatible music server
+  gonic:
+    image: sentriz/gonic:latest
+    container_name: jukeplayer_gonic
+    environment:
+      - TZ=${TZ:-UTC}
+      # optionally, see more available env vars in the readme
+    ports:
+      - "4747:80"
+    networks:
+      - unified_network
+    
+    volumes:
+      - /home/pi/gonic/data:/data                    # gonic db etc
+      - /mnt/music/collection:/music:ro              # your music collection
+      - /home/pi/gonic/podcasts:/podcasts            # podcasts
+      - /home/pi/gonic/playlists:/playlists          # playlists
+      - /home/pi/gonic/tmp:/cache                    # transcode / covers / cache
+    
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://192.168.68.102:514"
+        tag: "GONIC"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    
+    # Uncomment if using jukebox with audio output on host
+    #group_add:
+    #  - audio
+    #devices:
+    #  - /dev/snd:/dev/snd
+    
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # JukePlayer - MediaPlayer API for the jukebox
+  jukeplayer:
+    # OPTION A: Build locally (uncomment below)
+    build:
+      context: ./jukeplayer_backend
+      dockerfile: Dockerfile
+    
+    # OPTION B: Use pre-built image from GitHub Container Registry (uncomment below)
+    # image: ghcr.io/martinhinge/jukeplayer-jukeplayer:latest
+    
+    container_name: jukeplayer_api
+    
+    environment:
+      - TZ=${TZ:-UTC}
+      - GONIC_HOST=gonic              # Service name in this stack
+      - GONIC_PORT=80
+      - GONIC_BASE_PATH=/rest
+      # Add your API key here (from gonic)
+      - GONIC_API_KEY=${GONIC_API_KEY:-}
+      # Jukeplayer settings
+      - JUKEPLAYER_PORT=8000
+      - JUKEPLAYER_HOST=0.0.0.0
+    
+    ports:
+      - "8000:8000"
+    
+    networks:
+      - unified_network
+    
+    volumes:
+      - /home/pi/jukeplayer/data:/app/data           # Database, cache
+      - /home/pi/jukeplayer/logs:/app/logs           # Application logs
+      - ./jukeplayer_backend:/app                    # Code mount (dev - remove for prod)
+    
+    depends_on:
+      gonic:
+        condition: service_healthy
+    
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://192.168.68.102:514"
+        tag: "JUKEPLAYER"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    
+    restart: unless-stopped
+    
+    # Remove for production - this is useful for development
+    stdin_open: true
+    tty: true
+
+networks:
+  unified_network:
+    external: true
+
+# Optional: define volumes if using named volumes instead of host paths
+# volumes:
+#   gonic_data:
+#   jukeplayer_data:

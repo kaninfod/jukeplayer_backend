@@ -1,13 +1,15 @@
 from fastapi import APIRouter, HTTPException, Response
 from fastapi import Query
 from app.core.service_container import get_service
+from app.schemas import Artist, Album, Song, AlbumInfo
+from typing import List
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/subsonic", tags=["subsonic"])
 
-@router.get("/artists")
+@router.get("/artists", response_model=List[Artist])
 def get_all_artists():
     """Return all artists from SubsonicService."""
     try:
@@ -22,7 +24,7 @@ def get_all_artists():
         logger.error(f"Failed to fetch artists: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to fetch artists: {e}")
 
-@router.get("/artist/{id}")
+@router.get("/artist/{id}", response_model=List[Album])
 def get_artist_albums(id: str):
     """Return all albums by artist (id) from SubsonicService."""
     try:
@@ -37,7 +39,7 @@ def get_artist_albums(id: str):
         logger.error(f"Failed to fetch albums for artist {id}: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to fetch albums for artist: {e}")
 
-@router.get("/album/{id}")
+@router.get("/album/{id}", response_model=List[Song])
 def get_album_songs(id: str):
     """Return all songs on album (id) from SubsonicService."""
     try:
@@ -69,7 +71,7 @@ def get_cover_art(album_id: str):
         raise HTTPException(status_code=502, detail=f"Failed to fetch cover art: {e}")
 
 
-@router.get("/album_info/{id}")
+@router.get("/album_info/{id}", response_model=AlbumInfo)
 def get_album_info(id: str):
     """Return album metadata (name, artist, etc.) for the given album id."""
     subsonic_service = get_service("subsonic_service")
