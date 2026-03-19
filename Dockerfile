@@ -1,4 +1,4 @@
-# Use official Python runtime as base image (lightweight)
+# Use official Python runtime as base image (lightweight, multi-arch: amd64 & arm64)
 FROM python:3.11-slim
 
 # Set working directory in container
