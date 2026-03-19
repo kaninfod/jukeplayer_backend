@@ -46,7 +46,7 @@ services:
   jukeplayer:
     # OPTION A: Build locally (uncomment below)
     build:
-      context: ./jukeplayer_backend
+      context: .
       dockerfile: Dockerfile
     
     # OPTION B: Use pre-built image from GitHub Container Registry (uncomment below)
