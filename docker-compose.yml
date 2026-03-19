@@ -45,12 +45,12 @@ services:
   # JukePlayer - MediaPlayer API for the jukebox
   jukeplayer:
     # OPTION A: Build locally (uncomment below)
-    #build:
-    #  context: .
-    #   dockerfile: Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
     
     # OPTION B: Use pre-built image from GitHub Container Registry (uncomment below)
-    image: ghcr.io/martinhinge/jukeplayer-jukeplayer:latest
+    #image: ghcr.io/martinhinge/jukeplayer-jukeplayer:latest
     
     container_name: jukeplayer_api
     
@@ -97,7 +97,7 @@ services:
       - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-}
     
     ports:
-      - "8000:8000"
+      - "8001:8000"
     
     networks:
       - unified_network
