@@ -7,8 +7,7 @@ WORKDIR /jukeplayer_backend
 # Set environment variables
 # Prevent Python from writing pyc files and buffering stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:$PYTHONPATH
+    PYTHONUNBUFFERED=1
 
 # Install system dependencies if needed
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create logs directory
-RUN mkdir -p /app/logs
+RUN mkdir -p /jukeplayer_backend/logs
 
 # Expose the API port
 EXPOSE 8001
