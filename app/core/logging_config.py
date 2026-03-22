@@ -2,25 +2,7 @@ import logging
 import logging.handlers
 import socket
 import os
-import re
 from app.config import config
-
-# ANSI escape code pattern: ESC [ ... m (covers all color/style codes)
-ANSI_ESCAPE_PATTERN = re.compile(r'\x1b\[[0-9;]*m|\033\[[0-9;]*m')
-
-class ANSIStripFilter(logging.Filter):
-    """Remove ANSI escape codes from log records."""
-    def filter(self, record):
-        record.msg = ANSI_ESCAPE_PATTERN.sub('', str(record.msg))
-        if record.args:
-            try:
-                record.args = tuple(
-                    ANSI_ESCAPE_PATTERN.sub('', str(arg)) if isinstance(arg, str) else arg
-                    for arg in (record.args if isinstance(record.args, tuple) else (record.args,))
-                )
-            except:
-                pass  # If conversion fails, keep original args
-        return True
 
 def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     """Configure logging for the jukebox app with syslog + file fallback."""
@@ -33,13 +15,11 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
 
     # === SYSLOG HANDLER (Primary) ===
     syslog_configured = False
-    ansi_strip = ANSIStripFilter()
     if config.LOG_SERVER_HOST and config.LOG_SERVER_HOST.lower() not in ['localhost', '127.0.0.1', '']:
         try:
             syslog_address = (config.LOG_SERVER_HOST, config.LOG_SERVER_PORT)
             syslog_handler = logging.handlers.SysLogHandler(address=syslog_address)
             syslog_handler.setFormatter(formatter)
-            syslog_handler.addFilter(ansi_strip)  # Strip ANSI codes before sending to syslog
             logging.getLogger().addHandler(syslog_handler)
             syslog_configured = True
             logging.info(f"✅ Syslog configured: {config.LOG_SERVER_HOST}:{config.LOG_SERVER_PORT}")
@@ -54,19 +34,14 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
         os.makedirs("logs", exist_ok=True)
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
-        file_handler.addFilter(ansi_strip)  # Strip ANSI codes from file logs too
         logging.getLogger().addHandler(file_handler)
     except Exception as e:
         logging.warning(f"Could not create log file: {e}")
 
-    # === CONSOLE HANDLER (Dev only - skip in Docker to avoid ANSI codes in Docker's syslog driver) ===
-    # When running in Docker, the syslog driver will capture console output with ANSI codes.
-    # To avoid this, skip console logging in Docker and rely on direct syslog handler instead.
-    if not os.getenv('DOCKER_CONTAINER'):
-        screen_handler = logging.StreamHandler()
-        screen_handler.setFormatter(formatter)
-        screen_handler.addFilter(ansi_strip)  # Still strip ANSI from console for cleanliness
-        logging.getLogger().addHandler(screen_handler)
+    # === CONSOLE HANDLER (Dev only) ===
+    screen_handler = logging.StreamHandler()
+    screen_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(screen_handler)
     
     # === SUPPRESS NOISY THIRD-PARTY LOGS ===
     for lib in ["requests", "PIL", "urllib3", "pychromecast", "httpcore"]:
