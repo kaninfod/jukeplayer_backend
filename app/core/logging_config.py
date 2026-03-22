@@ -59,10 +59,14 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     except Exception as e:
         logging.warning(f"Could not create log file: {e}")
 
-    # === CONSOLE HANDLER (Always) ===
-    screen_handler = logging.StreamHandler()
-    screen_handler.setFormatter(formatter)
-    logging.getLogger().addHandler(screen_handler)
+    # === CONSOLE HANDLER (Dev only - skip in Docker to avoid ANSI codes in Docker's syslog driver) ===
+    # When running in Docker, the syslog driver will capture console output with ANSI codes.
+    # To avoid this, skip console logging in Docker and rely on direct syslog handler instead.
+    if not os.getenv('DOCKER_CONTAINER'):
+        screen_handler = logging.StreamHandler()
+        screen_handler.setFormatter(formatter)
+        screen_handler.addFilter(ansi_strip)  # Still strip ANSI from console for cleanliness
+        logging.getLogger().addHandler(screen_handler)
     
     # === SUPPRESS NOISY THIRD-PARTY LOGS ===
     for lib in ["requests", "PIL", "urllib3", "pychromecast", "httpcore"]:
