@@ -5,13 +5,24 @@ window.kioskInitializeContent = function() {
             window.initPlayerStatus();
         }
 
+        const hasNfcClientSelect = !!document.getElementById('nfc-client-select-container');
+        if (hasNfcClientSelect && typeof window.initNfcClientSelect === 'function') {
+            const container = document.getElementById('nfc-client-select-container');
+            const albumId = container?.dataset?.albumId;
+            const albumName = container?.dataset?.albumName;
+            if (albumId && albumName) {
+                window.initNfcClientSelect(albumId, albumName);
+            }
+        }
+
         const hasNfc = !!document.getElementById('nfc-encoding-container');
         if (hasNfc && typeof window.initNfcEncoding === 'function') {
             const container = document.getElementById('nfc-encoding-container');
             const albumId = container?.dataset?.albumId;
             const albumName = container?.dataset?.albumName;
+            const clientId = container?.dataset?.clientId;
             if (albumId && albumName) {
-                window.initNfcEncoding(albumId, albumName);
+                window.initNfcEncoding(albumId, albumName, clientId);
             }
         }
 
@@ -167,6 +178,15 @@ window.kioskOpenNfcEncoding = function(albumId, albumName) {
     }
     const params = new URLSearchParams({ album_id: albumId, album_name: albumName });
     return window.kioskNavigate(`/kiosk/nfc?${params.toString()}`, true);
+};
+
+window.kioskOpenNfcClientSelect = function(albumId, albumName) {
+    if (!albumId || !albumName) {
+        showKioskToast('Missing NFC album data', { theme: 'error' });
+        return;
+    }
+    const params = new URLSearchParams({ album_id: albumId, album_name: albumName });
+    return window.kioskNavigate(`/kiosk/nfc-client-select?${params.toString()}`, true);
 };
 
 document.addEventListener('htmx:afterSwap', function(event) {

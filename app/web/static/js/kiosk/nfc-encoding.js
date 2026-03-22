@@ -7,15 +7,17 @@
     let pollInterval = null;
     let currentAlbumId = null;
     let currentAlbumName = null;
+    let currentClientId = null;
     let encodingComplete = false;
     let initialized = false;
     
     // Expose initNfcEncoding globally so kiosk loader can call it
-    window.initNfcEncoding = async function(albumId, albumName) {
-        console.log('[NFC] Initializing encoding component for album:', albumName, '(id:', albumId, ')');
+    window.initNfcEncoding = async function(albumId, albumName, clientId) {
+        console.log('[NFC] Initializing encoding component for album:', albumName, '(id:', albumId, ') on client:', clientId);
         
         currentAlbumId = albumId;
         currentAlbumName = albumName;
+        currentClientId = clientId;
         encodingComplete = false;
         
         // Update UI with album name
@@ -31,15 +33,29 @@
         
         // Start encoding session on backend
         try {
+            const payload = { album_id: currentAlbumId };
+            if (currentClientId) {
+                payload.client_id = currentClientId;
+            }
+            
             const startResponse = await fetch('/api/nfc-encoding/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ album_id: currentAlbumId })
+                body: JSON.stringify(payload)
             });
             
             if (!startResponse.ok) {
-                console.error('[NFC] Failed to start encoding session:', startResponse.status);
-                showFailureState('Failed to start encoding session');
+                let errorMessage = `Failed to start encoding session (${startResponse.status})`;
+                try {
+                    const errorData = await startResponse.json();
+                    if (errorData.detail) {
+                        errorMessage = errorData.detail;
+                    }
+                } catch(e) {
+                    // Ignore JSON parse errors, use default message
+                }
+                console.error('[NFC] Failed to start encoding session:', errorMessage);
+                showFailureState(errorMessage);
                 return;
             }
             

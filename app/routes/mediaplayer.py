@@ -59,8 +59,6 @@ def play_track(track_index: int = Body(..., embed=True)):
         return {"status": "success", "message": result}
     else:
         return {"status": "error", "message": f"Failed to play track at index {track_index}"}
-
-
     
 @router.post("/play_pause")
 def play_pause():

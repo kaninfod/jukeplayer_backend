@@ -73,6 +73,10 @@ def create_display_service(container):
     event_bus = container.get('event_bus')
     return DisplayService(event_bus=event_bus)
 
+def create_client_registry(container):
+    from app.services.client_registry import ClientRegistry
+    return ClientRegistry()
+
 # --- Setup function ---
 def setup_service_container():
     """Configure all services in the container"""
@@ -88,6 +92,7 @@ def setup_service_container():
     container.register_singleton('media_player_service', create_media_player_service)
     container.register_singleton('playback_service', create_playback_service)
     container.register_singleton('display_service', create_display_service)
+    container.register_singleton('client_registry', create_client_registry)
     return container
 
 # --- Global access helper ---

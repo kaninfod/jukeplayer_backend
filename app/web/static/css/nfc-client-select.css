@@ -1,0 +1,61 @@
+/* NFC Client Selection Component Styles */
+
+.nfc-client-card {
+    padding: 20px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.nfc-client-card:hover {
+    border-color: #0074d9;
+    background: #f8f9ff;
+    transform: translateX(5px);
+}
+
+.nfc-client-card.active {
+    border-color: #0074d9;
+    background: #e8f0ff;
+}
+
+.nfc-client-icon {
+    font-size: 48px;
+    color: #0074d9;
+    min-width: 48px;
+}
+
+.nfc-client-info {
+    flex: 1;
+}
+
+.nfc-client-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    margin: 0;
+}
+
+.nfc-client-type {
+    font-size: 12px;
+    color: #999;
+    margin: 5px 0 0 0;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.mdi-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

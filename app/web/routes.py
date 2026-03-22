@@ -241,8 +241,8 @@ async def kiosk_library_play_album(request: Request, album_id: str):
     )
 
 
-@router.get("/kiosk/nfc", response_class=HTMLResponse)
-async def kiosk_nfc_partial(
+@router.get("/kiosk/nfc-client-select", response_class=HTMLResponse)
+async def kiosk_nfc_client_select(
     request: Request,
     album_id: str = Query(...),
     album_name: str = Query(...),
@@ -252,6 +252,26 @@ async def kiosk_nfc_partial(
         "config": config,
         "album_id": album_id,
         "album_name": album_name,
+    }
+    if _is_htmx_request(request):
+        return templates.TemplateResponse("components/kiosk/_nfc_client_select.html", context)
+    context["kiosk_mode"] = True
+    return templates.TemplateResponse("pages/kiosk/nfc.html", context)
+
+
+@router.get("/kiosk/nfc", response_class=HTMLResponse)
+async def kiosk_nfc_partial(
+    request: Request,
+    album_id: str = Query(...),
+    album_name: str = Query(...),
+    client_id: str = Query(None),
+):
+    context = {
+        "request": request,
+        "config": config,
+        "album_id": album_id,
+        "album_name": album_name,
+        "client_id": client_id,
     }
     if _is_htmx_request(request):
         return templates.TemplateResponse("components/kiosk/_nfc_encoding.html", context)

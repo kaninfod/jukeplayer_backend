@@ -1,0 +1,43 @@
+<!-- Kiosk NFC Client Selection Component -->
+<div id="nfc-client-select-container"
+    class="kiosk-component-container d-flex flex-column align-items-center justify-content-center position-relative"
+    data-album-id="{{ album_id|default('', true) }}"
+    data-album-name="{{ album_name|default('', true) }}"
+    style="height: 100%; padding: 40px 20px;">
+    
+    <!-- Header -->
+    <h3 class="kiosk-artist mb-4">
+        <i class="mdi mdi-nfc-variant"></i> Select NFC Encoder
+    </h3>
+    
+    <!-- Album being encoded -->
+    <div id="nfc-album-name" class="kiosk-title mb-4" style="text-align: center;">
+        Album: <strong>Loading...</strong>
+    </div>
+    
+    <!-- Client selection list -->
+    <div id="nfc-clients-list" class="flex-grow-1 d-flex flex-column" style="width: 100%; gap: 15px; overflow-y: auto; max-height: calc(558px - 200px);">
+        <!-- Clients will be loaded here -->
+        <div class="text-center text-muted" style="margin-top: 40px;">
+            <i class="mdi mdi-loading mdi-spin" style="font-size: 48px; margin-bottom: 20px;"></i>
+            <p>Loading available NFC clients...</p>
+        </div>
+    </div>
+    
+    <!-- Error state -->
+    <div id="nfc-error-state" class="flex-grow-1 d-flex flex-column align-items-center justify-content-center" style="display: none; width: 100%;">
+        <div style="font-size: 80px; margin-bottom: 20px; color: #dc3545;">
+            <i class="mdi mdi-alert-circle"></i>
+        </div>
+        <p style="font-size: 20px; color: #dc3545; margin: 0; font-weight: bold;">No NFC Clients Available</p>
+        <p id="nfc-error-message" style="font-size: 14px; color: #666; margin-top: 10px; text-align: center;">Please ensure at least one device with NFC capability is connected</p>
+    </div>
+    
+    <!-- Control buttons at bottom right -->
+    <div style="position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px;">
+        <!-- Return to Library button -->
+        <button id="nfc-cancel-btn" class="btn btn-outline-secondary" onclick="window.kioskOpenLibrary()">
+            <i class="mdi mdi-arrow-left"></i> Back
+        </button>
+    </div>
+</div>

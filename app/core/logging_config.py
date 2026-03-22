@@ -44,8 +44,13 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     logging.getLogger().addHandler(screen_handler)
     
     # === SUPPRESS NOISY THIRD-PARTY LOGS ===
-    for lib in ["requests", "PIL", "urllib3", "websockets", "pychromecast", "httpcore"]:
+    for lib in ["requests", "PIL", "urllib3", "pychromecast", "httpcore"]:
         logging.getLogger(lib).setLevel(logging.WARNING)
+    
+    # Suppress websockets, starlette, and uvicorn debug logs (PING/PONG frames are very noisy)
+    for lib in ["websockets", "websockets.protocol", "websockets.frames", "websockets.client", 
+                "websockets.server", "starlette", "uvicorn", "uvicorn.protocols"]:
+        logging.getLogger(lib).setLevel(logging.ERROR)
 
 
 

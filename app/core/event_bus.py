@@ -15,8 +15,13 @@ class EventBus:
         self._lock = threading.Lock()
 
     def subscribe(self, event_type, handler):
-        logger.info(f"Subscribing handler {handler.__name__} to event type {event_type}")
-        self._handlers[event_type].append(handler)
+        with self._lock:
+            # Prevent duplicate subscriptions
+            if handler not in self._handlers[event_type]:
+                logger.info(f"Subscribing handler {handler.__name__} to event type {event_type}")
+                self._handlers[event_type].append(handler)
+            else:
+                logger.debug(f"Handler {handler.__name__} already subscribed to {event_type} - skipping duplicate")
 
     def unsubscribe(self, event_type, handler):
         handlers = self._handlers.get(event_type, [])
