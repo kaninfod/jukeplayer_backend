@@ -2,6 +2,10 @@
 
 Sends real-time updates for track changes, volume changes, and notifications.
 Clients are responsible for detecting connection loss and reconnecting.
+
+Events are dispatched centrally via event_bus to all connected clients,
+preventing the handler duplication that would occur if each connection
+registered its own event handlers.
 """
 
 import asyncio
@@ -9,7 +13,6 @@ import json
 import logging
 import time
 from fastapi import WebSocket, WebSocketDisconnect
-from app.core import event_bus, EventType
 from app.core.service_container import get_service
 
 logger = logging.getLogger(__name__)
@@ -19,10 +22,12 @@ class WebSocketConnection:
     """Manages a single WebSocket connection to a client.
     
     Handles:
-    - Per-connection event subscriptions
-    - Client registration and lifecycle
-    - Message routing and heartbeat
+    - Per-connection message routing and heartbeat
+    - Client registration via client_registry
     - Graceful shutdown and cleanup
+    
+    Note: Event subscriptions are now managed centrally by the event_bus,
+    not per-connection. This prevents handler duplication.
     """
     
     def __init__(self, websocket: WebSocket, client_ip: str, client_port, 
@@ -34,94 +39,62 @@ class WebSocketConnection:
         self.client_id = client_id
         self.get_data_fn = get_data_fn
         
+        # Extract session token from query parameters (for web clients)
+        self.session_token = websocket.query_params.get("session_token")
+        
         # Connection state
         self.connection_start = time.time()
         self.handler_active = {"active": True}
-        self.handlers_subscribed = False
         self.registered_client_id = None
         
         # Async coordination
-        self.q = asyncio.Queue()
         self.loop = asyncio.get_event_loop()
         self.ws_lock = asyncio.Lock()
         
         # Tasks
         self.heartbeat_task = None
         self.receive_task = None
-        
-        # Event handlers
-        self.handlers = {}
     
     async def setup(self):
-        """Initialize handlers and subscribe to events."""
-        self.handlers = self._make_handlers()
-        
-        # Subscribe all handlers to event bus
-        for evt_type, h in self.handlers.items():
-            event_bus.subscribe(evt_type, h)
-        self.handlers_subscribed = True
-        
+        """Initialize connection and auto-register web clients."""
         logger.info(
             f"WebSocket connection accepted | "
             f"Client IP: {self.client_ip}:{self.client_port} | "
-            f"Client ID: {self.client_id} | "
+            f"Session Token: {self.session_token[:8] if self.session_token else 'None'}... | "
             f"User-Agent: {self.user_agent}"
         )
-    
-    def _make_handlers(self):
-        """Create per-connection event handlers.
         
-        Returns:
-            Dict mapping EventType to handler functions
-        """
-        def _push_message(message):
-            """Push a message to the queue if handler is still active."""
-            if self.handler_active.get("active"):
-                try:
-                    asyncio.run_coroutine_threadsafe(self.q.put(message), self.loop)
-                except Exception as e:
-                    logger.error(f"Failed to queue message: {e}")
-        
-        def track_handler(event):
-            """Handle track change events."""
+        # Only auto-register web browsers with session tokens
+        # Hardware clients and other integrations must send explicit register_client messages
+        if self.session_token:
             try:
-                payload = self.get_data_fn()
-                message = {"type": "current_track", "payload": payload}
-                _push_message(message)
+                client_registry = get_service("client_registry")
+                client_info = client_registry.register(
+                    client_type="web",
+                    user_name=self.client_id,
+                    capabilities=["websocket_status"],
+                    client_ip=self.client_ip,
+                    websocket=self.websocket,
+                    send_callback=self.send_message,
+                    session_token=self.session_token
+                )
+                self.registered_client_id = client_info.client_id
+                logger.info(f"Web client auto-registered with ID: {self.registered_client_id}")
             except Exception as e:
-                logger.error(f"Error in track handler: {e}")
-                _push_message({"type": "error", "payload": {"message": str(e)}})
-        
-        def volume_handler(event):
-            """Handle volume change events."""
-            try:
-                payload = self.get_data_fn()
-                message = {"type": "volume_changed", "payload": payload}
-                _push_message(message)
-            except Exception as e:
-                logger.error(f"Error in volume handler: {e}")
-                _push_message({"type": "error", "payload": {"message": str(e)}})
-        
-        def notification_handler(event):
-            """Handle notification events."""
-            try:
-                payload = event.payload if event else {}
-                message = {"type": "notification", "payload": payload}
-                _push_message(message)
-            except Exception as e:
-                logger.error(f"Error in notification handler: {e}")
-                _push_message({"type": "error", "payload": {"message": str(e)}})
-        
-        return {
-            EventType.TRACK_CHANGED: track_handler,
-            EventType.VOLUME_CHANGED: volume_handler,
-            EventType.NOTIFICATION: notification_handler,
-        }
+                logger.error(f"Error auto-registering web client: {e}")
+        else:
+            logger.debug(
+                f"No session token provided. Waiting for explicit register_client message. "
+                f"(Hardware clients and integrations must register themselves)"
+            )
     
     async def send_ping(self):
         """Send a single heartbeat ping."""
         async with self.ws_lock:
-            await self.websocket.send_json({"type": "ping", "payload": {}})
+            try:
+                await self.websocket.send_json({"type": "ping", "payload": {}})
+            except Exception:
+                pass  # Ignore ping send errors
     
     async def start_heartbeat(self):
         """Start periodic heartbeat task."""
@@ -177,12 +150,16 @@ class WebSocketConnection:
                 })
                 return
             
+            # Create send callback for this connection
+            send_callback = self.send_message
+            
             client_info = client_registry.register(
                 client_type=client_type,
                 user_name=client_name,
                 capabilities=capabilities,
                 client_ip=self.client_ip,
-                websocket=self.websocket
+                websocket=self.websocket,
+                send_callback=send_callback
             )
             self.registered_client_id = client_info.client_id
             
@@ -279,11 +256,9 @@ class WebSocketConnection:
     async def cleanup(self):
         """Cleanup all resources in the correct order."""
         # FIRST: Stop the handler from accepting new events
-        # This prevents _push_message from queuing more data while we're shutting down
         self.handler_active["active"] = False
         
         # SECOND: Cancel all background tasks
-        # This stops receive loop and heartbeat immediately
         if self.heartbeat_task and not self.heartbeat_task.done():
             self.heartbeat_task.cancel()
             try:
@@ -298,17 +273,8 @@ class WebSocketConnection:
             except asyncio.CancelledError:
                 pass
         
-        # THIRD: Cleanup event handlers from event_bus
-        # Now that tasks are stopped, unsubscribe handlers
-        if self.handlers_subscribed:
-            for evt_type, h in self.handlers.items():
-                try:
-                    event_bus.unsubscribe(evt_type, h)
-                except Exception as e:
-                    logger.debug(f"Failed to unsubscribe handler for {evt_type}: {e}")
-            self.handlers_subscribed = False
-        
-        # FOURTH: Unregister client from registry
+        # THIRD: Unregister client from registry
+        # This will stop event_bus from sending messages to this client
         if self.registered_client_id:
             try:
                 client_registry = get_service("client_registry")
@@ -320,21 +286,17 @@ class WebSocketConnection:
         """Main connection handler loop."""
         try:
             # Send initial state on connection
-            if EventType.TRACK_CHANGED in self.handlers:
-                self.handlers[EventType.TRACK_CHANGED](None)
+            try:
+                payload = self.get_data_fn()
+                message = {"type": "current_track", "payload": payload}
+                await self.send_message(message)
+            except Exception as e:
+                logger.error(f"Error sending initial state: {e}")
 
-            # Wait for messages and send them as they arrive
-            # No timeout - connection stays open indefinitely
-            # Server only sends messages when events occur
-            while True:
-                message = await self.q.get()
-                
-                # Check if handler is still active before sending
-                if not self.handler_active.get("active"):
-                    break
-                
-                if not await self.send_message(message):
-                    break
+            # Keep connection alive - messages will be delivered by event dispatcher
+            # Client disconnect is handled by FastAPI's WebSocketDisconnect exception
+            while self.handler_active.get("active"):
+                await asyncio.sleep(1)
         
         except WebSocketDisconnect:
             self._log_disconnection("disconnected")
@@ -374,6 +336,8 @@ async def websocket_status_handler(websocket: WebSocket, get_data_fn):
     
     Clients are responsible for detecting connection loss and reconnecting.
     Server sends periodic pings to prevent idle timeout by routers/proxies.
+    
+    Events are dispatched centrally, not per-connection, to avoid handler duplication.
     
     Args:
         websocket: FastAPI WebSocket connection

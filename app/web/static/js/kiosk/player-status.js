@@ -236,6 +236,27 @@ window.refreshKioskStatus = async function() {
     const maxReconnectDelay = 30000; // Cap at 30 seconds
     let wsReconnectTimer = null;
     
+    // Generate or retrieve unique session token for this browser tab
+    function getOrCreateSessionToken() {
+        const STORAGE_KEY = 'jukeplayer_session_token';
+        let token = sessionStorage.getItem(STORAGE_KEY);
+        if (!token) {
+            // Generate new token using UUID v4
+            token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+            sessionStorage.setItem(STORAGE_KEY, token);
+            const tokenTimestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+            console.log(`[${tokenTimestamp}] SESSION: Generated new session token: ${token}`);
+        } else {
+            const tokenTimestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+            console.log(`[${tokenTimestamp}] SESSION: Retrieved existing session token: ${token}`);
+        }
+        return token;
+    }
+    
     // Expose initPlayerStatus globally so kiosk loader can call it
     window.initPlayerStatus = async function() {
         const funcTimestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
@@ -269,7 +290,8 @@ window.refreshKioskStatus = async function() {
     // Connect to WebSocket with reconnection logic
     function connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/status`;
+        const sessionToken = getOrCreateSessionToken();
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/status?session_token=${encodeURIComponent(sessionToken)}`;
         const connTimestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
         console.log(`[${connTimestamp}] WS: Creating WebSocket connection to: ${wsUrl}`);
         

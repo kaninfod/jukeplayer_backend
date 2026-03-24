@@ -112,7 +112,7 @@ else:
     logger.warning(f"Web static directory not found: {web_static_dir}")
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     """Initialize all systems using the service container"""
     # Step 0: Validate configuration
     if not config.validate_config():
@@ -123,6 +123,18 @@ def startup_event():
     global_container = setup_service_container()
     # Step 2: Resolve all main services
     playback_service = global_container.get('playback_service')
+    
+    # Step 3: Setup WebSocket event dispatcher with the current event loop
+    from app.websocket.event_dispatcher import setup_websocket_dispatcher
+    from app.routes.mediaplayer import _get_data_for_current_track, _get_minimal_data_for_current_track
+    import asyncio
+    current_loop = asyncio.get_running_loop()
+    # Use the full data fetcher for now (can extend to support minimal in future)
+    setup_websocket_dispatcher(
+        track_fetcher=_get_data_for_current_track,
+        volume_fetcher=_get_data_for_current_track,
+        event_loop=current_loop
+    )
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")

@@ -37,10 +37,11 @@ class EventBus:
 
         handlers = self._handlers.get(event.type, [])
         if not handlers:
-            logger.warning(f"No handlers registered for event type: {event.type}")
+            logger.debug(f"No handlers registered for event type: {event.type}")
         else:
+            logger.info(f"Broadcasting event {event.type} to {len(handlers)} handler(s)")
             for handler in handlers:
-                logger.info(f"Calling handler {handler.__name__} for event type {event.type}")
+                logger.debug(f"Calling handler {handler.__name__} for event type {event.type}")
                 try:
                     result = handler(event)
                     results.append(result)
