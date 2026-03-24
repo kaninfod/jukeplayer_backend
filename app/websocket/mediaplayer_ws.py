@@ -294,9 +294,22 @@ class WebSocketConnection:
                 logger.error(f"Error sending initial state: {e}")
 
             # Keep connection alive - messages will be delivered by event dispatcher
-            # Client disconnect is handled by FastAPI's WebSocketDisconnect exception
+            # Monitor receive_task for disconnection
             while self.handler_active.get("active"):
-                await asyncio.sleep(1)
+                # Check if receive_task has completed (means connection closed)
+                if self.receive_task and self.receive_task.done():
+                    # Connection closed, exit handler
+                    try:
+                        # Get any exception from receive_task
+                        self.receive_task.result()
+                    except asyncio.CancelledError:
+                        self._log_disconnection("receive task cancelled")
+                    except Exception as e:
+                        logger.debug(f"Receive task completed with error: {e}")
+                    break
+                
+                # Sleep briefly and loop back to check receive_task
+                await asyncio.sleep(0.5)
         
         except WebSocketDisconnect:
             self._log_disconnection("disconnected")
