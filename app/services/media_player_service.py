@@ -3,8 +3,8 @@ from importlib.metadata import metadata
 import time
 import logging
 from typing import List, Dict, Optional
-from app.services.playback_backend_factory import get_playback_backend
-from app.services.playback_backend_factory import get_playback_backend_by_name
+from app.playback_backends.factory import get_playback_backend
+from app.playback_backends.factory import get_playback_backend_by_name
 from app.core import EventType, Event
 from app.core import PlayerStatus
 
@@ -24,6 +24,7 @@ class MediaPlayerService:
         self.playlist = playlist
         self.current_index = 0
         self.status = PlayerStatus.STOP
+        self.active_client = None
         
         self.event_bus = event_bus
         if playback_backend:
@@ -34,7 +35,12 @@ class MediaPlayerService:
         self._repeat_album = False            
         self.current_volume = 25
         self.track_timer = TrackTimer()
-        self.sync_volume_from_backend()
+        try:
+            import asyncio
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.sync_volume_from_backend())
+        except RuntimeError:
+            asyncio.run(self.sync_volume_from_backend())
         
         logger.info(
             "MediaPlayerService initialized with playback backend=%s, device=%s",
@@ -110,9 +116,9 @@ class MediaPlayerService:
         """Return whether repeat album is enabled."""
         return self._repeat_album
 
-    def sync_volume_from_backend(self):
+    async def sync_volume_from_backend(self):
         """Sync volume from active playback backend (0.0-1.0) to 0-100 scale."""
-        backend_volume = self.playback_backend.get_volume()
+        backend_volume = await self.playback_backend.get_volume()
         logger.debug(f"[sync_volume_from_backend] volume from backend: {backend_volume}")
         
         value = int(backend_volume * 100) if backend_volume is not None else self.current_volume
@@ -124,31 +130,31 @@ class MediaPlayerService:
         ))
         return self.current_volume
 
-    def toggle_repeat_album(self, event=None):
+    async def toggle_repeat_album(self, event=None):
         """Toggle repeat album setting."""
         self._repeat_album = not self._repeat_album
         logger.info(f"Repeat album set to: {self._repeat_album}")
         self.emit_update()
         return self._repeat_album
 
-    def play(self, event=None):
+    async def play(self, event=None):
         """Start playback of the current track (cast and set state)."""
 
         if self.status == PlayerStatus.PLAY:
             self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
-            self.playback_backend.pause()
+            await self.playback_backend.pause()
             status = self.status
         elif self.status == PlayerStatus.PAUSE:
             self.track_timer.resume()
             self.status = PlayerStatus.PLAY
-            self.playback_backend.resume()
+            await self.playback_backend.resume()
             status = self.status
         elif self.status == PlayerStatus.STOP:
             if len(self.playlist) > 0:
                 self.current_index = 0  # Reset to start if at end of playlist
                 self.status = PlayerStatus.PLAY
-                self.play_current_track()
+                await self.play_current_track()
                 status = self.status
             else:
                 logging.warning("No playlist loaded.")
@@ -159,22 +165,22 @@ class MediaPlayerService:
         return status
 
 
-    def play_pause(self, event=None):
+    async def play_pause(self, event=None):
         # Toggle pause/resume timer based on current status
         if self.status == PlayerStatus.PLAY:
             self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
-            self.playback_backend.pause()
+            await self.playback_backend.pause()
         elif self.status == PlayerStatus.PAUSE:
             self.track_timer.resume()
             self.status = PlayerStatus.PLAY
-            self.playback_backend.resume()
+            await self.playback_backend.resume()
 
         self.emit_update()
         return True
 
-    def stop(self, event=None):
-        self.playback_backend.stop()
+    async def stop(self, event=None):
+        await self.playback_backend.stop()
         self.status = PlayerStatus.STOP
         self.current_index = 0  # Reset to start of playlist
         self.track_timer.reset()
@@ -183,27 +189,27 @@ class MediaPlayerService:
         self.emit_update()                
         return True
 
-    def previous_track(self, event=None):
+    async def previous_track(self, event=None):
         if self.current_index > 0:
             self.current_index -= 1
-            self.play_current_track()
+            await self.play_current_track()
             return True
 
-    def next_track(self, event=None, force=False):
+    async def next_track(self, event=None, force=False):
         if self.current_index < len(self.playlist) - 1:
             self.current_index += 1
-            self.play_current_track()
+            await self.play_current_track()
             return True
         elif self.repeat_album:
             self.current_index = 0
-            self.play_current_track()
+            await self.play_current_track()
             return True
         else:
-            self.stop()
+            await self.stop()
             #self.playlist = []  # Clear playlist at end
             return False
 
-    def play_track(self, event=None):
+    async def play_track(self, event=None):
         """Play a specific track by index from the event payload."""
         if event is None or not hasattr(event, "payload"):
             logger.error("play_track called without valid event payload.")
@@ -216,13 +222,13 @@ class MediaPlayerService:
         
         if 0 <= track_index < len(self.playlist):
             self.current_index = track_index
-            self.play_current_track()
+            await self.play_current_track()
             return track_index
         else:
             logger.error(f"play_track: track_index {track_index} out of bounds (playlist size: {len(self.playlist)})")
             return False
 
-    def set_volume(self, volume=None, event=None):
+    async def set_volume(self, volume=None, event=None):
         """Set volume (0-100) and sync with playback backend.
 
         Supports two invocation styles:
@@ -249,7 +255,7 @@ class MediaPlayerService:
         normalized_volume = self.current_volume / 100.0 if self.current_volume is not None else None
 
         if normalized_volume is not None:
-            self.playback_backend.set_volume(normalized_volume)
+            await self.playback_backend.set_volume(normalized_volume)
 
         logger.debug(f"[set_volume] current_volume set to: {self.current_volume}")
         self.event_bus.emit(Event(
@@ -259,27 +265,27 @@ class MediaPlayerService:
         
         return normalized_volume
 
-    def volume_up(self, event=None):
-        self.set_volume(self.current_volume + 5)
+    async def volume_up(self, event=None):
+        await self.set_volume(self.current_volume + 5)
         return True
 
 
-    def volume_down(self, event=None):
-        self.set_volume(self.current_volume - 5)
+    async def volume_down(self, event=None):
+        await self.set_volume(self.current_volume - 5)
         return True
 
-    def volume_mute(self, event=None):
+    async def volume_mute(self, event=None):
         """Toggle mute on the active playback backend."""
         try:
             # Get current mute state
-            current_muted = self.playback_backend.get_volume_muted()
+            current_muted = await self.playback_backend.get_volume_muted()
             if current_muted is None:
                 logger.error("Failed to get current mute state")
                 return {"success": False, "muted": None}
             
             # Toggle mute
             new_muted = not current_muted
-            success = self.playback_backend.set_volume_muted(new_muted)
+            success = await self.playback_backend.set_volume_muted(new_muted)
             
             if success:
                 logger.info(f"Volume {'muted' if new_muted else 'unmuted'}")
@@ -294,11 +300,11 @@ class MediaPlayerService:
             logger.error(f"Failed to toggle mute: {e}")
             return {"success": False, "muted": None}
 
-    def play_current_track(self):
+    async def play_current_track(self):
         track = self.playlist[self.current_index]
-        self.sync_volume_from_backend()
+        await self.sync_volume_from_backend()
         if track['stream_url']:
-            played_ok = self.playback_backend.play_media(
+            played_ok = await self.playback_backend.play_media(
                 track['stream_url'], 
                 media_info={
                     "title": track.get("title"),
@@ -379,6 +385,7 @@ class MediaPlayerService:
         ))
     
     def get_context(self):
+        from app.config import config
         return {
             "current_track": {
                 "artist": self.artist,
@@ -397,7 +404,9 @@ class MediaPlayerService:
             "playlist": self.playlist,
             "volume": self.volume,
             "elapsed_time": self.track_timer.get_elapsed(),
-            "output_device": self.playback_backend.device_name
+            "output_device": self.playback_backend.device_name,
+            "active_client": getattr(self, 'active_client', None),
+            "playback_backend": config.PLAYBACK_BACKEND
         }
 
     def get_status(self) -> Dict:
@@ -411,14 +420,14 @@ class MediaPlayerService:
         # Use injected event_bus instead of importing
         self.event_bus.emit(Event(type=event_type, payload=data))
 
-    def cleanup(self):
+    async def cleanup(self):
         logger.info("MediaPlayerService cleanup called")
         try:
-            self.playback_backend.cleanup()
+            await self.playback_backend.cleanup()
         except Exception:
             pass
 
-    def switch_playback_backend(self, backend: str, device_name: Optional[str] = None) -> Dict:
+    async def switch_playback_backend(self, backend: str, device_name: Optional[str] = None) -> Dict:
         previous_backend = self.playback_backend
         previous_backend_name = type(previous_backend).__name__
         previous_device = getattr(previous_backend, "device_name", None)
@@ -470,7 +479,7 @@ class MediaPlayerService:
         # Same-backend Chromecast device switch must reconnect immediately.
         if target_backend == "chromecast" and is_current_chromecast and requested_device and requested_device != previous_device:
             if hasattr(previous_backend, "switch_and_resume_playback"):
-                result = previous_backend.switch_and_resume_playback(requested_device)
+                result = await previous_backend.switch_and_resume_playback(requested_device)
                 if result.get("status") == "switched":
                     self.emit_update()
                     return {
@@ -517,19 +526,19 @@ class MediaPlayerService:
             self.playback_backend = new_backend
 
             backend_volume = self.current_volume / 100.0
-            self.playback_backend.set_volume(backend_volume)
+            await self.playback_backend.set_volume(backend_volume)
 
             if previous_muted_state is not None:
-                self.playback_backend.set_volume_muted(bool(previous_muted_state))
+                await self.playback_backend.set_volume_muted(bool(previous_muted_state))
 
             resumed = False
             if self.playlist and 0 <= self.current_index < len(self.playlist):
                 if previous_status == PlayerStatus.PLAY:
-                    self.play_current_track()
+                    await self.play_current_track()
                     resumed = self.status == PlayerStatus.PLAY
                 elif previous_status == PlayerStatus.PAUSE:
-                    self.play_current_track()
-                    self.playback_backend.pause()
+                    await self.play_current_track()
+                    await self.playback_backend.pause()
                     self.track_timer.pause()
                     self.status = PlayerStatus.PAUSE
                     self.emit_update()
@@ -552,11 +561,11 @@ class MediaPlayerService:
             rollback_applied = False
             try:
                 if previous_status == PlayerStatus.PLAY and self.playlist and 0 <= self.current_index < len(self.playlist):
-                    self.play_current_track()
+                    await self.play_current_track()
                     rollback_applied = self.status == PlayerStatus.PLAY
                 elif previous_status == PlayerStatus.PAUSE and self.playlist and 0 <= self.current_index < len(self.playlist):
-                    self.play_current_track()
-                    self.playback_backend.pause()
+                    await self.play_current_track()
+                    await self.playback_backend.pause()
                     self.track_timer.pause()
                     self.status = PlayerStatus.PAUSE
                     self.emit_update()

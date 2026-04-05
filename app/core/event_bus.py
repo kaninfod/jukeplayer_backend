@@ -1,5 +1,7 @@
 import threading
 import logging
+import asyncio
+import inspect
 from collections import defaultdict
 
 logger = logging.getLogger("core.event_bus")
@@ -32,6 +34,26 @@ class EventBus:
         except ValueError:
             return False
 
+    async def aemit(self, event: Event):
+        '''Async version of emit. Use this inside async functions.'''
+        results = []
+        handlers = self._handlers.get(event.type, [])
+        if not handlers:
+            logger.debug(f"No handlers registered for event type: {event.type}")
+        else:
+            logger.info(f"Broadcasting event {event.type} to {len(handlers)} handler(s) [async]")
+            for handler in handlers:
+                logger.debug(f"Calling handler {handler.__name__} for event type {event.type}")
+                try:
+                    if inspect.iscoroutinefunction(handler):
+                        result = await handler(event)
+                    else:
+                        result = handler(event)
+                    results.append(result)
+                except Exception as e:
+                    logger.error(f"Handler {handler.__name__} failed for event type {event.type}: {e}", exc_info=True)
+        return results
+
     def emit(self, event: Event):
         results = []
 
@@ -43,10 +65,22 @@ class EventBus:
             for handler in handlers:
                 logger.debug(f"Calling handler {handler.__name__} for event type {event.type}")
                 try:
-                    result = handler(event)
-                    results.append(result)
+                    if inspect.iscoroutinefunction(handler):
+                        try:
+                            # If we are already running inside an event loop (e.g. async def context)
+                            loop = asyncio.get_running_loop()
+                            logger.info(f"Scheduling async handler {handler.__name__} as background task in existing loop")
+                            loop.create_task(handler(event))
+                            results.append(True)
+                        except RuntimeError:
+                            # Not in a loop (e.g. FastAPI worker thread, normal def)
+                            result = asyncio.run(handler(event))
+                            results.append(result)
+                    else:
+                        result = handler(event)
+                        results.append(result)
                 except Exception as e:
-                    logger.error(f"Handler {handler.__name__} failed for event type {event.type}: {e}")
+                    logger.error(f"Handler {handler.__name__} failed for event type {event.type}: {e}", exc_info=True)
         return results
 
 # Singleton instance for the app

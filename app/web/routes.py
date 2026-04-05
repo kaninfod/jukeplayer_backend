@@ -36,16 +36,16 @@ def _filter_artists_by_group(group_name: str, artists: list) -> list:
     return filtered_artists
 
 
-def _get_output_status_data() -> dict:
+async def _get_output_status_data() -> dict:
     from app.core.service_container import get_service
     from app.routes.output import _backend_key
-    from app.services.playback_backend_factory import get_available_output_devices
+    from app.playback_backends.factory import get_available_output_devices
 
     player = get_service("media_player_service")
     backend = getattr(player, "playback_backend", None)
     devices = get_available_output_devices()
 
-    backend_status = backend.get_status() if hasattr(backend, "get_status") else None
+    backend_status = await backend.get_status() if hasattr(backend, "get_status") else None
     readiness = (
         backend.get_output_readiness()
         if hasattr(backend, "get_output_readiness")
@@ -123,7 +123,7 @@ async def kiosk_devices_partial(request: Request):
     context = {
         "request": request,
         "config": config,
-        "status_data": _get_output_status_data(),
+        "status_data": await _get_output_status_data(),
     }
     if _is_htmx_request(request):
         return templates.TemplateResponse("components/kiosk/_device_selector.html", context)
@@ -226,7 +226,7 @@ async def kiosk_library_partial(
 @router.post("/kiosk/library/play/{album_id}", response_class=HTMLResponse)
 async def kiosk_library_play_album(request: Request, album_id: str):
     playback_service = get_service("playback_service")
-    ok = playback_service.load_from_album_id(album_id)
+    ok = await playback_service.load_from_album_id(album_id)
     if not ok:
         raise HTTPException(status_code=400, detail=f"Failed to load album {album_id}")
 

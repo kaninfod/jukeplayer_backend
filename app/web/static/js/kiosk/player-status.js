@@ -211,7 +211,7 @@ window.refreshKioskStatus = async function() {
  * Displays current track information, album art, and volume
  * 
  * WebSocket spec:
- * - Connects to /ws/mediaplayer/status
+ * - Connects to /ws/mediaplayer/events?detail=full with session_token
  * - Receives messages: current_track, volume_changed, notification
  * - Handles reconnection via exponential backoff
  */
@@ -291,7 +291,7 @@ window.refreshKioskStatus = async function() {
     function connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const sessionToken = getOrCreateSessionToken();
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/status?session_token=${encodeURIComponent(sessionToken)}`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${encodeURIComponent(sessionToken)}`;
         const connTimestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
         console.log(`[${connTimestamp}] WS: Creating WebSocket connection to: ${wsUrl}`);
         

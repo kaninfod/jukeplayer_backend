@@ -22,10 +22,10 @@ from app.routes.subsonic import router as subsonic_router
 #from app.routes.chromecast import router as chromecast_router
 from app.routes.output import router as output_router
 from app.routes.nfc_encoding import router as nfc_encoding_router
-from app.routes.display import router as display_router
+
 
 # Import services to ensure event subscriptions are active
-from app.services import system_service  # Ensures SystemService event handlers are registered
+
 from app.web.routes import router as web_router
 
 import logging, os
@@ -95,7 +95,6 @@ def global_exception_handler(request: Request, exc: Exception):
 # Include routers
 # app.include_router(album_router)
 app.include_router(mediaplayer_router)
-app.include_router(display_router)
 app.include_router(system_router)
 app.include_router(subsonic_router)
 # app.include_router(chromecast_router)
@@ -147,8 +146,3 @@ async def startup_event():
 def shutdown_event():
     """Clean up resources on shutdown"""
     logging.info("Jukebox FastAPI app shutdown complete")
-
-
-# @app.get("/")
-# def read_root():
-#     return {"message": "Hello from FastAPI and Jukebox!"}

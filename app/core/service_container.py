@@ -54,7 +54,7 @@ def create_subsonic_service(container):
 
 def create_media_player_service(container):
     from app.services.media_player_service import MediaPlayerService
-    from app.services.playback_backend_factory import get_playback_backend
+    from app.playback_backends.factory import get_playback_backend
     event_bus = container.get('event_bus')
     return MediaPlayerService([], event_bus, playback_backend=get_playback_backend())
 
@@ -67,11 +67,6 @@ def create_playback_service(container):
         subsonic_service=container.get('subsonic_service'),
         event_bus=container.get('event_bus')
     )
-
-def create_display_service(container):
-    from app.services.display_service import DisplayService
-    event_bus = container.get('event_bus')
-    return DisplayService(event_bus=event_bus)
 
 def create_client_registry(container):
     from app.services.client_registry import ClientRegistry
@@ -91,7 +86,7 @@ def setup_service_container():
     # Register media player service as singleton
     container.register_singleton('media_player_service', create_media_player_service)
     container.register_singleton('playback_service', create_playback_service)
-    container.register_singleton('display_service', create_display_service)
+
     container.register_singleton('client_registry', create_client_registry)
     return container
 

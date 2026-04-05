@@ -41,9 +41,9 @@ def output_options():
 
 
 @router.get("/status")
-def output_status():
+async def output_status():
     from app.core.service_container import get_service
-    from app.services.playback_backend_factory import get_available_output_devices
+    from app.playback_backends.factory import get_available_output_devices
 
 
     player = get_service("media_player_service")
@@ -53,7 +53,7 @@ def output_status():
     if not backend and devices:
         return {"status": "error", "message": "No active playback backend"}
 
-    backend_status = backend.get_status() if hasattr(backend, "get_status") else None
+    backend_status = await backend.get_status() if hasattr(backend, "get_status") else None
     readiness = (
         backend.get_output_readiness()
         if hasattr(backend, "get_output_readiness")
@@ -105,14 +105,14 @@ def output_devices():
     Returns all available output devices (Chromecast and MPV/Bluetooth) as a JSON list.
     Each device: {"backend": ..., "device": ..., "name": ...}
     """
-    from app.services.playback_backend_factory import get_available_output_devices
+    from app.playback_backends.factory import get_available_output_devices
     return {
         "status": "ok",
         "devices": get_available_output_devices()
     }
 
 @router.post("/switch")
-def output_switch(request: OutputSwitchRequest):
+async def output_switch(request: OutputSwitchRequest):
     from app.core.service_container import get_service
 
     player = get_service("media_player_service")
@@ -125,7 +125,7 @@ def output_switch(request: OutputSwitchRequest):
         request.device_name,
     )
 
-    result = player.switch_playback_backend(request.backend, device_name=request.device_name)
+    result = await player.switch_playback_backend(request.backend, device_name=request.device_name)
 
     if result.get("status") != "ok":
         return result

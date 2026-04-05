@@ -37,6 +37,7 @@ class PlaybackService:
     def _setup_event_subscriptions(self):
         """Setup all event subscriptions using injected event_bus"""
         self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
+        self.event_bus.subscribe(EventType.PLAY_ALBUM, self.load_album)
         self.event_bus.subscribe(EventType.ENCODE_CARD, self._encode_card)
         self.event_bus.subscribe(EventType.TOGGLE_REPEAT_ALBUM, self.player.toggle_repeat_album)
         self.event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
@@ -69,7 +70,7 @@ class PlaybackService:
         else:
             return None
 
-    def load_from_album_id(self, album_id, start_track_index=0):
+    async def load_from_album_id(self, album_id, start_track_index=0):
         """
         Load and start playback from an album_id using SubsonicService only.
         Args:
@@ -115,7 +116,7 @@ class PlaybackService:
             self.player.playlist = playlist_metadata
             self.player.current_index = start_track_index
             self.player._repeat_album = False
-            self.player.play_current_track()
+            await self.player.play_current_track()
             self.event_bus.emit(
                 EventFactory.notification({"message": f"Playing {album_info.get('name', '')}"})
             )
@@ -125,11 +126,15 @@ class PlaybackService:
             logger.error(f"Failed to load album_id {album_id} (start_track_index={start_track_index}): {e}")
             return False
 
-    def load_rfid(self, event: Event) -> bool:
+    async def load_rfid(self, event: Event) -> bool:
         """Orchestrate the full playback pipeline from RFID scan using new album DB and SubsonicService, or perform NFC encoding if active."""
-        rfid = event.payload['rfid']
-        album_id = event.payload['album_id']
-        logger.info(f"RFID Card scanned with RFID: {rfid} and album_id: {album_id} ")
+        rfid = event.payload.get('rfid')
+        album_id = event.payload.get('album_id')
+        client_id = event.payload.get('client_id')
+        logger.info(f"RFID Card scanned with RFID: {rfid} and album_id: {album_id} and client_id: {client_id}")
+        
+        if client_id:
+            self.player.active_client = client_id
         
         self.event_bus.emit(
             EventFactory.notification({"message": f"RFID: {rfid}"})
@@ -150,6 +155,31 @@ class PlaybackService:
             self.album_db.set_album_mapping(str(rfid), album_id)
             self.load_from_album_id(album_id)
         return True
+
+    async def load_album(self, event: Event) -> bool:
+        """Load and start playback from an album via PLAY_ALBUM event.
+        
+        Args:
+            event: Event with payload containing:
+                - album_id: The album ID to play
+                - start_track_index: Optional track index to start from (default 0)
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        album_id = event.payload.get('album_id')
+        start_track_index = event.payload.get('start_track_index', 0)
+        client_id = event.payload.get('client_id')
+        
+        if not album_id:
+            logger.error("PLAY_ALBUM event received without album_id in payload")
+            return False
+            
+        if client_id:
+            self.player.active_client = client_id
+            
+        logger.info(f"Loading album via PLAY_ALBUM event: album_id={album_id}, start_track_index={start_track_index}, client_id={client_id}")
+        return await self.load_from_album_id(album_id, start_track_index=start_track_index)
 
     def _encode_card(self, event: Event) -> bool:
         """Start an NFC encoding session for the given album_id."""

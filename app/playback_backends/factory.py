@@ -4,8 +4,9 @@ from __future__ import annotations
 import logging
 
 from app.config import config
-from app.services.chromecast_service import get_chromecast_service
-from app.services.mpv_service import get_mpv_service
+from app.playback_backends.chromecast import get_chromecast_service
+from app.playback_backends.mpv import get_mpv_service
+from app.playback_backends.websocket import get_websocket_backend
 
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,10 @@ def get_playback_backend_by_name(backend_name: str, device_name: str | None = No
     if backend == "mpv":
         logger.info("Using MPV playback backend")
         return get_mpv_service()
+    
+    if backend == "streaming":
+        logger.info("Using WebSocket streaming playback backend")
+        return get_websocket_backend()
 
     if backend != "chromecast":
         logger.warning("Unknown PLAYBACK_BACKEND '%s', falling back to chromecast", backend)
@@ -31,7 +36,7 @@ def get_playback_backend():
 
 def get_available_output_devices():
     """
-    Returns a list of all available output devices (Chromecast and MPV/Bluetooth) for selection in UI/API.
+    Returns a list of all available output devices (Chromecast, MPV/Bluetooth, WebSocket) for selection in UI/API.
     Each device is a dict: {"backend": ..., "device": ..., "name": ...}
     """
     devices = []
@@ -53,4 +58,10 @@ def get_available_output_devices():
             "device": mpv_name, #bt_mac,
             "name": mpv_name
         })
+    # WebSocket streaming backend (always available)
+    devices.append({
+        "backend": "streaming",
+        "device": "ESP32",
+        "name": "ESP32 (Streaming)"
+    })
     return devices

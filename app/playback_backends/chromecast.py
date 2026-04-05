@@ -10,7 +10,7 @@ from typing import Optional, List, Dict
 import logging
 import time
 from app.config import config
-from .playback_backend import PlaybackBackend
+from .base import PlaybackBackend
 
 logger = logging.getLogger(__name__)
 
@@ -412,8 +412,9 @@ class ChromecastService(PlaybackBackend):
         # Give the device a moment to settle before we send LOAD.
         time.sleep(0.8)
     
-    def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
-        if not self.ensure_connected():
+    async def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
+        import asyncio
+        if not await asyncio.to_thread(self.ensure_connected):
             logger.error("Cannot play media: no Chromecast connection")
             return False
         try:
@@ -460,8 +461,9 @@ class ChromecastService(PlaybackBackend):
             except Exception as fallback_e:
                 logger.error(f"Fallback playback also failed: {fallback_e}")
                 return False
-    def pause(self) -> bool:
-        if not self.ensure_connected():
+    async def pause(self) -> bool:
+        import asyncio
+        if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
             self.mc.pause()
@@ -470,8 +472,9 @@ class ChromecastService(PlaybackBackend):
         except Exception as e:
             logger.error(f"Failed to pause: {e}")
             return False
-    def resume(self) -> bool:
-        if not self.ensure_connected():
+    async def resume(self) -> bool:
+        import asyncio
+        if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
             self.mc.play()
@@ -480,8 +483,9 @@ class ChromecastService(PlaybackBackend):
         except Exception as e:
             logger.error(f"Failed to resume: {e}")
             return False
-    def stop(self) -> bool:
-        if not self.ensure_connected():
+    async def stop(self) -> bool:
+        import asyncio
+        if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
             self.mc.stop()
@@ -490,8 +494,9 @@ class ChromecastService(PlaybackBackend):
         except Exception as e:
             logger.error(f"Failed to stop: {e}")
             return False
-    def set_volume(self, volume: float) -> bool:
-        if not self.ensure_connected():
+    async def set_volume(self, volume: float) -> bool:
+        import asyncio
+        if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
             volume = max(0.0, min(1.0, volume))
@@ -502,7 +507,7 @@ class ChromecastService(PlaybackBackend):
             logger.error(f"Failed to set volume: {e}")
             return False
     
-    def set_volume_muted(self, muted: bool) -> bool:
+    async def set_volume_muted(self, muted: bool) -> bool:
         """Mute or unmute the Chromecast device.
         
         Args:
@@ -510,7 +515,8 @@ class ChromecastService(PlaybackBackend):
         Returns:
             True if successful, False otherwise
         """
-        if not self.ensure_connected():
+        import asyncio
+        if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
             self.cast.set_volume_muted(muted)
@@ -520,7 +526,7 @@ class ChromecastService(PlaybackBackend):
             logger.error(f"Failed to set mute: {e}")
             return False
     
-    def get_volume_muted(self) -> Optional[bool]:
+    async def get_volume_muted(self) -> Optional[bool]:
         """Get the current mute state of the Chromecast device.
         
         Returns:
@@ -536,7 +542,7 @@ class ChromecastService(PlaybackBackend):
             logger.error(f"Failed to get mute status: {e}")
             return None
     
-    def get_volume(self) -> Optional[float]:
+    async def get_volume(self) -> Optional[float]:
         if not self.is_connected():
             return None
         try:
@@ -546,7 +552,7 @@ class ChromecastService(PlaybackBackend):
         except Exception as e:
             logger.error(f"Failed to get volume: {e}")
             return None
-    def get_status(self) -> Optional[Dict]:
+    async def get_status(self) -> Optional[Dict]:
         if not self.is_connected():
             return None
         try:
@@ -574,7 +580,7 @@ class ChromecastService(PlaybackBackend):
             logger.error(f"Failed to get status: {e}")
             return None
         
-    def switch_and_resume_playback(self, new_device_name: str) -> Dict:
+    async def switch_and_resume_playback(self, new_device_name: str) -> Dict:
         """
         Seamlessly switch to a new Chromecast device and resume playback.
         
@@ -620,7 +626,7 @@ class ChromecastService(PlaybackBackend):
             # 2. Stop playback on current device
             logger.info(f"[SwitchAndResume] Stopping playback on {old_device}")
             if jukebox_player:
-                jukebox_player.stop()
+                await jukebox_player.stop()
             
             # 3. Disconnect from current device
             logger.info(f"[SwitchAndResume] Disconnecting from {old_device}")
@@ -628,7 +634,7 @@ class ChromecastService(PlaybackBackend):
             
             # 4. Connect to new device
             logger.info(f"[SwitchAndResume] Connecting to {new_device_name}")
-            if not self.connect(device_name=new_device_name, fallback=False):
+            if not await asyncio.to_thread(self.connect, device_name=new_device_name, fallback=False):
                 logger.error(f"[SwitchAndResume] Failed to connect to new device: {new_device_name}")
                 return {
                     "status": "error",
@@ -665,7 +671,7 @@ class ChromecastService(PlaybackBackend):
                         "track_index": saved_track_index
                     }
             
-            new_status = self.get_status()
+            new_status = await self.get_status()
             
             return {
                 "status": "switched",
@@ -688,7 +694,7 @@ class ChromecastService(PlaybackBackend):
                 "switched_to": new_device_name
             }
         
-    def cleanup(self):
+    async def cleanup(self):
         logger.info("Performing full cleanup of Chromecast service")
         self.disconnect()
         self._cleanup_zeroconf()        

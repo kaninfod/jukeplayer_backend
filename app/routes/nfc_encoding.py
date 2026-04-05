@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 import logging
 from app.core.service_container import get_service
 
-router = APIRouter( prefix="/api/nfc-encoding", tags=["hardware"])
+router = APIRouter( prefix="/api/nfc-encoding", tags=["nfc-encoding"])
 
 logger = logging.getLogger(__name__)
 

@@ -16,6 +16,7 @@ class EventType(Enum):
     NEXT_TRACK = "next_track"
     PREVIOUS_TRACK = "previous_track"
     PLAY_TRACK = "play_track"
+    PLAY_ALBUM = "play_album"
     PLAY_PAUSE = "play_pause"
     STOP = "stop"
     VOLUME_UP = "volume_up"

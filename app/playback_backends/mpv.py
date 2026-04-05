@@ -11,10 +11,10 @@ import threading
 import time
 from typing import Any
 from typing import Dict, Optional
-from .playback_backend import PlaybackBackend
+from .base import PlaybackBackend
 
 from app.config import config
-from app.services.bluetooth_audio_checker import BluetoothAudioChecker
+from app.playback_backends.bluetooth import BluetoothAudioChecker
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class MPVService(PlaybackBackend):
             mpv_audio_device=self._audio_device,
         )
 
-    def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
+    async def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
         readiness = self.get_output_readiness()
         if not readiness.get("ready", False):
             logger.warning("Bluetooth output not ready: %s", readiness)
@@ -118,22 +118,22 @@ class MPVService(PlaybackBackend):
             self._maybe_log_diagnostics(force=True, trigger="play_media")
         return ok
 
-    def pause(self) -> bool:
+    async def pause(self) -> bool:
         return self._send_command(["set_property", "pause", True])
 
-    def resume(self) -> bool:
+    async def resume(self) -> bool:
         return self._send_command(["set_property", "pause", False])
 
-    def stop(self) -> bool:
+    async def stop(self) -> bool:
         self._suppress_idle_finish_until = time.monotonic() + 3.0
         self._playback_active = False
         return self._send_command(["stop"])
 
-    def set_volume(self, volume: float) -> bool:
+    async def set_volume(self, volume: float) -> bool:
         mpv_volume = max(0.0, min(1.0, volume)) * 100.0
         return self._send_command(["set_property", "volume", mpv_volume])
 
-    def get_volume(self) -> Optional[float]:
+    async def get_volume(self) -> Optional[float]:
         value = self._get_property("volume")
         if value is None:
             return None
@@ -142,16 +142,16 @@ class MPVService(PlaybackBackend):
         except Exception:
             return None
 
-    def set_volume_muted(self, muted: bool) -> bool:
+    async def set_volume_muted(self, muted: bool) -> bool:
         return self._send_command(["set_property", "mute", bool(muted)])
 
-    def get_volume_muted(self) -> Optional[bool]:
+    async def get_volume_muted(self) -> Optional[bool]:
         value = self._get_property("mute")
         if value is None:
             return None
         return bool(value)
 
-    def get_status(self) -> Optional[Dict]:
+    def _get_status_sync(self) -> Optional[dict]:
         if not self._ensure_running():
             return None
         with self._status_lock:
@@ -187,7 +187,7 @@ class MPVService(PlaybackBackend):
     def get_output_readiness(self) -> Dict:
         return self._refresh_output_readiness(force=False)
 
-    def cleanup(self):
+    async def cleanup(self):
         self._stop_monitor.set()
         self._stop_commands.set()
         self._close_ipc_connection()
@@ -520,7 +520,7 @@ class MPVService(PlaybackBackend):
         if now < self._suppress_idle_finish_until:
             return
 
-        status = self.get_status() or {}
+        status = self._get_status_sync() or {}
 
         current_state = status.get("player_state")
         current_path = status.get("path")
@@ -581,7 +581,7 @@ class MPVService(PlaybackBackend):
         if not force and (now - last_logged_at) < min_interval:
             return
 
-        status = self.get_status()
+        status = self._get_status_sync()
 
         if not status:
             logger.warning("MPV diagnostics (%s): backend status unavailable", trigger)

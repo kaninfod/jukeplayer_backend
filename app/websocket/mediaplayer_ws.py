@@ -114,8 +114,10 @@ class WebSocketConnection:
                     
                     try:
                         await asyncio.wait_for(self.send_ping(), timeout=2)
+                        # Heartbeat succeeded
                     except asyncio.TimeoutError:
-                        logger.warning("Heartbeat send timed out (possible deadlock on ws_lock)")
+                        # Heartbeat timed out - exit heartbeat loop
+                        logger.warning("Heartbeat send timed out")
                         break
                     except (RuntimeError, Exception) as e:
                         # Connection closed or other error - exit gracefully
@@ -162,7 +164,8 @@ class WebSocketConnection:
                 send_callback=send_callback
             )
             self.registered_client_id = client_info.client_id
-            
+            self.client_id = client_info.client_id
+
             await self.websocket.send_json({
                 "type": "register_response",
                 "payload": {
@@ -195,6 +198,216 @@ class WebSocketConnection:
         except Exception as e:
             logger.error(f"Error handling nfc_encoding_complete: {e}")
     
+    async def handle_play_pause(self, payload):
+        """Handle play/pause toggle command."""
+        try:
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.PLAY_PAUSE,
+                payload={}
+            ))
+            
+            await self.send_message({
+                "type": "play_pause_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Play/pause toggled: {result}")
+        except Exception as e:
+            logger.error(f"Error handling play_pause: {e}")
+            await self.send_message({
+                "type": "play_pause_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+    
+    async def handle_play_album(self, payload):
+        """Handle play album command.
+        
+        Args:
+            payload: Message payload with album_id and optional start_track_index
+        """
+        try:
+            album_id = payload.get("album_id")
+            
+            if album_id is None:
+                raise ValueError("Missing album_id")
+            
+            start_track_index = payload.get("start_track_index", 0)
+            
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.PLAY_ALBUM,
+                payload={
+                    "album_id": album_id,
+                    "start_track_index": start_track_index,
+                    "client_id": self.client_id
+                }
+            ))
+            
+            await self.send_message({
+                "type": "play_album_response",
+                "payload": {"status": "success", "album_id": album_id, "start_track_index": start_track_index, "message": str(result)}
+            })
+            logger.info(f"Playing album {album_id} starting at track {start_track_index}: {result}")
+        except Exception as e:
+            logger.error(f"Error handling play_album: {e}")
+            await self.send_message({
+                "type": "play_album_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+    
+    async def handle_next_track(self, payload):
+        """Handle next track command."""
+        try:
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.NEXT_TRACK,
+                payload={"force": True}
+            ))
+            
+            await self.send_message({
+                "type": "next_track_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Next track: {result}")
+        except Exception as e:
+            logger.error(f"Error handling next_track: {e}")
+            await self.send_message({
+                "type": "next_track_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+    
+    async def handle_previous_track(self, payload):
+        """Handle previous track command."""
+        try:
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.PREVIOUS_TRACK,
+                payload={}
+            ))
+            
+            await self.send_message({
+                "type": "previous_track_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Previous track: {result}")
+        except Exception as e:
+            logger.error(f"Error handling previous_track: {e}")
+            await self.send_message({
+                "type": "previous_track_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+    
+    async def handle_stop(self, payload):
+        """Handle stop command."""
+        try:
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.STOP,
+                payload={}
+            ))
+            
+            await self.send_message({
+                "type": "stop_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Stop: {result}")
+        except Exception as e:
+            logger.error(f"Error handling stop: {e}")
+            await self.send_message({
+                "type": "stop_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+    
+    async def handle_volume(self, payload):
+        """Handle volume set command."""
+        try:
+            volume = payload.get("value")
+            
+            if volume is None:
+                raise ValueError("Missing volume value")
+            
+            if not 0 <= volume <= 100:
+                raise ValueError("Volume must be 0-100")
+            
+            # Call service directly (no event for volume_set)
+            player_service = get_service("media_player_service")
+            player_service.set_volume(volume=volume)
+            
+            await self.send_message({
+                "type": "volume_response",
+                "payload": {"status": "success", "volume": volume}
+            })
+            logger.info(f"Volume set to {volume}")
+        except Exception as e:
+            logger.error(f"Error handling volume: {e}")
+            await self.send_message({
+                "type": "volume_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+    
+    async def handle_status(self, payload):
+        """Handle status request (returns minimal data)."""
+        try:
+            player_service = get_service("media_player_service")
+            
+            # Get current status info
+            status_data = player_service.get_status()
+            context_data = player_service.get_context()
+            
+            # Build minimal response
+            response_payload = {
+                "status": str(status_data.get("status", "unknown")).lower(),
+                "volume": int(context_data.get("volume", 0) * 100) if context_data.get("volume") else 0,
+                "current_track": None,
+            }
+            
+            # Add current track info if available
+            if context_data.get("current_track"):
+                track = context_data["current_track"]
+                response_payload["current_track"] = {
+                    "title": track.get("title", "Unknown"),
+                    "artist": track.get("artist", "Unknown"),
+                    "album": track.get("album", "Unknown"),
+                }
+            
+            await self.send_message({
+                "type": "status_response",
+                "payload": response_payload
+            })
+            logger.debug(f"Status sent: {response_payload['status']}")
+        except Exception as e:
+            logger.error(f"Error handling status: {e}")
+            await self.send_message({
+                "type": "status_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+
+    async def handle_track_finished(self, payload):
+        """Handle track finished event from ESP32 audio stream."""
+        try:
+            reason = payload.get("reason", "unknown")
+            logger.info(f"Track finished received from ESP32 (reason: {reason})")
+            
+            # Emit the track finished event
+            from app.core import event_bus, EventType, Event
+            
+            # Check for duplicate events (debounce - only emit if last event >1s ago)
+            current_time = time.time()
+            if not hasattr(self, '_last_track_finished_time'):
+                self._last_track_finished_time = 0
+            
+            if current_time - self._last_track_finished_time >= 1.0:
+                event_bus.emit(Event(
+                    type=EventType.TRACK_FINISHED,
+                    payload={"Reason": reason, "Source": "websocket_audio"}
+                ))
+                self._last_track_finished_time = current_time
+                logger.debug(f"Emitted TRACK_FINISHED event (reason: {reason})")
+            else:
+                logger.debug(f"Skipped duplicate track_finished event (reason: {reason})")
+        except Exception as e:
+            logger.error(f"Error handling track_finished: {e}", exc_info=True)
+    
     async def receive_client_messages(self):
         """Listen for incoming messages from the client and route them."""
         try:
@@ -209,6 +422,22 @@ class WebSocketConnection:
                         await self.handle_register_client(payload)
                     elif msg_type == "nfc_encoding_complete":
                         await self.handle_nfc_encoding_complete(payload)
+                    elif msg_type in ("play_pause", "pause", "resume"):
+                        await self.handle_play_pause(payload)
+                    elif msg_type == "play_album":
+                        await self.handle_play_album(payload)
+                    elif msg_type == "next_track":
+                        await self.handle_next_track(payload)
+                    elif msg_type == "previous_track":
+                        await self.handle_previous_track(payload)
+                    elif msg_type == "stop":
+                        await self.handle_stop(payload)
+                    elif msg_type == "volume":
+                        await self.handle_volume(payload)
+                    elif msg_type == "status":
+                        await self.handle_status(payload)
+                    elif msg_type == "track_finished":
+                        await self.handle_track_finished(payload)
                     else:
                         logger.debug(f"Received unhandled message type: {msg_type}")
                 

@@ -82,11 +82,9 @@ class SubsonicService:
         params['id'] = track_id
         # Remove 'f' param for binary endpoints
         params.pop('f', None)
-        # Build URL with token-based authentication
+        # Build URL with token-based authentication using SUBSONIC_URL
         from urllib.parse import urlencode
-        cast_base = getattr(self.config, "SUBSONIC_CAST_BASE_URL", "").strip()
-        base = cast_base if cast_base else self.base_url
-        url = f"{base.rstrip('/')}/rest/stream?{urlencode(params)}"
+        url = f"{self.base_url.rstrip('/')}/rest/stream?{urlencode(params)}"
         return url
         
     def get_cover_url(self, album_id: str) -> str:

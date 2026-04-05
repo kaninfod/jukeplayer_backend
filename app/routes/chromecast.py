@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.services.chromecast_service import get_chromecast_service
+from app.playback_backends.chromecast import get_chromecast_service
 from app.config import config
 import logging
 
@@ -66,7 +66,7 @@ def chromecast_connect(
         logger.error(f"Failed to connect to Chromecast: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect: {e}")
 @router.get("/api/chromecast/status")
-def chromecast_status():
+async def chromecast_status():
     """
     Get current Chromecast status including:
     - All available devices on network
@@ -89,7 +89,7 @@ def chromecast_status():
         # Check if we have an active connection
         if service.is_connected() and service.cast:
             current_device = service.cast.name
-            current_status = service.get_status()
+            current_status = await service.get_status()
             if current_status:
                 playback_info = {
                     "player_state": current_status.get("player_state", "UNKNOWN"),
@@ -114,7 +114,7 @@ def chromecast_status():
 
 
 @router.post("/api/chromecast/switch")
-def chromecast_switch(
+async def chromecast_switch(
     device_name: str = Query(..., description="Target Chromecast device name to switch to")
 ):
     """
@@ -133,7 +133,7 @@ def chromecast_switch(
     """
     try:
         chromecast_service = get_chromecast_service()
-        result = chromecast_service.switch_and_resume_playback(device_name)
+        result = await chromecast_service.switch_and_resume_playback(device_name)
         
         if result.get("status") == "error":
             raise HTTPException(status_code=503, detail=result.get("error", "Unknown error"))

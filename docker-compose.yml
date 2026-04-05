@@ -76,7 +76,6 @@ services:
       # === SUBSONIC / GONIC ===
       # In Docker, use gonic service name instead of IP
       - SUBSONIC_URL=${SUBSONIC_URL:-http://gonic:80}
-      - SUBSONIC_CAST_BASE_URL=${SUBSONIC_CAST_BASE_URL:-http://gonic:80}
       - SUBSONIC_USER=${SUBSONIC_USER:-}
       - SUBSONIC_PASS=${SUBSONIC_PASS:-}
       - SUBSONIC_CLIENT=${SUBSONIC_CLIENT:-JukeboxPi}

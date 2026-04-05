@@ -25,9 +25,6 @@ class Config:
     SUBSONIC_PASS: str = os.getenv("SUBSONIC_PASS", "")  # Required from .env
     SUBSONIC_CLIENT: str = os.getenv("SUBSONIC_CLIENT", "jukebox")
     SUBSONIC_API_VERSION: str = os.getenv("SUBSONIC_API_VERSION", "1.15.0")
-    # Optional: LAN-only base URL for Chromecast streaming (bypasses public Basic Auth)
-    # Example: http://192.168.68.102:4747 or https://gonic.hinge.lan (LAN DNS)
-    SUBSONIC_CAST_BASE_URL: str = os.getenv("SUBSONIC_CAST_BASE_URL", "")
     # Optional: Basic Auth at reverse proxy (NPM) for Subsonic/Gonic
     SUBSONIC_PROXY_BASIC_USER: str = os.getenv("SUBSONIC_PROXY_BASIC_USER", "")
     SUBSONIC_PROXY_BASIC_PASS: str = os.getenv("SUBSONIC_PROXY_BASIC_PASS", "")
