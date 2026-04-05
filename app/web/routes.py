@@ -98,7 +98,7 @@ def _is_htmx_request(request: Request) -> bool:
 
 @router.get("/", response_class=HTMLResponse)
 async def status_page(request: Request, kiosk: bool = False):
-    return templates.TemplateResponse("pages/kiosk/player.html", {
+    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={
         "request": request,
         "kiosk_mode": True,
         "config": config
@@ -108,13 +108,9 @@ async def status_page(request: Request, kiosk: bool = False):
 @router.get("/kiosk/player", response_class=HTMLResponse)
 async def kiosk_player_partial(request: Request):
     if _is_htmx_request(request):
-        return templates.TemplateResponse(
-            "components/kiosk/_player_status.html",
-            {"request": request, "config": config},
+        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html", context={"request": request, "config": config},
         )
-    return templates.TemplateResponse(
-        "pages/kiosk/player.html",
-        {"request": request, "config": config, "kiosk_mode": True},
+    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={"request": request, "config": config, "kiosk_mode": True},
     )
 
 
@@ -126,9 +122,9 @@ async def kiosk_devices_partial(request: Request):
         "status_data": await _get_output_status_data(),
     }
     if _is_htmx_request(request):
-        return templates.TemplateResponse("components/kiosk/_device_selector.html", context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/_device_selector.html", context=context)
     context["kiosk_mode"] = True
-    return templates.TemplateResponse("pages/kiosk/devices.html", context)
+    return templates.TemplateResponse(request=request, name="pages/kiosk/devices.html", context=context)
 
 
 @router.get("/kiosk/playlist", response_class=HTMLResponse)
@@ -144,28 +140,20 @@ async def kiosk_playlist_partial(request: Request):
     }
 
     if _is_htmx_request(request):
-        return templates.TemplateResponse(
-            "components/kiosk/_playlist_view.html",
-            context,
+        return templates.TemplateResponse(request=request, name="components/kiosk/_playlist_view.html", context=context,
         )
 
     context["kiosk_mode"] = True
-    return templates.TemplateResponse(
-        "pages/kiosk/playlist.html",
-        context,
+    return templates.TemplateResponse(request=request, name="pages/kiosk/playlist.html", context=context,
     )
 
 
 @router.get("/kiosk/system", response_class=HTMLResponse)
 async def kiosk_system_partial(request: Request):
     if _is_htmx_request(request):
-        return templates.TemplateResponse(
-            "components/kiosk/_system_menu.html",
-            {"request": request, "config": config},
+        return templates.TemplateResponse(request=request, name="components/kiosk/_system_menu.html", context={"request": request, "config": config},
         )
-    return templates.TemplateResponse(
-        "pages/kiosk/system.html",
-        {"request": request, "config": config, "kiosk_mode": True},
+    return templates.TemplateResponse(request=request, name="pages/kiosk/system.html", context={"request": request, "config": config, "kiosk_mode": True},
     )
 
 
@@ -198,9 +186,9 @@ async def kiosk_library_partial(
             "group": group,
         })
         if _is_htmx_request(request):
-            return templates.TemplateResponse("components/kiosk/_media_library.html", context)
+            return templates.TemplateResponse(request=request, name="components/kiosk/_media_library.html", context=context)
         context["kiosk_mode"] = True
-        return templates.TemplateResponse("pages/kiosk/library.html", context)
+        return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
     if artist_id:
         albums = subsonic_service.list_albums_for_artist(artist_id)
@@ -213,14 +201,14 @@ async def kiosk_library_partial(
             "group": group,
         })
         if _is_htmx_request(request):
-            return templates.TemplateResponse("components/kiosk/_media_library.html", context)
+            return templates.TemplateResponse(request=request, name="components/kiosk/_media_library.html", context=context)
         context["kiosk_mode"] = True
-        return templates.TemplateResponse("pages/kiosk/library.html", context)
+        return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
     if _is_htmx_request(request):
-        return templates.TemplateResponse("components/kiosk/_media_library.html", context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/_media_library.html", context=context)
     context["kiosk_mode"] = True
-    return templates.TemplateResponse("pages/kiosk/library.html", context)
+    return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
 
 @router.post("/kiosk/library/play/{album_id}", response_class=HTMLResponse)
@@ -231,13 +219,8 @@ async def kiosk_library_play_album(request: Request, album_id: str):
         raise HTTPException(status_code=400, detail=f"Failed to load album {album_id}")
 
     if _is_htmx_request(request):
-        return templates.TemplateResponse(
-            "components/kiosk/_player_status.html",
-            {"request": request, "config": config},
-        )
-    return templates.TemplateResponse(
-        "pages/kiosk/player.html",
-        {"request": request, "config": config, "kiosk_mode": True},
+        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html", context={"request": request, "config": config})
+    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={"request": request, "config": config, "kiosk_mode": True},
     )
 
 
@@ -254,9 +237,9 @@ async def kiosk_nfc_client_select(
         "album_name": album_name,
     }
     if _is_htmx_request(request):
-        return templates.TemplateResponse("components/kiosk/_nfc_client_select.html", context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/_nfc_client_select.html", context=context)
     context["kiosk_mode"] = True
-    return templates.TemplateResponse("pages/kiosk/nfc.html", context)
+    return templates.TemplateResponse(request=request, name="pages/kiosk/nfc.html", context=context)
 
 
 @router.get("/kiosk/nfc", response_class=HTMLResponse)
@@ -274,7 +257,7 @@ async def kiosk_nfc_partial(
         "client_id": client_id,
     }
     if _is_htmx_request(request):
-        return templates.TemplateResponse("components/kiosk/_nfc_encoding.html", context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/_nfc_encoding.html", context=context)
     context["kiosk_mode"] = True
-    return templates.TemplateResponse("pages/kiosk/nfc.html", context)
+    return templates.TemplateResponse(request=request, name="pages/kiosk/nfc.html", context=context)
 

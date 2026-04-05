@@ -219,6 +219,35 @@ class WebSocketConnection:
                 "payload": {"status": "error", "message": str(e)}
             })
     
+    async def handle_play_rfid(self, payload):
+        """Handle play album from RFID command."""
+        try:
+            rfid = payload.get("rfid")
+            if not rfid:
+                raise ValueError("Missing rfid in payload")
+                
+            from app.core import event_bus, EventType, Event
+            
+            logger.info(f"Received RFID read via WS: {rfid}")
+            result = await event_bus.aemit(Event(
+                type=EventType.RFID_READ,
+                payload={"rfid": rfid, "client_id": getattr(self, 'client_id', None) or "ws_client"}
+            ))
+            
+            await self.send_json({
+                "type": "play_rfid_response",
+                "payload": {
+                    "status": "success" if result else "error",
+                    "message": str(result) if result else "Failed to process RFID"
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error handling play_rfid: {e}")
+            await self.send_json({
+                "type": "play_rfid_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+
     async def handle_play_album(self, payload):
         """Handle play album command.
         
@@ -318,6 +347,24 @@ class WebSocketConnection:
                 "payload": {"status": "error", "message": str(e)}
             })
     
+    async def handle_volume_up(self, payload):
+        """Handle volume up command."""
+        try:
+            player_service = container.get("player_service")
+            await player_service.volume_up()
+            logger.info("Volume up triggered via WS")
+        except Exception as e:
+            logger.error(f"Error handling volume_up: {e}")
+
+    async def handle_volume_down(self, payload):
+        """Handle volume down command."""
+        try:
+            player_service = container.get("player_service")
+            await player_service.volume_down()
+            logger.info("Volume down triggered via WS")
+        except Exception as e:
+            logger.error(f"Error handling volume_down: {e}")
+
     async def handle_volume(self, payload):
         """Handle volume set command."""
         try:
@@ -424,6 +471,8 @@ class WebSocketConnection:
                         await self.handle_nfc_encoding_complete(payload)
                     elif msg_type in ("play_pause", "pause", "resume"):
                         await self.handle_play_pause(payload)
+                    elif msg_type == "play_rfid":
+                        await self.handle_play_rfid(payload)
                     elif msg_type == "play_album":
                         await self.handle_play_album(payload)
                     elif msg_type == "next_track":
@@ -432,6 +481,10 @@ class WebSocketConnection:
                         await self.handle_previous_track(payload)
                     elif msg_type == "stop":
                         await self.handle_stop(payload)
+                    elif msg_type == "volume_up":
+                        await self.handle_volume_up(payload)
+                    elif msg_type == "volume_down":
+                        await self.handle_volume_down(payload)
                     elif msg_type == "volume":
                         await self.handle_volume(payload)
                     elif msg_type == "status":
