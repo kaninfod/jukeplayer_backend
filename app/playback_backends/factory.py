@@ -50,14 +50,13 @@ def get_available_output_devices():
                 "name": name
             })
     # MPV/Bluetooth device (if configured)
-    bt_mac = getattr(config, "BT_SPEAKER_MAC", None)
     mpv_name = getattr(config, "MPV_DEVICE_NAME", None) or "MPV Device"
-    if bt_mac:
-        devices.append({
-            "backend": "mpv",
-            "device": mpv_name, #bt_mac,
-            "name": mpv_name
-        })
+    devices.append({
+        "backend": "mpv",
+        "device": mpv_name,
+        "name": mpv_name
+    })
+
     # WebSocket streaming backend (always available)
     devices.append({
         "backend": "streaming",

@@ -31,8 +31,8 @@ def main():
     
     # Suppress uvicorn's default logging to prevent duplicates
     # Our setup_logging() already handles console/file/syslog output
-    logging.getLogger("uvicorn.access").disabled = True
-    logging.getLogger("uvicorn.error").disabled = True
+    logging.getLogger("uvicorn.access").disabled = False
+    logging.getLogger("uvicorn.error").disabled = False
     
     # Run uvicorn with minimal config (don't override our logging)
     uvicorn.run(
@@ -40,7 +40,7 @@ def main():
         host="0.0.0.0",
         port=8000,
         log_config=None,       # Use our custom logging, not uvicorn's
-        log_level="critical",  # Suppress uvicorn's own logs (we handle them)
+        log_level="debug",  # Temporarily enabled for debugging
         access_log=False       # Don't add HTTP access logs
     )
 
