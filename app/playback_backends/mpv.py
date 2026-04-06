@@ -92,6 +92,18 @@ class MPVService(PlaybackBackend):
             title = (media_info or {}).get("title") if media_info else None
             if title:
                 self.player.force_media_title = title
+            
+            # Restore existing volume state instead of overriding it
+            try:
+                # Get the current internal wrapper volume or default
+                current_vol = getattr(self.player, "volume", 50.0) 
+                is_muted = getattr(self.player, "mute", False)
+
+                self.player.command("set_property", "mute", is_muted)
+                self.player.command("set_property", "volume", current_vol)
+            except Exception as cmd_e:
+                logger.warning("Failed forced socket properties fallback: %s", cmd_e)
+
             self.player.pause = False
             
             logger.info("Playing media locally via python-mpv-jsonipc: %s", url)
@@ -119,9 +131,15 @@ class MPVService(PlaybackBackend):
 
     async def set_volume(self, volume: float) -> bool:
         mpv_volume = max(0.0, min(1.0, volume)) * 100.0
-        self.player.volume = mpv_volume
-        if self.player.mute and mpv_volume > 0:
-            self.player.mute = False
+        try:
+            self.player.command("set_property", "volume", mpv_volume)
+            if mpv_volume > 0:
+                self.player.command("set_property", "mute", False)
+        except Exception:
+            # Fallback to standard property setters
+            self.player.volume = mpv_volume
+            if self.player.mute and mpv_volume > 0:
+                self.player.mute = False
         return True
 
     async def get_volume(self) -> Optional[float]:
