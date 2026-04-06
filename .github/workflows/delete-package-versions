@@ -6,3 +6,24 @@
     keep-at-least: 1
     account-type: personal # or 'org'
     token: ${{ secrets.GITHUB_TOKEN }}
+
+
+name: Delete Old Images
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Runs every Sunday at midnight
+  workflow_dispatch:   # Allows you to run it manually for testing
+
+jobs:
+  clean-ghcr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old images
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: jukeplayer_backend/jukeplayer
+          cut-off: A week ago UTC
+          keep-at-least: 1
+          account-type: personal
+          token: ${{ secrets.GITHUB_TOKEN }}
