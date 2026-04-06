@@ -35,6 +35,10 @@ class MPVService(PlaybackBackend):
             demuxer_max_back_bytes=config.MPV_DEMUXER_MAX_BACK_BYTES,
             audio_buffer=max(0.2, float(config.MPV_AUDIO_BUFFER_SECONDS))
         )
+        
+        # Explicitly unmute MPV on startup
+        self.player.mute = False
+        self.player.volume = 50.0
 
         if config.MPV_MSG_LEVEL:
             self.player.msg_level = config.MPV_MSG_LEVEL
@@ -116,6 +120,8 @@ class MPVService(PlaybackBackend):
     async def set_volume(self, volume: float) -> bool:
         mpv_volume = max(0.0, min(1.0, volume)) * 100.0
         self.player.volume = mpv_volume
+        if self.player.mute and mpv_volume > 0:
+            self.player.mute = False
         return True
 
     async def get_volume(self) -> Optional[float]:

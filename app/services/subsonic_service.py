@@ -273,7 +273,7 @@ class SubsonicService:
         """
         data = self._api_request("getMusicDirectory", {"id": "al-1"})
         data = data.json()
-        logger.info(f"SubsonicService: Listing artists from Subsonic {data}")
+        logger.info(f"SubsonicService: Found {len(data.get('subsonic-response', {}).get('directory', {}).get('child', []))} artists from Subsonic")
         directory = data.get("subsonic-response", {}).get("directory", {})
         artists = directory.get("child", [])
         # Only include entries where isDir is True (artists are directories)
