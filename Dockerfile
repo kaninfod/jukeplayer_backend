@@ -11,6 +11,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install system dependencies if needed
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    mpv \
+    pulseaudio-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching

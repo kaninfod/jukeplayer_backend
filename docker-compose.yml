@@ -103,7 +103,16 @@ services:
     volumes:
       - /home/pi/jukeplayer/data:/app/data           # Database, cache
       - /home/pi/jukeplayer/logs:/app/logs           # Application logs
-    
+      - /run/user/1000/pulse:/run/user/1000/pulse    # PulseAudio sockets for container audio
+      - /run/dbus:/run/dbus                          # DBus mapping for bluez
+
+    environment:
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+
+    # Allow container to access hardware audio interfaces and dbus
+    device_cgroup_rules:
+      - 'c 116:* rwm'
+
     depends_on:
       gonic:
         condition: service_healthy
