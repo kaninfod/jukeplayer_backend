@@ -378,7 +378,7 @@ class WebSocketConnection:
             
             # Call service directly (no event for volume_set)
             player_service = get_service("media_player_service")
-            player_service.set_volume(volume=volume)
+            await player_service.set_volume(volume=volume)
             
             await self.send_message({
                 "type": "volume_response",

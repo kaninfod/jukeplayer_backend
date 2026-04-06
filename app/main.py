@@ -9,7 +9,6 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.config import config
-from app.core.security import APIKeyMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
 
 logger = logging.getLogger(__name__)
@@ -57,8 +56,8 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Security: API key protection for /api/*
-app.add_middleware(APIKeyMiddleware)
+# Security: API key protection removed for local-only setup
+# (APIKeyMiddleware was here)
 
 # Add common security headers
 app.add_middleware(SecurityHeadersMiddleware)

@@ -202,9 +202,7 @@ class Config:
         
         # Security warnings (informational)
         if cls.CORS_ALLOW_ORIGINS == "*" and not cls.DEBUG_MODE:
-            logger.warning("⚠️  CORS is set to '*' in a non-debug environment. Set CORS_ALLOW_ORIGINS to your public domain(s).")
-        if not cls.API_KEY:
-            logger.warning("⚠️  API_KEY is not set. Public API access will be limited to localhost if ALLOW_LOCAL_API_BYPASS=true.")
+            logger.info("ℹ️  CORS is set to '*' for local access.")
 
         logger.info("✅ All required configuration variables are present")
         return True
