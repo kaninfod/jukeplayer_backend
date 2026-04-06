@@ -104,10 +104,12 @@ services:
       - /home/pi/jukeplayer/data:/app/data           # Database, cache
       - /home/pi/jukeplayer/logs:/app/logs           # Application logs
       - /run/user/1000/pulse:/run/user/1000/pulse    # PulseAudio sockets for container audio
+      - /home/pi/.config/pulse/cookie:/root/.config/pulse/cookie:ro # PulseAudio auth cookie
       - /run/dbus:/run/dbus                          # DBus mapping for bluez
 
     environment:
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - PULSE_COOKIE=/root/.config/pulse/cookie
 
     # Allow container to access hardware audio interfaces and dbus
     device_cgroup_rules:

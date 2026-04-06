@@ -13,6 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mpv \
     pulseaudio-utils \
+    pipewire \
+    libpipewire-0.3-modules \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
