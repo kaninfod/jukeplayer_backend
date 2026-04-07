@@ -60,5 +60,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Clean up old Docker images
+        uses: snok/container-retention-policy@v3.0.0
+        with:
+          account-type: personal
+          image-names: jukeplayer
+          keep-at-least: 4
+          cut-off: 2h
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
