@@ -64,7 +64,7 @@ jobs:
         uses: snok/container-retention-policy@v3.0.0
         with:
           account: user
-          image-names: jukeplayer/jukeplayer
+          image-names: ${{ github.event.repository.name }}/jukeplayer
           keep-n-most-recent: 4
           cut-off: 2h
           token: ${{ secrets.GITHUB_TOKEN }}
