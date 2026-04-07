@@ -118,27 +118,33 @@ async def chromecast_switch(
     device_name: str = Query(..., description="Target Chromecast device name to switch to")
 ):
     """
-    Seamlessly switch from current Chromecast device to a new device, resuming playback.
+    Seamlessly switch from current playback device to a new Chromecast device, resuming playback.
     
-    Delegates to ChromecastService.switch_and_resume_playback() which orchestrates:
-    1. Save current playback state (album_id and track index)
-    2. Stop playback on current device
-    3. Disconnect from current device
-    4. Connect to new device
-    5. Reload album and skip to saved track
-    6. Resume playback on new device
-    
-    This is atomic - either succeeds fully or fails completely.
-    Uses singleton instances to maintain shared state.
+    Delegates to MediaPlayerService.switch_playback_backend().
     """
     try:
-        chromecast_service = get_chromecast_service()
-        result = await chromecast_service.switch_and_resume_playback(device_name)
+        from app.core.service_container import get_service
+        media_player_service = get_service("media_player_service")
+        if not media_player_service:
+            raise HTTPException(status_code=503, detail="MediaPlayerService not available")
+
+        # Explicitly ask for chromecast and target device
+        result = await media_player_service.switch_playback_backend(
+            backend="chromecast", 
+            device_name=device_name
+        )
         
         if result.get("status") == "error":
-            raise HTTPException(status_code=503, detail=result.get("error", "Unknown error"))
+            raise HTTPException(status_code=503, detail=result.get("message", "Unknown error"))
         
-        return result
+        # Standardize return dictionary name output for backward compat
+        return {
+            "status": "switched",
+            "switched_from": result.get("previous_device"),
+            "switched_to": result.get("device_name"),
+            "playback_resumed": result.get("resumed", False),
+            "track_index": result.get("track_index"),
+        }
     except HTTPException:
         raise
     except Exception as e:

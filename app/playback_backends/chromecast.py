@@ -114,43 +114,43 @@ class DiscoveryListener(SimpleCastListener):
     def add_cast(self, uuid, mdns_name):
         pass
 
+_global_zeroconf = None
+_global_browser = None
 
+def _get_global_browser():
+    global _global_zeroconf, _global_browser
+    if _global_zeroconf is None:
+        _global_zeroconf = Zeroconf()
+        _global_browser = CastBrowser(DiscoveryListener(), _global_zeroconf)
+        _global_browser.start_discovery()
+        logger.info("Started global background Chromecast discovery")
+    return _global_browser
 
 class ChromecastService(PlaybackBackend):
     """
-    Simplified Chromecast service using on-demand discovery.
+    Simplified Chromecast service using persistent global discovery.
     """
     def __init__(self, device_name: Optional[str] = None):
+        import threading
         self.device_name = device_name
         self.cast = None
         self.mc = None
         self.status_listener = None
-        self._zeroconf = None
-        #self._discovery_zeroconf = None
+        self._connection_lock = threading.Lock()
+        
+        # Start global discovery proactively
+        _get_global_browser()
 
     def __enter__(self):
-        if not self._zeroconf:
-            self._zeroconf = Zeroconf()
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         # Don't disconnect or cleanup zeroconf when using context manager
-        # The singleton needs to persist across calls
-        # Cleanup happens only when explicitly calling cleanup() or at shutdown
         pass
 
     def _cleanup_zeroconf(self):
-        if self._zeroconf:
-            try:
-                logger.debug("Closing persistent zeroconf instance")
-                self._zeroconf.close()
-                logger.info("✅ Persistent zeroconf instance closed successfully")
-            except Exception as e:
-                logger.warning(f"Error closing persistent zeroconf: {e}")
-            finally:
-                self._zeroconf = None
-        else:
-            logger.debug("No persistent zeroconf instance to clean up")
+        # Global discovery never cleans up on individual backend teardown
+        pass
 
     def list_chromecasts(self) -> List[Dict[str, str]]:
         """
@@ -205,43 +205,34 @@ class ChromecastService(PlaybackBackend):
 
     def _discover_chromecasts(self, timeout=None, target_name=None):
         """
-        Discover Chromecasts on the network. If target_name is provided, return only that device's info.
+        Discover Chromecasts on the network using a persistent background browser.
         Returns (devices, target_cast_info, name_to_cast_info)
         """
-        logger.info("Discovering Chromecasts on network using CastBrowser...")
-        discovery_zeroconf = Zeroconf()
+        browser = _get_global_browser()
         devices = []
         target_cast_info = None
         name_to_cast_info = {}
-        try:
-            browser = CastBrowser(DiscoveryListener(), discovery_zeroconf)
-            browser.start_discovery()
+
+        # Allow brief sync window if services are absolutely totally empty (likely just booted)
+        if not browser.services:
             import time
-            time.sleep(timeout or config.CHROMECAST_DISCOVERY_TIMEOUT)
-            for uuid, cast_info in browser.services.items():
-                if hasattr(cast_info, 'friendly_name'):
-                    name = cast_info.friendly_name
-                    devices.append({
-                        'name': name,
-                        'model': getattr(cast_info, 'model_name', 'Unknown'),
-                        'host': getattr(cast_info, 'host', 'Unknown'),
-                        'uuid': str(uuid)
-                    })
-                    name_to_cast_info[name] = cast_info
-                    logger.debug(f"Found Chromecast: {name} ({getattr(cast_info, 'model_name', 'Unknown')}) at {getattr(cast_info, 'host', 'Unknown')}")
-                    if target_name and name == target_name:
-                        target_cast_info = cast_info
-            browser.stop_discovery()
-            logger.info(f"Discovery complete: found {len(devices)} Chromecast devices")
-            return devices, target_cast_info, name_to_cast_info
-        except Exception as e:
-            logger.error(f"Error during Chromecast discovery: {e}")
-            return [], None, {}
-        finally:
-            try:
-                discovery_zeroconf.close()
-            except Exception as e:
-                logger.warning(f"Error closing discovery zeroconf: {e}")
+            time.sleep(timeout or 1.0)
+
+        for uuid, cast_info in browser.services.items():
+            if hasattr(cast_info, 'friendly_name'):
+                name = cast_info.friendly_name
+                devices.append({
+                    'name': name,
+                    'model': getattr(cast_info, 'model_name', 'Unknown'),
+                    'host': getattr(cast_info, 'host', 'Unknown'),
+                    'uuid': str(uuid)
+                })
+                name_to_cast_info[name] = cast_info
+                if target_name and name == target_name:
+                    target_cast_info = cast_info
+
+        logger.debug(f"Background discovery scan complete: found {len(devices)} Chromecast devices")
+        return devices, target_cast_info, name_to_cast_info
 
     def connect(self, device_name: Optional[str] = None, fallback: bool = True) -> bool:
         """
@@ -260,9 +251,6 @@ class ChromecastService(PlaybackBackend):
         target_name = device_name or self.device_name
         if self.cast:
             self.disconnect()
-        if not self._zeroconf:
-            logger.debug("Creating persistent zeroconf instance for connection")
-            self._zeroconf = Zeroconf()
         
         logger.info(f"Attempting to connect to Chromecast: {target_name}")
         
@@ -290,7 +278,7 @@ class ChromecastService(PlaybackBackend):
                 
                 # Found the device, establish connection
                 self.cast = pychromecast.get_chromecast_from_cast_info(
-                    target_cast_info, self._zeroconf
+                    target_cast_info, _global_zeroconf
                 )
                 logger.info(f"Waiting for {self.cast.name} to be ready...")
                 self.cast.wait(timeout=config.CHROMECAST_WAIT_TIMEOUT)
@@ -353,8 +341,14 @@ class ChromecastService(PlaybackBackend):
     def ensure_connected(self) -> bool:
         if self.is_connected():
             return True
-        logger.info("Connection lost, attempting to reconnect...")
-        return self.connect()
+            
+        with self._connection_lock:
+            # Recheck after acquiring lock in case another thread just connected
+            if self.is_connected():
+                return True
+                
+            logger.info("Connection lost, attempting to reconnect...")
+            return self.connect()
 
     def _is_cast_group(self) -> bool:
         """Best-effort detection of cast groups.
@@ -412,11 +406,7 @@ class ChromecastService(PlaybackBackend):
         # Give the device a moment to settle before we send LOAD.
         time.sleep(0.8)
     
-    async def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
-        import asyncio
-        if not await asyncio.to_thread(self.ensure_connected):
-            logger.error("Cannot play media: no Chromecast connection")
-            return False
+    def _do_play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
         try:
             # Aggressive takeover: if another sender has YouTube/Spotify/etc active,
             # quit that receiver app before attempting playback.
@@ -452,6 +442,10 @@ class ChromecastService(PlaybackBackend):
             return True
         except Exception as e:
             logger.error(f"Failed to play media: {e}")
+            import pychromecast.error
+            if not media_info or isinstance(e, (pychromecast.error.PyChromecastError, OSError, TimeoutError)):
+                return False
+                
             try:
                 logger.info("Attempting fallback playback without metadata")
                 self._force_takeover_receiver_app_if_needed()
@@ -461,12 +455,20 @@ class ChromecastService(PlaybackBackend):
             except Exception as fallback_e:
                 logger.error(f"Fallback playback also failed: {fallback_e}")
                 return False
+
+    async def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
+        import asyncio
+        if not await asyncio.to_thread(self.ensure_connected):
+            logger.error("Cannot play media: no Chromecast connection")
+            return False
+            
+        return await asyncio.to_thread(self._do_play_media, url, media_info, content_type)
     async def pause(self) -> bool:
         import asyncio
         if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
-            self.mc.pause()
+            await asyncio.to_thread(self.mc.pause)
             logger.info("Media paused")
             return True
         except Exception as e:
@@ -477,7 +479,7 @@ class ChromecastService(PlaybackBackend):
         if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
-            self.mc.play()
+            await asyncio.to_thread(self.mc.play)
             logger.info("Media resumed")
             return True
         except Exception as e:
@@ -488,7 +490,7 @@ class ChromecastService(PlaybackBackend):
         if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
-            self.mc.stop()
+            await asyncio.to_thread(self.mc.stop)
             logger.info("Media stopped")
             return True
         except Exception as e:
@@ -500,7 +502,7 @@ class ChromecastService(PlaybackBackend):
             return False
         try:
             volume = max(0.0, min(1.0, volume))
-            self.cast.set_volume(volume)
+            await asyncio.to_thread(self.cast.set_volume, volume)
             logger.info(f"Volume set to {volume:.1%}")
             return True
         except Exception as e:
@@ -519,7 +521,7 @@ class ChromecastService(PlaybackBackend):
         if not await asyncio.to_thread(self.ensure_connected):
             return False
         try:
-            self.cast.set_volume_muted(muted)
+            await asyncio.to_thread(self.cast.set_volume_muted, muted)
             logger.info(f"Volume {'muted' if muted else 'unmuted'}")
             return True
         except Exception as e:
@@ -580,123 +582,10 @@ class ChromecastService(PlaybackBackend):
             logger.error(f"Failed to get status: {e}")
             return None
         
-    async def switch_and_resume_playback(self, new_device_name: str) -> Dict:
-        """
-        Seamlessly switch to a new Chromecast device and resume playback.
-        
-        Fetches current playback state from JukeboxMediaPlayer, orchestrates the switch,
-        and resumes playback from the same album and track on the new device.
-        
-        Args:
-            new_device_name: Target Chromecast device name to switch to
-            
-        Returns:
-            Dict with operation status and details:
-            {
-                'status': 'switched' or 'error',
-                'switched_from': old device name,
-                'switched_to': new device name,
-                'playback_resumed': bool,
-                'album_id': str or None,
-                'track_index': int or None,
-                'error': str (if status is 'error')
-            }
-        """
-        try:
-            from app.core.service_container import get_service
-            
-            # Get singleton instances
-            jukebox_player = get_service("media_player_service")
-            playback_service = get_service("playback_service")
-            
-            # Get current device info before switching
-            old_device = self.cast.name if self.cast else "unknown"
-            
-            # 1. Save playback state (album_id and current track index)
-            saved_album_id = None
-            saved_track_index = 0
-            playback_was_active = False
-            
-            if jukebox_player and jukebox_player.current_track:
-                saved_album_id = jukebox_player.current_track.get('album_cover_filename')
-                saved_track_index = jukebox_player.current_index
-                playback_was_active = jukebox_player.status.value == "playing"
-                logger.info(f"[SwitchAndResume] Saved playback state: album_id={saved_album_id}, track_index={saved_track_index}, was_playing={playback_was_active}")
-            
-            # 2. Stop playback on current device
-            logger.info(f"[SwitchAndResume] Stopping playback on {old_device}")
-            if jukebox_player:
-                await jukebox_player.stop()
-            
-            # 3. Disconnect from current device
-            logger.info(f"[SwitchAndResume] Disconnecting from {old_device}")
-            self.disconnect()
-            
-            # 4. Connect to new device
-            logger.info(f"[SwitchAndResume] Connecting to {new_device_name}")
-            if not await asyncio.to_thread(self.connect, device_name=new_device_name, fallback=False):
-                logger.error(f"[SwitchAndResume] Failed to connect to new device: {new_device_name}")
-                return {
-                    "status": "error",
-                    "error": f"Failed to connect to device: {new_device_name}",
-                    "switched_from": old_device,
-                    "switched_to": new_device_name
-                }
-            self.device_name = new_device_name
-            # 5. Reload album and resume playback if we had an active session
-            if saved_album_id and playback_service:
-                logger.info(f"[SwitchAndResume] Reloading album {saved_album_id} on {new_device_name}, resuming from track {saved_track_index}")
-                success = playback_service.load_from_album_id(saved_album_id, start_track_index=saved_track_index)
-                if not success:
-                    logger.error(f"[SwitchAndResume] Failed to reload album {saved_album_id}")
-                    return {
-                        "status": "error",
-                        "error": f"Failed to reload album on new device",
-                        "switched_from": old_device,
-                        "switched_to": new_device_name,
-                        "album_id": saved_album_id,
-                        "track_index": saved_track_index
-                    }
-            elif saved_album_id and playback_service:
-                logger.info(f"[SwitchAndResume] Loading album {saved_album_id} on {new_device_name} (playback was paused, not auto-playing)")
-                success = playback_service.load_from_album_id(saved_album_id, start_track_index=saved_track_index)
-                if not success:
-                    logger.error(f"[SwitchAndResume] Failed to reload album {saved_album_id}")
-                    return {
-                        "status": "error",
-                        "error": f"Failed to reload album on new device",
-                        "switched_from": old_device,
-                        "switched_to": new_device_name,
-                        "album_id": saved_album_id,
-                        "track_index": saved_track_index
-                    }
-            
-            new_status = await self.get_status()
-            
-            return {
-                "status": "switched",
-                "switched_from": old_device,
-                "switched_to": new_device_name,
-                "playback_resumed": playback_was_active,
-                "album_id": saved_album_id,
-                "track_index": saved_track_index,
-                "new_device_status": {
-                    "volume_level": new_status.get("volume_level") if new_status else None,
-                    "volume_muted": new_status.get("volume_muted") if new_status else None,
-                    "connected": True
-                }
-            }
-        except Exception as e:
-            logger.error(f"[SwitchAndResume] Failed to switch and resume: {e}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "switched_to": new_device_name
-            }
-        
     async def cleanup(self):
+        import asyncio
         logger.info("Performing full cleanup of Chromecast service")
-        self.disconnect()
+        await asyncio.to_thread(self.disconnect)
         self._cleanup_zeroconf()        
 
 _service_instance = None
@@ -704,8 +593,7 @@ def get_chromecast_service(device_name: Optional[str] = None) -> ChromecastServi
     global _service_instance
     if _service_instance is None:
         _service_instance = ChromecastService(device_name)
-        _service_instance._zeroconf = Zeroconf()
-        logger.info("Initialized on-demand Chromecast service")
+        logger.info("Initialized persistent Chromecast service")
     if device_name and device_name != _service_instance.device_name:
         _service_instance.device_name = device_name
         logger.info(f"Updated target device to: {device_name}")

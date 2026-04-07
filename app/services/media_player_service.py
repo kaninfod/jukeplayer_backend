@@ -478,51 +478,31 @@ class MediaPlayerService:
 
         # Same-backend Chromecast device switch must reconnect immediately.
         if target_backend == "chromecast" and is_current_chromecast and requested_device and requested_device != previous_device:
-            if hasattr(previous_backend, "switch_and_resume_playback"):
-                result = await previous_backend.switch_and_resume_playback(requested_device)
-                if result.get("status") == "switched":
-                    self.emit_update()
-                    return {
-                        "status": "ok",
-                        "backend": "chromecast",
-                        "device_name": requested_device,
-                        "resumed": bool(result.get("playback_resumed")),
-                        "track_index": result.get("track_index", previous_track_index),
-                        "track_id": previous_track_id,
-                        "rollback_applied": False,
-                        "previous_backend": previous_backend_name,
-                        "previous_device": previous_device,
-                    }
-                return {
-                    "status": "error",
-                    "code": "switch_failed",
-                    "message": result.get("error", "Failed to switch Chromecast device"),
-                    "rollback_applied": False,
-                    "previous_backend": previous_backend_name,
-                    "previous_device": previous_device,
-                }
+            # We defer to the universal cross-backend logic below
+            logger.info("Preparing to switch identical Chromecast backends with different target models.")
 
         try:
             previous_muted_state = None
             try:
-                previous_muted_state = previous_backend.get_volume_muted()
+                previous_muted_state = await previous_backend.get_volume_muted()
             except Exception:
                 previous_muted_state = None
 
             if previous_status in (PlayerStatus.PLAY, PlayerStatus.PAUSE):
                 try:
-                    previous_backend.stop()
+                    await previous_backend.stop()
                 except Exception:
                     pass
-
-            if "mpv" in previous_backend_name.lower() and target_backend != "mpv":
+            
+            if "chromecast" in previous_backend_name.lower() and (target_backend != "chromecast" or (requested_device and requested_device != previous_device)):
                 try:
-                    previous_backend.cleanup()
-                    logger.info("MPV backend deactivated while switching to %s", target_backend)
-                except Exception as cleanup_error:
-                    logger.warning("Failed to fully deactivate MPV backend during switch: %s", cleanup_error)
+                    if hasattr(previous_backend, "disconnect"):
+                        logger.info("Disconnecting from old Chromecast device: %s", previous_device)
+                        previous_backend.disconnect()
+                except Exception as dc_error:
+                    logger.warning("Failed to cleanly disconnect from previous Chromecast: %s", dc_error)
 
-            new_backend = get_playback_backend_by_name(target_backend, device_name=device_name)
+            new_backend = get_playback_backend_by_name(target_backend, device_name=requested_device)
             self.playback_backend = new_backend
 
             backend_volume = self.current_volume / 100.0

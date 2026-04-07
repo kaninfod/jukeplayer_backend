@@ -37,6 +37,12 @@ class MPVService(PlaybackBackend):
         )
         
         # Explicitly unmute MPV on startup
+        try:
+            self.player.command("set_property", "mute", False)
+            self.player.command("set_property", "volume", 50.0)
+        except Exception as e:
+            logger.warning(f"Failed to explicitly unset mute on startup: {e}")
+            
         self.player.mute = False
         self.player.volume = 50.0
 
@@ -73,9 +79,8 @@ class MPVService(PlaybackBackend):
 
     def _handle_idle_active(self, name, value):
         if value:
-            # Player became idle
+            # Player became idle (can happen from EOF, STOP, etc.)
             self._playback_active = False
-            self._emit_track_finished("idle")
 
     def _handle_eof(self, name, value):
         if value:
