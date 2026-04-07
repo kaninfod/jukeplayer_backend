@@ -109,7 +109,8 @@ class Config:
 
     # === LOGGING CONFIGURATION ===
     LOG_SERVER_HOST: str = os.getenv("LOG_SERVER_HOST", "localhost")
-    LOG_SERVER_PORT: int = int(os.getenv("LOG_SERVER_PORT", "514"))
+    _log_port_raw = os.getenv("LOG_SERVER_PORT", "514").split("#")[0].strip()
+    LOG_SERVER_PORT: int = int(_log_port_raw) if _log_port_raw.isdigit() else 514
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     DEBUG_MODE: bool = os.getenv("DEBUG_MODE", "false").lower() == "true"
     # API Docs / OpenAPI exposure (can enable without DEBUG_MODE)
