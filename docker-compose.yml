@@ -50,7 +50,7 @@ services:
     #   dockerfile: Dockerfile
     
     # OPTION B: Use pre-built image from GitHub Container Registry (uncomment below)
-    #image: ghcr.io/martinhinge/jukeplayer-jukeplayer:latest
+    image: ghcr.io/kaninfod/jukeplayer_backend/jukeplayer:latest
     
     container_name: jukeplayer_backend
     
@@ -62,8 +62,7 @@ services:
     # ports:
     #   - "8001:8001"
     
-    networks:
-      - unified_network
+    network_mode: "host"
     
     volumes:
       - /home/pi/jukeplayer/data:/app/data           # Database, cache
