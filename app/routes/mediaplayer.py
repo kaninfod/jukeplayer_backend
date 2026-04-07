@@ -316,14 +316,19 @@ async def stream_current_track():
     logger.info(f"🎧 [HTTP Stream] Started for track: {track_id}")
     
     async def stream_generator():
-        async with aiohttp.ClientSession() as session:
+        import asyncio
+        timeout = aiohttp.ClientTimeout(total=0)  # Disable timeout for streaming audio
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(stream_url) as resp:
                 if resp.status != 200:
                     logger.error(f"[HTTP Stream] Subsonic upstream HTTP {resp.status}")
                     return
                 # Stream chunk by chunk exactly as it comes
-                async for chunk in resp.content.iter_chunked(4096):
-                    yield chunk
+                try:
+                    async for chunk in resp.content.iter_chunked(4096):
+                        yield chunk
+                except (asyncio.TimeoutError, TimeoutError):
+                    logger.warning("[HTTP Stream] Upstream stream timed out (usually expected if track ended early or ESP32 disconnected)")
                     
     return StreamingResponse(stream_generator(), media_type="audio/mpeg")
 

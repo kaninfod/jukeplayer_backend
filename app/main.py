@@ -1,8 +1,14 @@
 # Backend server - GPIO not needed. All hardware is handled by Pi client.
 # This allows the backend to run on any platform (Mac, Linux, Docker, etc.)
 
-import getpass
 import logging
+import os
+from app.core.logging_config import setup_logging
+
+# Setup logging FIRST, before importing anything else that might log
+setup_logging(level=logging.DEBUG)
+
+import getpass
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -27,10 +33,6 @@ from app.routes.nfc_encoding import router as nfc_encoding_router
 
 from app.web.routes import router as web_router
 
-import logging, os
-from app.core.logging_config import setup_logging
-
-setup_logging(level=logging.DEBUG)
 
 # Initialize FastAPI app
 

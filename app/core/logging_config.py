@@ -8,6 +8,11 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     """Configure logging for the jukebox app with syslog + file fallback."""
 
     logger = logging.getLogger()
+    
+    # Remove any existing handlers to prevent duplicate logging
+    if logger.hasHandlers():
+        logger.handlers.clear()
+        
     logger.setLevel(level)
 
     hostname = socket.gethostname()
