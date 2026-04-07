@@ -28,9 +28,10 @@ pip-delete-this-directory.txt
 *.egg
 
 # Environment variables
-.env
+.env*
 .env.local
 .env.*.local
+
 
 # IDE
 .vscode/
