@@ -45,22 +45,22 @@ services:
   # JukePlayer - MediaPlayer API for the jukebox
   jukeplayer:
     # OPTION A: Build locally (uncomment below)
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     
     # OPTION B: Use pre-built image from GitHub Container Registry (uncomment below)
     #image: ghcr.io/martinhinge/jukeplayer-jukeplayer:latest
     
-    container_name: jukeplayer_api
+    container_name: jukeplayer_backend
     
     environment:
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
       - PULSE_COOKIE=/root/.config/pulse/cookie
 
 
-    ports:
-      - "8001:8001"
+    # ports:
+    #   - "8001:8001"
     
     networks:
       - unified_network
