@@ -57,7 +57,7 @@ class MPVService(PlaybackBackend):
 
         # Register event listeners directly through the wrapper
         self.player.bind_property_observer("idle-active", self._handle_idle_active)
-        self.player.bind_property_observer("eof-reached", self._handle_eof)
+        self.player.bind_event("end-file", self._handle_end_file)
 
     def _emit_track_finished(self, reason: str, error=None):
         import time
@@ -82,9 +82,10 @@ class MPVService(PlaybackBackend):
             # Player became idle (can happen from EOF, STOP, etc.)
             self._playback_active = False
 
-    def _handle_eof(self, name, value):
-        if value:
-            self._emit_track_finished("eof-reached")
+    def _handle_end_file(self, event):
+        reason = event.get("reason")
+        if reason in ("eof", "error"):
+            self._emit_track_finished(reason, error=event.get("file_error"))
 
     async def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
         readiness = self.get_output_readiness()

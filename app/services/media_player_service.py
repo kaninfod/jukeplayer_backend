@@ -436,7 +436,7 @@ class MediaPlayerService:
         previous_track_id = self.track_id
 
         target_backend = (backend or "").strip().lower()
-        if target_backend not in ("mpv", "chromecast"):
+        if target_backend not in ("mpv", "chromecast", "streaming"):
             return {
                 "status": "error",
                 "code": "invalid_backend",
@@ -446,10 +446,19 @@ class MediaPlayerService:
             }
 
         is_current_chromecast = "chromecast" in previous_backend_name.lower()
+        is_current_streaming = "websocket" in previous_backend_name.lower() or "streaming" in previous_backend_name.lower()
+        
+        if is_current_chromecast:
+            current_auth_backend = "chromecast"
+        elif is_current_streaming:
+            current_auth_backend = "streaming"
+        else:
+            current_auth_backend = "mpv"
+
         requested_device = (device_name or "").strip() or None
 
         # Fast no-op when backend and device are already active.
-        if target_backend == ("chromecast" if is_current_chromecast else "mpv"):
+        if target_backend == current_auth_backend:
             if target_backend == "chromecast":
                 if not requested_device or requested_device == previous_device:
                     return {
@@ -466,7 +475,7 @@ class MediaPlayerService:
             else:
                 return {
                     "status": "ok",
-                    "backend": "mpv",
+                    "backend": target_backend,
                     "device_name": getattr(previous_backend, "device_name", None),
                     "resumed": previous_status == PlayerStatus.PLAY,
                     "track_index": previous_track_index,

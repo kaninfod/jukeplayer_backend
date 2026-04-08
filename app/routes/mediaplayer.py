@@ -315,22 +315,65 @@ async def stream_current_track():
         
     logger.info(f"🎧 [HTTP Stream] Started for track: {track_id}")
     
-    async def stream_generator():
-        import asyncio
-        timeout = aiohttp.ClientTimeout(total=0)  # Disable timeout for streaming audio
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(stream_url) as resp:
-                if resp.status != 200:
-                    logger.error(f"[HTTP Stream] Subsonic upstream HTTP {resp.status}")
-                    return
-                # Stream chunk by chunk exactly as it comes
-                try:
-                    async for chunk in resp.content.iter_chunked(4096):
-                        yield chunk
-                except (asyncio.TimeoutError, TimeoutError):
-                    logger.warning("[HTTP Stream] Upstream stream timed out (usually expected if track ended early or ESP32 disconnected)")
+    from starlette.responses import Response
+    import aiohttp
+    import asyncio
+    
+    class RawStreamingResponse(Response):
+        def __init__(self, url: str):
+            super().__init__()
+            self.stream_url = url
+            
+        async def __call__(self, scope, receive, send) -> None:
+            timeout = aiohttp.ClientTimeout(total=0)
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(self.stream_url) as resp:
+                    if resp.status != 200:
+                        logger.error(f"[HTTP Stream] Subsonic upstream HTTP {resp.status}")
+                        await send({
+                            'type': 'http.response.start',
+                            'status': resp.status,
+                            'headers': [(b'connection', b'close')]
+                        })
+                        await send({'type': 'http.response.body', 'body': b'', 'more_body': False})
+                        return
+                        
+                    headers = [
+                        (b'content-type', b'audio/mpeg'),
+                        (b'connection', b'close'),
+                    ]
                     
-    return StreamingResponse(stream_generator(), media_type="audio/mpeg")
+                    # Passing Content-Length disables Uvicorn/ASGI server auto-chunking
+                    if 'Content-Length' in resp.headers:
+                        headers.append((b'content-length', str(resp.headers['Content-Length']).encode('utf-8')))
+                        
+                    await send({
+                        'type': 'http.response.start',
+                        'status': 200,
+                        'headers': headers
+                    })
+                    
+                    try:
+                        async for chunk in resp.content.iter_chunked(4096):
+                            await send({
+                                'type': 'http.response.body',
+                                'body': chunk,
+                                'more_body': True
+                            })
+                    except (asyncio.TimeoutError, TimeoutError):
+                        logger.warning("[HTTP Stream] Upstream stream timed out")
+                    except Exception as e:
+                        logger.error(f"[HTTP Stream] Transfer error: {e}")
+                        
+            # Signal end of stream
+            await send({
+                'type': 'http.response.body',
+                'body': b'',
+                'more_body': False
+            })
+            
+    return RawStreamingResponse(stream_url)
 
 # Dedicated WebSocket routes for events (status + control) and audio streaming
 # Handlers moved to app.websocket.mediaplayer_ws and app.websocket.audio_stream for better organization
