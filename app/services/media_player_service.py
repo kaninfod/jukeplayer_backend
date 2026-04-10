@@ -406,7 +406,7 @@ class MediaPlayerService:
             "elapsed_time": self.track_timer.get_elapsed(),
             "output_device": self.playback_backend.device_name,
             "active_client": getattr(self, 'active_client', None),
-            "playback_backend": self.playback_backend # config.PLAYBACK_BACKEND
+            "playback_backend": type(self.playback_backend).__name__ # config.PLAYBACK_BACKEND
         }
 
     def get_status(self) -> Dict:
