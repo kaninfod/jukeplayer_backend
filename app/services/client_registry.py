@@ -64,7 +64,30 @@ class ClientInfo:
         """
         if not self.send_callback:
             return False
-        
+            
+        # For memory-constrained devices (like ESP32), strip out large payload fields dynamically
+        if self.client_type == 'esp32' and message.get("type") == "current_track":
+            payload = message.get("payload", {})
+            if "playlist" in payload or "elapsed_time" in payload:
+                # Safely copy to ensure we don't mutate the broadcast payload intended for other clients
+                trimmed_message = {"type": message["type"], "payload": payload.copy()}
+                trimmed_message["payload"].pop("playlist", None)
+                
+                # Optional: The ESP32 doesn't use these fields and they bloat JSON size
+                trimmed_message["payload"].pop("elapsed_time", None)
+                trimmed_message["payload"].pop("active_client", None)
+                trimmed_message["payload"].pop("output_device", None)
+                
+                # Further strip track specifics (like absolute thumbs) if necessary
+                track_info = trimmed_message["payload"].get("current_track", {})
+                if track_info:
+                    trimmed_track = track_info.copy()
+                    trimmed_track.pop("thumb", None)
+                    trimmed_track.pop("thumb_abs", None)
+                    trimmed_message["payload"]["current_track"] = trimmed_track
+                
+                message = trimmed_message
+                
         try:
             return await self.send_callback(message)
         except Exception as e:

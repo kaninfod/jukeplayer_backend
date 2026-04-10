@@ -334,6 +334,7 @@ window.refreshKioskStatus = async function() {
             
             // Handle messages according to server spec
             if (msg && msg.type) {
+
                 // Server spec: sends current_track, volume_changed, notification, ping
                 if (msg.type === 'error') {
                     console.error(`[${wsTimestamp}] WS: Error message:`, msg.payload && msg.payload.message);
@@ -351,13 +352,17 @@ window.refreshKioskStatus = async function() {
                     showKioskToast('Notification: ' + (payload.message || ''), { theme: 'info' });
                     return;
                 }
-                
-                // Handle current_track and volume_changed
-                const payload = msg.payload || {};
-                if (typeof window.updateKioskTrackInfo === 'function' && payload && typeof payload === 'object') {
-                    console.log(`[${wsTimestamp}] WS: Applying update for event type "${msg.type}"`);
-                    window.updateKioskTrackInfo(payload);
+
+                if (msg.type === 'current_track' || msg.type === 'volume_changed') {
+                    // Handle current_track and volume_changed    
+                    const payload = msg.payload || {};
+                    if (typeof window.updateKioskTrackInfo === 'function' && payload && typeof payload === 'object') {
+                        console.log(`[${wsTimestamp}] WS: Applying update for event type "${msg.type}"`);
+                        window.updateKioskTrackInfo(payload);
+                    }
                 }
+                
+
             } else {
                 console.warn(`[${wsTimestamp}] WS: Message structure unexpected:`, msg);
             }
