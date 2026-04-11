@@ -54,9 +54,9 @@ class WebSocketEventDispatcher:
             return
         
         # Create and register handlers for each event type
-        self._setup_track_changed_handler()
-        self._setup_volume_changed_handler()
-        self._setup_notification_handler()
+        event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed) #self._setup_track_changed_handler()
+        event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed) #self._setup_volume_changed_handler()
+        event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification) #self._setup_notification_handler()
         
         self._dispatch_handlers_registered = True
         logger.info("WebSocket event dispatch handlers registered (3 total)")
@@ -74,86 +74,75 @@ class WebSocketEventDispatcher:
     
     def _setup_track_changed_handler(self):
         """Setup TRACK_CHANGED event handler."""
-        dispatcher = self
-        
-        def handle_track_changed(event: Event):
-            """Broadcast track change to all connected clients."""
-            async def _broadcast():
+        event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed)
+
+    def handle_track_changed(self, event: Event):
+        """Broadcast track change to all connected clients, shaping payload per client capabilities."""
+        self._schedule_broadcast(self._broadcast_track_changed())
+
+    async def _broadcast_track_changed(self):
+        try:
+            client_registry = get_service("client_registry")
+            media_player_service = get_service("media_player_service")
+            count = 0
+            for client in getattr(client_registry, '_clients', {}).values():
                 try:
-                    client_registry = get_service("client_registry")
-                    
-                    # If we have a fetcher, use fresh data; otherwise use event payload
-                    if EventType.TRACK_CHANGED in dispatcher._topic_data_fetchers:
-                        try:
-                            payload = dispatcher._topic_data_fetchers[EventType.TRACK_CHANGED]()
-                        except Exception as e:
-                            logger.error(f"Error fetching track data: {e}")
-                            payload = event.payload
+                    if "minimal_messaging" in getattr(client, 'capabilities', []):
+                        shaped_payload = media_player_service.get_context(minimal=True)
                     else:
-                        payload = event.payload
-                    
-                    message = {"type": "current_track", "payload": payload}
-                    await client_registry.broadcast_to_all(message)
-                    
+                        shaped_payload = media_player_service.get_context()
+                    message = {"type": "current_track", "payload": shaped_payload}
+                    await client.send_message(message)
+                    count += 1
                 except Exception as e:
-                    logger.error(f"Error broadcasting track_changed: {e}")
-            
-            dispatcher._schedule_broadcast(_broadcast())
-        
-        handle_track_changed.__name__ = "websocket_track_dispatcher"
-        event_bus.subscribe(EventType.TRACK_CHANGED, handle_track_changed)
+                    logger.error(f"Failed to send current_track to client {getattr(client, 'client_id', '?')}: {e}")
+            logger.info(f"Broadcasted current_track to {count} clients (per-client shaping)")
+        except Exception as e:
+            logger.error(f"Error broadcasting track_changed: {e}")
     
     def _setup_volume_changed_handler(self):
         """Setup VOLUME_CHANGED event handler."""
-        dispatcher = self
-        
-        def handle_volume_changed(event: Event):
-            """Broadcast volume change to all connected clients."""
-            async def _broadcast():
+        event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
+
+    def handle_volume_changed(self, event: Event):
+        """Broadcast volume change to all connected clients."""
+        self._schedule_broadcast(self._broadcast_volume_changed(event))
+
+    async def _broadcast_volume_changed(self, event: Event):
+        try:
+            client_registry = get_service("client_registry")
+            # If we have a fetcher, use fresh data; otherwise use event payload
+            if EventType.VOLUME_CHANGED in self._topic_data_fetchers:
                 try:
-                    client_registry = get_service("client_registry")
-                    
-                    # If we have a fetcher, use fresh data; otherwise use event payload
-                    if EventType.VOLUME_CHANGED in dispatcher._topic_data_fetchers:
-                        try:
-                            payload = dispatcher._topic_data_fetchers[EventType.VOLUME_CHANGED]()
-                        except Exception as e:
-                            logger.error(f"Error fetching volume data: {e}")
-                            payload = event.payload
-                    else:
-                        payload = event.payload
-                    
-                    message = {"type": "volume_changed", "payload": payload}
-                    await client_registry.broadcast_to_all(message)
-                    
+                    payload = self._topic_data_fetchers[EventType.VOLUME_CHANGED]()
                 except Exception as e:
-                    logger.error(f"Error broadcasting volume_changed: {e}")
+                    logger.error(f"Error fetching volume data: {e}")
+                    payload = event.payload
+            else:
+                payload = event.payload
+
+            message = {"type": "volume_changed", "payload": payload}
             
-            dispatcher._schedule_broadcast(_broadcast())
-        
-        handle_volume_changed.__name__ = "websocket_volume_dispatcher"
-        event_bus.subscribe(EventType.VOLUME_CHANGED, handle_volume_changed)
+            await client_registry.broadcast_to_all(message)
+        except Exception as e:
+            logger.error(f"Error broadcasting volume_changed: {e}")
     
     def _setup_notification_handler(self):
         """Setup NOTIFICATION event handler."""
-        dispatcher = self
-        
-        def handle_notification(event: Event):
-            """Broadcast notification to all connected clients."""
-            async def _broadcast():
-                try:
-                    client_registry = get_service("client_registry")
-                    payload = event.payload if event else {}
-                    message = {"type": "notification", "payload": payload}
-                    await client_registry.broadcast_to_all(message)
-                    
-                except Exception as e:
-                    logger.error(f"Error broadcasting notification: {e}")
-            
-            dispatcher._schedule_broadcast(_broadcast())
-        
-        handle_notification.__name__ = "websocket_notification_dispatcher"
-        event_bus.subscribe(EventType.NOTIFICATION, handle_notification)
+        event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
+
+    def handle_notification(self, event: Event):
+        """Broadcast notification to all connected clients."""
+        self._schedule_broadcast(self._broadcast_notification(event))
+
+    async def _broadcast_notification(self, event: Event):
+        try:
+            client_registry = get_service("client_registry")
+            payload = event.payload if event else {}
+            message = {"type": "notification", "payload": payload}
+            await client_registry.broadcast_to_all(message)
+        except Exception as e:
+            logger.error(f"Error broadcasting notification: {e}")
 
 
 # Global dispatcher instance

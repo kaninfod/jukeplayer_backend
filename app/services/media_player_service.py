@@ -384,39 +384,56 @@ class MediaPlayerService:
             payload=self.get_context()
         ))
     
-    def get_context(self):
+    def get_context(self, minimal: bool = False):
+        """
+        Return the current playback context.
+        If minimal is True, only include minimal fields for current_track, status, current_index, and volume.
+        """
         from app.config import config
-        # Use cover_url directly from current_track and playlist (single source of truth)
         track = self.current_track or {}
         cover_url = track.get('cover_url')
-        context = {
-            "current_track": {
-                "artist": self.artist,
-                "title": self.title,
-                "duration": self.duration,
-                "album": self.album,
-                "year": self.year,
-                "track_id": self.track_id,
-                "track_number": self.track_number,
-                "cover_url": cover_url
-            },
-            "status": self.status.value,
-            "current_index": self.current_index,
-            "repeat_album": self._repeat_album,
-            "playlist": self.playlist,
-            "volume": self.volume,
-            "elapsed_time": self.track_timer.get_elapsed(),
-            "output_device": self.playback_backend.device_name,
-            "active_client": getattr(self, 'active_client', None),
-            "playback_backend": type(self.playback_backend).__name__ # config.PLAYBACK_BACKEND
-        }
-        logger.info(f"[get_context] Sending context to client: {context}")
-        if cover_url:
-            logger.info(f"[get_context] cover_url: {cover_url}")
-        return context
+        if minimal:
+            return {
+                "current_track": {
+                    "artist": self.artist,
+                    "title": self.title,
+                    "album": self.album,
+                    "track_id": self.track_id,
+                    "track_number": self.track_number,
+                    "cover_url": cover_url,
+                },
+                "status": self.status.value,
+                "current_index": self.current_index,
+                "volume": self.volume,
+            }
+        else:
+            context = {
+                "current_track": {
+                    "artist": self.artist,
+                    "title": self.title,
+                    "duration": self.duration,
+                    "album": self.album,
+                    "year": self.year,
+                    "track_id": self.track_id,
+                    "track_number": self.track_number,
+                    "cover_url": cover_url
+                },
+                "status": self.status.value,
+                "current_index": self.current_index,
+                "repeat_album": self._repeat_album,
+                "playlist": self.playlist,
+                "volume": self.volume,
+                "elapsed_time": self.track_timer.get_elapsed(),
+                "output_device": self.playback_backend.device_name,
+                "active_client": getattr(self, 'active_client', None),
+                "playback_backend": type(self.playback_backend).__name__ # config.PLAYBACK_BACKEND
+            }
+            return context
 
     # _playlist_with_cover_url is no longer needed; playlist is the single source of truth
-
+    def get_volume(self):
+        """Return the current volume (0-100)."""
+        return {"volume": self.current_volume}
     def get_status(self) -> Dict:
         return {
             'status': self.status.value,

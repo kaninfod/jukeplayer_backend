@@ -126,13 +126,14 @@ async def startup_event():
     
     # Step 3: Setup WebSocket event dispatcher with the current event loop
     from app.websocket.event_dispatcher import setup_websocket_dispatcher
-    from app.routes.mediaplayer import _get_data_for_current_track, _get_minimal_data_for_current_track
+    from app.routes.mediaplayer import _get_data_for_current_track
     import asyncio
     current_loop = asyncio.get_running_loop()
     # Use the full data fetcher for now (can extend to support minimal in future)
+    media_player_service = global_container.get('media_player_service')
     setup_websocket_dispatcher(
-        track_fetcher=_get_data_for_current_track,
-        volume_fetcher=_get_data_for_current_track,
+        track_fetcher=media_player_service.get_context,
+        volume_fetcher=media_player_service.get_volume,
         event_loop=current_loop
     )
 
