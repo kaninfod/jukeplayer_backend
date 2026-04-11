@@ -386,7 +386,10 @@ class MediaPlayerService:
     
     def get_context(self):
         from app.config import config
-        return {
+        # Use cover_url directly from current_track and playlist (single source of truth)
+        track = self.current_track or {}
+        cover_url = track.get('cover_url')
+        context = {
             "current_track": {
                 "artist": self.artist,
                 "title": self.title,
@@ -395,8 +398,7 @@ class MediaPlayerService:
                 "year": self.year,
                 "track_id": self.track_id,
                 "track_number": self.track_number,
-                "thumb": self.thumb,
-                "thumb_abs": self.cc_cover_url
+                "cover_url": cover_url
             },
             "status": self.status.value,
             "current_index": self.current_index,
@@ -408,6 +410,12 @@ class MediaPlayerService:
             "active_client": getattr(self, 'active_client', None),
             "playback_backend": type(self.playback_backend).__name__ # config.PLAYBACK_BACKEND
         }
+        logger.info(f"[get_context] Sending context to client: {context}")
+        if cover_url:
+            logger.info(f"[get_context] cover_url: {cover_url}")
+        return context
+
+    # _playlist_with_cover_url is no longer needed; playlist is the single source of truth
 
     def get_status(self) -> Dict:
         return {

@@ -54,21 +54,66 @@ def get_album_songs(id: str):
         logger.error(f"Failed to fetch songs for album {id}: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to fetch songs for album: {e}")
 
+
+from fastapi import Request
+from fastapi.responses import FileResponse
+import os
+
 @router.get("/cover/{album_id}")
-def get_cover_art(album_id: str):
+def get_cover_art(
+    album_id: str,
+    source: str = Query("local", regex="^(local|subsonic)$"),
+    size: int = Query(180, ge=64, le=1024)
+):
     """
-    Proxy cover art through the jukebox API so the browser doesn't need
-    credentials for the Gonic host. Uses SubsonicService with optional
-    proxy Basic auth configured in ENV.
+    Serve album cover art, defaulting to local cache, with optional fallback to Subsonic.
+    - source=local: Use local cache, fallback to Subsonic if missing and cache result.
+    - source=subsonic: Always fetch from Subsonic and cache result.
     """
     subsonic_service = get_service("subsonic_service")
-    try:
-        resp = subsonic_service._api_request("getCoverArt", {"id": album_id})
-        content_type = resp.headers.get("Content-Type", "image/png")
-        return Response(content=resp.content, media_type=content_type)
-    except Exception as e:
-        logger.error(f"Failed to fetch cover art for {album_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Failed to fetch cover art: {e}")
+    covers_dir = subsonic_service._cover_dir(album_id)
+    paths = subsonic_service._cover_paths(album_id, size)
+    # Try local first
+    if source == "local":
+        # If local exists, serve it
+        if os.path.exists(paths["webp"]):
+            return FileResponse(paths["webp"], media_type="image/webp")
+        if os.path.exists(paths["jpg"]):
+            return FileResponse(paths["jpg"], media_type="image/jpeg")
+        # If not, try to generate/copy from Subsonic and cache
+        try:
+            subsonic_service.ensure_cover(album_id, size)
+            # Try again after generation
+            if os.path.exists(paths["webp"]):
+                return FileResponse(paths["webp"], media_type="image/webp")
+            if os.path.exists(paths["jpg"]):
+                return FileResponse(paths["jpg"], media_type="image/jpeg")
+        except Exception as e:
+            logger.warning(f"Could not auto-cache cover for {album_id}: {e}")
+        # Fallback to default placeholder
+        default_paths = subsonic_service._default_cover_paths(size)
+        if os.path.exists(default_paths["webp"]):
+            return FileResponse(default_paths["webp"], media_type="image/webp")
+        if os.path.exists(default_paths["jpg"]):
+            return FileResponse(default_paths["jpg"], media_type="image/jpeg")
+        raise HTTPException(status_code=404, detail="Cover not found and could not generate placeholder.")
+    elif source == "subsonic":
+        # Always fetch from Subsonic, cache result, then serve
+        try:
+            subsonic_service.ensure_cover(album_id, size)
+            if os.path.exists(paths["webp"]):
+                return FileResponse(paths["webp"], media_type="image/webp")
+            if os.path.exists(paths["jpg"]):
+                return FileResponse(paths["jpg"], media_type="image/jpeg")
+        except Exception as e:
+            logger.error(f"Failed to fetch cover from Subsonic for {album_id}: {e}", exc_info=True)
+        # Fallback to default placeholder
+        default_paths = subsonic_service._default_cover_paths(size)
+        if os.path.exists(default_paths["webp"]):
+            return FileResponse(default_paths["webp"], media_type="image/webp")
+        if os.path.exists(default_paths["jpg"]):
+            return FileResponse(default_paths["jpg"], media_type="image/jpeg")
+        raise HTTPException(status_code=404, detail="Cover not found and could not generate placeholder.")
 
 
 @router.get("/album_info/{id}", response_model=AlbumInfo)

@@ -165,12 +165,16 @@ function updateKioskTrackInfo(data) {
         `;
         console.log(`[${timestamp}] UPDATE: Track info rendered successfully  - original`);
         
-        let thumbUrl = data.current_track.thumb;
-        if (thumbUrl) {
-            console.log(`[${timestamp}] UPDATE: Loading album art from: ${thumbUrl}`);
-            kioskThumbDiv.innerHTML = `<img src="${thumbUrl}" alt="Album Cover" />`;
+        let coverUrl = data.current_track.cover_url;
+        if (coverUrl) {
+            // Prepend window.location.origin if coverUrl is a relative path
+            if (coverUrl.startsWith('/')) {
+                coverUrl = window.location.origin + coverUrl + '?size=512';
+            }
+            console.log(`[${timestamp}] UPDATE: Loading album art from: ${coverUrl}`);
+            kioskThumbDiv.innerHTML = `<img src="${coverUrl}" alt="Album Cover" />`;
         } else {
-            console.log(`[${timestamp}] UPDATE: No thumb URL, showing placeholder`);
+            console.log(`[${timestamp}] UPDATE: No cover_url, showing placeholder`);
             kioskThumbDiv.innerHTML = '<div class="kiosk-no-cover"><i class="mdi mdi-music"></i></div>';
         }
         

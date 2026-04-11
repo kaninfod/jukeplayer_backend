@@ -99,6 +99,7 @@ class PlaybackService:
             playlist_metadata = []
             for track in tracks:
                 stream_url = self.get_stream_url_for_track(track)
+                cover_url = self.subsonic_service.get_cover_proxy_url(album_id)
                 playlist_metadata.append({
                     'title': track.get('title'),
                     'track_id': track.get('id'),
@@ -108,9 +109,7 @@ class PlaybackService:
                     'artist': album_info.get('artist', ''),
                     'album': album_info.get('name', ''),
                     'year': album_info.get('year', ''),
-                    'thumb': thumb_url,
-                    'album_cover_filename': f"{album_id}",
-                    'cc_cover_url': self.subsonic_service.get_cover_static_url(album_id, absolute=True)
+                    'cover_url': cover_url
                 })
             logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for album_id {album_id}")
             self.player.playlist = playlist_metadata

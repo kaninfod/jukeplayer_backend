@@ -1,7 +1,13 @@
 {# Album Card Partial for Media Library #}
 <div class="col-3">
     <div class="card library-album-card">
-        <img src="{{ album.cover_url or '/assets/covers/_default/cover-180.jpg' }}" class="card-img-top" alt="{{ album.name|e }}">
+        <img 
+            src="{{ album.cover_url or '/assets/covers/_default/cover-180.jpg' }}" 
+            class="card-img-top" 
+            alt="{{ album.name|e }}" 
+            onerror="this.onerror=null;this.src='/assets/covers/_default/cover-180.jpg';"
+            onload="if(this.src.startsWith(window.location.origin + '/')){return;} if(this.src.startsWith('/')){this.src=window.location.origin+this.src;}"
+        >
         <div class="card-body">
             <h6 class="card-title text-truncate" style="max-width: 100%;">{{ album.name|e }}</h6>
             <p class="card-text text-muted text-truncate mb-0" style="max-width: 100%;">{{ artist.name|e }}</p>

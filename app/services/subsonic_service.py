@@ -299,7 +299,7 @@ class SubsonicService:
                 continue
             aid = album.get("id")
             # Ensure a small cover for grids
-            cover_small = self.get_cover_static_url(aid, 180, absolute=False)
+            cover_small = self.get_cover_proxy_url(aid) #self.get_cover_static_url(aid, 180, absolute=False)
             result.append({
                 "id": aid,
                 "name": album.get("title"),
