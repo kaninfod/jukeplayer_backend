@@ -57,7 +57,9 @@ class WebSocketEventDispatcher:
         event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed) #self._setup_track_changed_handler()
         event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed) #self._setup_volume_changed_handler()
         event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification) #self._setup_notification_handler()
+        event_bus.subscribe(EventType.TOGGLE_REPEAT_CHANGED, self.handle_toggle_repeat_changed)
         
+
         self._dispatch_handlers_registered = True
         logger.info("WebSocket event dispatch handlers registered (3 total)")
     
@@ -72,9 +74,9 @@ class WebSocketEventDispatcher:
         except Exception as e:
             logger.error(f"Failed to schedule broadcast: {e}")
     
-    def _setup_track_changed_handler(self):
-        """Setup TRACK_CHANGED event handler."""
-        event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed)
+    # def _setup_track_changed_handler(self):
+    #     """Setup TRACK_CHANGED event handler."""
+    #     event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed)
 
     def handle_track_changed(self, event: Event):
         """Broadcast track change to all connected clients, shaping payload per client capabilities."""
@@ -100,9 +102,9 @@ class WebSocketEventDispatcher:
         except Exception as e:
             logger.error(f"Error broadcasting track_changed: {e}")
     
-    def _setup_volume_changed_handler(self):
-        """Setup VOLUME_CHANGED event handler."""
-        event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
+    # def _setup_volume_changed_handler(self):
+    #     """Setup VOLUME_CHANGED event handler."""
+    #     event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
 
     def handle_volume_changed(self, event: Event):
         """Broadcast volume change to all connected clients."""
@@ -127,9 +129,24 @@ class WebSocketEventDispatcher:
         except Exception as e:
             logger.error(f"Error broadcasting volume_changed: {e}")
     
-    def _setup_notification_handler(self):
-        """Setup NOTIFICATION event handler."""
-        event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
+    # def _setup_notification_handler(self):
+    #     """Setup NOTIFICATION event handler."""
+    #     event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
+
+    def handle_toggle_repeat_changed(self, event: Event):
+        """Broadcast toggle repeat change to all connected clients."""
+        self._schedule_broadcast(self._broadcast_toggle_repeat_changed(event))
+
+    async def _broadcast_toggle_repeat_changed(self, event: Event):
+        try:
+            client_registry = get_service("client_registry")
+            payload = event.payload if event else {}
+            logger.info(f"Broadcasting toggle_repeat_changed with payload: {payload}")
+            message = {"type": "toggle_repeat_changed", "payload": payload}
+            await client_registry.broadcast_to_all(message)
+        except Exception as e:
+            logger.error(f"Error broadcasting toggle_repeat_changed: {e}")
+
 
     def handle_notification(self, event: Event):
         """Broadcast notification to all connected clients."""

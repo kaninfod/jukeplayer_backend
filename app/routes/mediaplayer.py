@@ -167,7 +167,7 @@ async def toggle_repeat_album():
     """Toggle repeat album mode in PlaybackManager."""
     from app.core import event_bus, EventType, Event
     result = await event_bus.aemit(Event(
-        type=EventType.TOGGLE_REPEAT_ALBUM,
+        type=EventType.TOGGLE_REPEAT,
         payload={}
     ))
     

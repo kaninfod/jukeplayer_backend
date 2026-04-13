@@ -2,17 +2,12 @@ from enum import Enum
 from app.core.event_bus import Event
 
 class EventType(Enum):
-    SYSTEM_REBOOT_REQUESTED = "system_reboot_requested"
-    SYSTEM_SHUTDOWN_REQUESTED = "system_shutdown_requested"
-    SYSTEM_RESTART_REQUESTED = "system_restart_requested"
-    SYSTEM_REBOOT_CANCELLED = "system_reboot_cancelled"
-    SYSTEM_SHUTDOWN_CANCELLED = "system_shutdown_cancelled"
-    SYSTEM_RESTART_CANCELLED = "system_restart_cancelled"
+
 
     TRACK_CHANGED = "track_changed"
-    VOLUME_CHANGED = "volume_changed"
-    BRIGHTNESS_CHANGED = "brightness_changed"
     TRACK_FINISHED = "track_finished"
+    VOLUME_CHANGED = "volume_changed"
+    
     NEXT_TRACK = "next_track"
     PREVIOUS_TRACK = "previous_track"
     PLAY_TRACK = "play_track"
@@ -35,7 +30,8 @@ class EventType(Enum):
     SHOW_SCREEN_QUEUED = "show_screen_queued"
     ENCODE_CARD = "encode_card"
     NOTIFICATION = "notification"
-    TOGGLE_REPEAT_ALBUM = "toggle_repeat_album"
+    TOGGLE_REPEAT = "toggle_repeat"
+    TOGGLE_REPEAT_CHANGED = "toggle_repeat_changed"
 
 class EventFactory:
     @staticmethod

@@ -43,9 +43,13 @@ class MediaPlayerService:
             getattr(self.playback_backend, "device_name", "unknown"),
         )
 
-    async def toggle_repeat_album(self, event=None):
+    async def toggle_repeat(self, event=None):
         """Toggle repeat album setting."""
         mode = self.playlist_manager.toggle_repeat()
+        self.event_bus.emit(Event(
+            type=EventType.TOGGLE_REPEAT_CHANGED,
+            payload={"mode": mode}
+        ))
         return mode
     
     async def previous_track(self, event=None):
@@ -229,6 +233,7 @@ class MediaPlayerService:
                 "status": self.status.value,
                 "current_index": self.playlist_manager.current_index,
                 "volume": self.volume_manager.volume,
+                "repeat_album": self.playlist_manager._repeat_album,
             }
         else:
             context = {

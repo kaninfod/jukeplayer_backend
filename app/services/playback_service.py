@@ -38,7 +38,7 @@ class PlaybackService:
         self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
         self.event_bus.subscribe(EventType.PLAY_ALBUM, self.load_album)
         self.event_bus.subscribe(EventType.ENCODE_CARD, self._encode_card)
-        self.event_bus.subscribe(EventType.TOGGLE_REPEAT_ALBUM, self.player.toggle_repeat_album)
+        self.event_bus.subscribe(EventType.TOGGLE_REPEAT, self.player.toggle_repeat)
         self.event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
         self.event_bus.subscribe(EventType.PREVIOUS_TRACK, self.player.previous_track)
         self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
