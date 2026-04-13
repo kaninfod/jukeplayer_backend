@@ -86,10 +86,18 @@ class MediaPlayerService:
 
     async def handle_volume_up(self, event=None):
         await self.volume_manager.volume_up()
+        self.event_bus.emit(Event(
+            type=EventType.VOLUME_CHANGED,
+            payload=self.get_context()
+        ))
         return True
 
     async def handle_volume_down(self, event=None):
         await self.volume_manager.volume_down()
+        self.event_bus.emit(Event(
+            type=EventType.VOLUME_CHANGED,
+            payload=self.get_context()
+        ))
         return True
 
     async def handle_volume_mute(self, event=None):

@@ -101,10 +101,6 @@ class WebSocketEventDispatcher:
             logger.info(f"Broadcasted current_track to {count} clients (per-client shaping)")
         except Exception as e:
             logger.error(f"Error broadcasting track_changed: {e}")
-    
-    # def _setup_volume_changed_handler(self):
-    #     """Setup VOLUME_CHANGED event handler."""
-    #     event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
 
     def handle_volume_changed(self, event: Event):
         """Broadcast volume change to all connected clients."""
@@ -128,10 +124,6 @@ class WebSocketEventDispatcher:
             await client_registry.broadcast_to_all(message)
         except Exception as e:
             logger.error(f"Error broadcasting volume_changed: {e}")
-    
-    # def _setup_notification_handler(self):
-    #     """Setup NOTIFICATION event handler."""
-    #     event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
 
     def handle_toggle_repeat_changed(self, event: Event):
         """Broadcast toggle repeat change to all connected clients."""

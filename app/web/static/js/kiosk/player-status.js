@@ -118,12 +118,13 @@ function updateKioskTrackInfo(data) {
     }
     
     // Update volume bar
-    if (data.volume !== undefined && volumeFill && volumeText) {
-        const volume = parseInt(data.volume) || 0;
-        console.log(`[${timestamp}] UPDATE: Setting volume to: ${volume}%`);
-        volumeFill.style.height = volume + '%';
-        volumeText.textContent = volume + '%';
-    }
+    updateKioskVolume(data.volume);
+    // if (data.volume !== undefined && volumeFill && volumeText) {
+    //     const volume = parseInt(data.volume) || 0;
+    //     console.log(`[${timestamp}] UPDATE: Setting volume to: ${volume}%`);
+    //     volumeFill.style.height = volume + '%';
+    //     volumeText.textContent = volume + '%';
+    // }
     
     if (!hasPlayerPanel) {
         return;
@@ -194,7 +195,22 @@ function updateKioskTrackInfo(data) {
     }
 }
 
+function updateKioskVolume(data) {
+    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+    const volumeFill = document.getElementById('kiosk-volume-fill');
+    const volumeText = document.getElementById('kiosk-volume-text');
+    if (data !== undefined && volumeFill && volumeText) {
+        const volume = parseInt(data) || 0;
+        console.log(`[${timestamp}] UPDATE: Setting volume to: ${volume}%`);
+        volumeFill.style.height = volume + '%';
+        volumeText.textContent = volume + '%';
+    }
+
+}
+
+
 window.updateKioskTrackInfo = updateKioskTrackInfo;
+window.updateKioskVolume = updateKioskVolume;
 
 window.refreshKioskStatus = async function() {
     try {
@@ -357,15 +373,24 @@ window.refreshKioskStatus = async function() {
                     return;
                 }
 
-                if (msg.type === 'current_track' || msg.type === 'volume_changed') {
-                    // Handle current_track and volume_changed    
+                if (msg.type === 'current_track') {
+                    // Handle current_track    
                     const payload = msg.payload || {};
                     if (typeof window.updateKioskTrackInfo === 'function' && payload && typeof payload === 'object') {
                         console.log(`[${wsTimestamp}] WS: Applying update for event type "${msg.type}"`);
                         window.updateKioskTrackInfo(payload);
                     }
                 }
-                
+
+                if (msg.type === 'volume_changed') {
+                    // Handle volume_changed   
+                    console.log(`[${wsTimestamp}] WS: Received volume_changed event` + (msg.payload ? ` with payload: ${JSON.stringify(msg.payload)}` : ' with no payload') ); 
+                    const payload = msg.payload || {};
+                    if (typeof window.updateKioskVolume === 'function' && payload && typeof payload === 'number') {
+                        console.log(`[${wsTimestamp}] WS: Applying update for event type "${msg.type}"`);
+                        window.updateKioskVolume(payload);
+                    }
+                }                
 
             } else {
                 console.warn(`[${wsTimestamp}] WS: Message structure unexpected:`, msg);
