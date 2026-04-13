@@ -7,8 +7,8 @@ from app.playback_backends.factory import get_playback_backend, get_playback_bac
 #from app.playback_backends.factory import get_playback_backend_by_name
 from app.core import EventType, Event
 from app.core import PlayerStatus
-from app.services.playlist_mamager import PlaylistManager
-from app.services.volume_manager import VolumeManager
+from .playlist_mamager import PlaylistManager
+from .volume_manager import VolumeManager
 
 logger = logging.getLogger(__name__)
 

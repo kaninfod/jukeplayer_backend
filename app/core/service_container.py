@@ -53,7 +53,7 @@ def create_subsonic_service(container):
     return SubsonicService(config)
 
 def create_media_player_service(container):
-    from app.services.media_player_service import MediaPlayerService
+    from app.services import MediaPlayerService
     from app.playback_backends.factory import get_playback_backend
     event_bus = container.get('event_bus')
     return MediaPlayerService(event_bus, playback_backend=get_playback_backend())
