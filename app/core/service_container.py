@@ -56,7 +56,7 @@ def create_media_player_service(container):
     from app.services.media_player_service import MediaPlayerService
     from app.playback_backends.factory import get_playback_backend
     event_bus = container.get('event_bus')
-    return MediaPlayerService([], event_bus, playback_backend=get_playback_backend())
+    return MediaPlayerService(event_bus, playback_backend=get_playback_backend())
 
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService

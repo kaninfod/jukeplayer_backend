@@ -133,7 +133,7 @@ async def startup_event():
     media_player_service = global_container.get('media_player_service')
     setup_websocket_dispatcher(
         track_fetcher=media_player_service.get_context,
-        volume_fetcher=media_player_service.get_volume,
+        volume_fetcher=lambda: media_player_service.volume_manager.volume,
         event_loop=current_loop
     )
 

@@ -5,7 +5,7 @@ from app.core import EventType, Event
 from app.core.event_factory import EventFactory
 from typing import List, Dict, Optional
 from app.config import config
-
+from app.services.playlist_mamager import PlaylistManager, PlaylistItem
 
 
 
@@ -18,14 +18,13 @@ class PlaybackService:
         Initialize PlaybackService with dependency injection.
         
         Args:
-            screen_manager: ScreenManager instance for UI control
             player: MediaPlayerService instance for playback control
             album_db: AlbumDatabase instance for album data operations
             subsonic_service: SubsonicService instance for music provider operations
             event_bus: EventBus instance for event communication
         """
         # Inject all dependencies
-        self.screen_manager = screen_manager
+        #self.screen_manager = screen_manager
         self.player = player
         self.album_db = album_db
         self.subsonic_service = subsonic_service
@@ -46,10 +45,10 @@ class PlaybackService:
         self.event_bus.subscribe(EventType.PLAY_TRACK, self.player.play_track)
         self.event_bus.subscribe(EventType.PLAY_PAUSE, self.player.play_pause)
         self.event_bus.subscribe(EventType.STOP, self.player.stop)
-        self.event_bus.subscribe(EventType.VOLUME_UP, self.player.volume_up)
-        self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.volume_down)
-        self.event_bus.subscribe(EventType.SET_VOLUME, self.player.set_volume)
-        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.volume_mute)
+        self.event_bus.subscribe(EventType.VOLUME_UP, self.player.handle_volume_up)
+        self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.handle_volume_down)
+        self.event_bus.subscribe(EventType.SET_VOLUME, self.player._on_volume_event)
+        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.handle_volume_mute)
 
 
     def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
@@ -97,24 +96,28 @@ class PlaybackService:
                 pass
             thumb_url = self.get_cover_url_for_track(album_info.get('id'))
             playlist_metadata = []
+
+            playlist = PlaylistManager(name=album_info.get('name', ''))
+            cover_url = self.subsonic_service.get_cover_proxy_url(album_id)
             for track in tracks:
                 stream_url = self.get_stream_url_for_track(track)
-                cover_url = self.subsonic_service.get_cover_proxy_url(album_id)
-                playlist_metadata.append({
-                    'title': track.get('title'),
-                    'track_id': track.get('id'),
-                    'stream_url': stream_url,
-                    'duration': str(track.get('duration', 0)),
-                    'track_number': track.get('track', 0),
-                    'artist': album_info.get('artist', ''),
-                    'album': album_info.get('name', ''),
-                    'year': album_info.get('year', ''),
-                    'cover_url': cover_url
-                })
-            logger.info(f"Prepared playlist with {len(playlist_metadata)} tracks for album_id {album_id}")
-            self.player.playlist = playlist_metadata
-            self.player.current_index = start_track_index
-            self.player._repeat_album = False
+
+                item = PlaylistItem(
+                    track_id=track.get('id'),
+                    stream_url=stream_url if stream_url else '',
+                    duration=str(track.get('duration', 0)),
+                    track_number=track.get('track', 0),
+                    title=track.get('title'),
+                    artist=album_info.get('artist', ''),
+                    album=album_info.get('name', ''),
+                    year=album_info.get('year', ''),
+                    cover_url=cover_url
+                )
+                self.player.playlist_manager.add_item(item)
+
+            logger.info(f"Prepared playlist with {self.player.playlist_manager.count()} tracks for album_id {album_id}")
+            self.player.playlist_manager.current_index = start_track_index
+            
             await self.player.play_current_track()
             self.event_bus.emit(
                 EventFactory.notification({"message": f"Playing {album_info.get('name', '')}"})
@@ -152,7 +155,7 @@ class PlaybackService:
         else:
             logger.info(f"Found album_id {album_id} for RFID {rfid}, loading album...")
             self.album_db.set_album_mapping(str(rfid), album_id)
-            self.load_from_album_id(album_id)
+            await self.load_from_album_id(album_id)
         return True
 
     async def load_album(self, event: Event) -> bool:
