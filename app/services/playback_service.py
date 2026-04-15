@@ -48,7 +48,8 @@ class PlaybackService:
         self.event_bus.subscribe(EventType.VOLUME_UP, self.player.handle_volume_up)
         self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.handle_volume_down)
         self.event_bus.subscribe(EventType.SET_VOLUME, self.player._on_volume_event)
-        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.handle_volume_mute)
+        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.handle_volume_mute)            
+        self.event_bus.subscribe(EventType.SWITCH_DEVICE, self.player.handle_switch_device) 
 
 
     def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
@@ -94,11 +95,12 @@ class PlaybackService:
                 self.subsonic_service.ensure_cover_variants(album_id, sizes=(180, 512))
             except Exception:
                 pass
-            thumb_url = self.get_cover_url_for_track(album_info.get('id'))
-            playlist_metadata = []
+            # thumb_url = self.get_cover_url_for_track(album_info.get('id'))
+            # playlist_metadata = []
 
-            playlist = PlaylistManager(name=album_info.get('name', ''))
+            # playlist = PlaylistManager(name=album_info.get('name', ''))
             cover_url = self.subsonic_service.get_cover_proxy_url(album_id)
+            self.player.playlist_manager.clear()
             for track in tracks:
                 stream_url = self.get_stream_url_for_track(track)
 

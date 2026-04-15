@@ -26,13 +26,17 @@ class EventType(Enum):
     SHOW_IDLE = "show_idle"
     SHOW_HOME = "show_home"
     SHOW_MESSAGE = "show_message"
-    # Chromecast events
+    
     SHOW_SCREEN_QUEUED = "show_screen_queued"
     ENCODE_CARD = "encode_card"
     NOTIFICATION = "notification"
     TOGGLE_REPEAT = "toggle_repeat"
     TOGGLE_REPEAT_CHANGED = "toggle_repeat_changed"
 
+    SWITCH_DEVICE = "switch_device"
+
+    BROADCAST_GENERIC_MESSAGE = "broadcast_generic_message"
+    
 class EventFactory:
     @staticmethod
     def show_screen_queued(screen_type, context, duration=3.0):

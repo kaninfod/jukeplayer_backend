@@ -6,7 +6,8 @@
       {% set duration_seconds = (track.duration|int) if track.duration else 0 %}
       <div class="list-group-item kiosk-playlist-item d-flex justify-content-between align-items-center {{ 'active' if is_current else '' }}"
            style="cursor: pointer;"
-           onclick="window.kioskPlayTrackAtIndex({{ loop.index0 }});">
+           data-playercontrols-track-index-param="{{ track.track_number - 1 }}"
+           data-action="click->playercontrols#playTrack">
         <div class="d-flex align-items-center gap-3 flex-grow-1">
           <div class="track-number">{{ track.track_number or loop.index }}</div>
           <div class="flex-grow-1">

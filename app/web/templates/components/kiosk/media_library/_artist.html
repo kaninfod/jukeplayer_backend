@@ -1,7 +1,6 @@
 {# Media Library Artist Card Partial #}
 <div class="col-6">
-    <div class="card library-artist-card"
-         onclick="window.kioskOpenLibraryArtist('{{ artist.id }}', '{{ artist.name|e }}', '{% if group %}{{ group }}{% endif %}');">
+    <div class="card library-artist-card" href="/kiosk/library?artist_id={{ artist.id }}" data-action="click->navigation#load">
         <div class="card-body">
             <h2 class="card-title mb-0">
                 <i class="mdi mdi-account-music me-2"></i>

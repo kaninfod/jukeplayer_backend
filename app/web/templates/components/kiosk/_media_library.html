@@ -3,7 +3,7 @@
     <!-- Header with back button and title -->
     <div class="mb-3 d-flex align-items-center gap-3">
         {% if back_url %}
-        <button id="library-back-btn" class="btn btn-outline-secondary" onclick="window.kioskNavigate('{{ back_url }}', true);">
+        <button href="{{ back_url }}" data-action="click->navigation#load" id="library-back-btn" class="btn btn-outline-secondary">
             <i class="mdi mdi-arrow-left"></i> Back
         </button>
         {% else %}

@@ -5,8 +5,7 @@
             src="{{ album.cover_url or '/assets/covers/_default/cover-180.jpg' }}" 
             class="card-img-top" 
             alt="{{ album.name|e }}" 
-            onerror="this.onerror=null;this.src='/assets/covers/_default/cover-180.jpg';"
-            onload="if(this.src.startsWith(window.location.origin + '/')){return;} if(this.src.startsWith('/')){this.src=window.location.origin+this.src;}"
+            
         >
         <div class="card-body">
             <h6 class="card-title text-truncate" style="max-width: 100%;">{{ album.name|e }}</h6>
@@ -14,12 +13,13 @@
             {% if album.year %}
             <p class="card-text"><small class="text-muted">{{ album.year }}</small></p>
             {% endif %}
-                <button type="button" class="btn btn-success w-100 mb-2"
-                    onclick="window.kioskPlayAlbum('{{ album.id }}'); return false;">
+                <button data-action="click->playercontrols#playAlbum" data-playercontrols-album-id-param="{{ album.id }}" type="button" class="btn btn-success w-100 mb-2">
                 <i class="mdi mdi-play"></i> Play
             </button>
-            <button type="button" class="btn btn-primary w-100" onclick="window.kioskOpenNfcClientSelect('{{ album.id }}', '{{ album.name|e }}'); return false;">
-                <i class="mdi mdi-nfc-variant"></i> NFC
+            <button type="button" class="btn btn-primary w-100" 
+                href="/kiosk/nfc-client-select?album_id={{ album.id }}&album_name={{ album.name|e }}" 
+                data-action="click->navigation#load"
+                <i class="mdi mdi-nfc-variant">NFC</i> 
             </button>
         </div>
     </div>

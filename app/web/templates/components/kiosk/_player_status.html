@@ -1,16 +1,29 @@
 <!-- Kiosk Player Status Component -->
 <!-- Album art + track info display in horizontal layout -->
-<div class="kiosk-player-status d-flex flex-row align-items-center justify-content-center gap-4 p-4 position-relative h-100">
+<div class="kiosk-player-status d-flex flex-row align-items-center justify-content-center gap-4 p-4 position-relative h-100"
+    data-controller="nowplaying" data-action="nowplaying-update@window->nowplaying#handleExternalUpdate">
+
     <div id="kiosk-track-thumb" class="kiosk-album-art flex-shrink-0">
-        <div class="kiosk-no-cover">
+        <img data-nowplaying-target="cover" src="" alt="Album Cover" />
+        <div data-nowplaying-target="nocover" class="kiosk-no-cover">
             <i class="mdi mdi-music"></i>
         </div>
     </div>
-    <div id="kiosk-track-info" class="kiosk-track-details flex-grow-1">
-        <div class="kiosk-no-track">Loading...</div>
+    
+    <div data-nowplaying-target="trackinfo" id="kiosk-track-info" class="kiosk-track-details flex-grow-1 d-none">
+        <div data-nowplaying-target="artist" class="kiosk-artist"></div>
+        <div data-nowplaying-target="title" class="kiosk-title"></div>
+        <div data-nowplaying-target="album" class="kiosk-album"></div>
+        <div data-nowplaying-target="tracknum" class="kiosk-album"></div>
+        <div class="kiosk-status">
+            <i data-nowplaying-target="status" class="${statusStr}"></i>   
+            <i data-nowplaying-target="repeat" class="${repeatStr}"></i>
+        </div>    
     </div>
     
-    <!-- Progress bar at absolute bottom -->
+    <div data-nowplaying-target="notrackinfo" class="kiosk-no-track ">Loading...</div>
+    
+
     <div class="kiosk-progress-container position-absolute bottom-0 start-0 end-0">
         <div class="kiosk-progress-bar">
             <div id="kiosk-progress-fill" class="kiosk-progress-fill"></div>

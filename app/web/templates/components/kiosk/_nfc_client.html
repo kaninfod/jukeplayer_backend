@@ -1,0 +1,12 @@
+<div class="nfc-client-card">
+    <div class="nfc-client-icon">
+        <i class="mdi mdi-nfc-variant"></i>
+    </div>
+    <div class="nfc-client-info" 
+        href="/kiosk/nfc?album_id={{ album_id }}&album_name={{ album_name|e }}&client_id={{ client.client_id }}&client_name={{ client.user_name|e }}" 
+        data-action="click->navigation#load"
+    >
+        <p class="nfc-client-name">{{ client.user_name }}</p>
+        <p class="nfc-client-type">{{ client.client_type }}</p>
+    </div>
+</div>

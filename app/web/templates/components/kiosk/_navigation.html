@@ -1,12 +1,15 @@
 <!-- Kiosk Navigation Sidebar (60px width) -->
 <div class="kiosk-nav-sidebar d-flex flex-column gap-3">
-    <button class="kiosk-nav-btn btn" onclick="window.kioskOpenLibrary();" title="Media Library">
+
+    <button class="kiosk-nav-btn btn" href="/kiosk/library" data-action="click->navigation#load" title="Media Library">
         <i class="mdi mdi-folder-music"></i>
     </button>
-    <button class="kiosk-nav-btn btn" onclick="window.kioskOpenPlaylist();" title="Current Playlist">
+
+    <button class="kiosk-nav-btn btn" href="/kiosk/playlist" data-action="click->navigation#load" title="Current Playlist">
         <i class="mdi mdi-playlist-music"></i>
     </button>
-    <button class="kiosk-nav-btn btn" onclick="window.kioskOpenSystem();" title="System Menu">
+
+    <button class="kiosk-nav-btn btn" href="/kiosk/system" data-action="click->navigation#load" title="System Menu">
         <i class="mdi mdi-cog"></i>
     </button>
 </div>

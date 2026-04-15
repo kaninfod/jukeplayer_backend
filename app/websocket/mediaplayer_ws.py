@@ -181,6 +181,27 @@ class WebSocketConnection:
                 "payload": {"status": "error", "message": str(e)}
             })
     
+
+    async def handle_nfc_encoding_started(self, payload):
+        """Process NFC encoding start message.
+        """
+        try:
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "nfc_encoding_started",
+                    "message_payload": {
+                        "status": "started",
+                        "nfc_write_state": "started",
+                    }
+                }
+            ))
+            logger.info(f"Sent nfc_encoding_started. response={result}")
+            
+        except Exception as e:
+            logger.error(f"Error handling nfc_encoding_started: {e}")
+
     async def handle_nfc_encoding_complete(self, payload):
         """Process NFC encoding completion message.
         
@@ -193,11 +214,41 @@ class WebSocketConnection:
             error_message = payload.get("error_message")
             
             nfc_state = get_service("nfc_encoding_state")
-            nfc_state.set_result(status=status, uid=uid, error_message=error_message)
+            result = nfc_state.set_result(status=status, uid=uid, error_message=error_message)
+            
+            logger.info("About to send nfc_encoding_completed")
+
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "nfc_encoding_completed",
+                    "message_payload": {
+                        "status": status,
+                        "uid": uid,
+                        "nfc_write_state": "completed",
+                        "error_message": error_message
+                    }
+                }
+            ))
             logger.info(f"NFC encoding completion received: status={status}, uid={uid}")
         except Exception as e:
-            logger.error(f"Error handling nfc_encoding_complete: {e}")
-    
+            logger.error(f"Error handling nfc_encoding_completed: {e}")
+
+    async def handle_nfc_encoding_cancelled(self, payload):
+        """Process NFC encoding cancellation message.
+        
+        Args:
+            payload: Message payload with status, uid, error_message
+        """
+        logger.info("Received nfc_encoding_cancelled message")
+        try:
+            nfc_state = get_service("nfc_encoding_state")
+            result = nfc_state.stop()
+            logger.info(f"NFC encoding cancelled")
+        except Exception as e:
+            logger.error(f"Error handling nfc_encoding_cancelled: {e}")
+            
     async def handle_play_pause(self, payload):
         """Handle play/pause toggle command."""
         try:
@@ -207,10 +258,17 @@ class WebSocketConnection:
                 payload={}
             ))
             
+            rsp = await self.send_message({
+                "type": "nfc_encoding_complete_response",
+                "payload": {"status": "success", "message": f"NFC encoding completed"}
+            })            
+            
             await self.send_message({
                 "type": "play_pause_response",
                 "payload": {"status": "success", "message": str(result)}
             })
+
+            
             logger.info(f"Play/pause toggled: {result}")
         except Exception as e:
             logger.error(f"Error handling play_pause: {e}")
@@ -234,7 +292,7 @@ class WebSocketConnection:
                 payload={"rfid": rfid, "client_id": getattr(self, 'client_id', None) or "ws_client"}
             ))
             
-            await self.send_json({
+            await self.send_message({
                 "type": "play_rfid_response",
                 "payload": {
                     "status": "success" if result else "error",
@@ -243,8 +301,33 @@ class WebSocketConnection:
             })
         except Exception as e:
             logger.error(f"Error handling play_rfid: {e}")
-            await self.send_json({
+            await self.send_message({
                 "type": "play_rfid_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+
+    async def handle_play_track(self, payload):
+        """Handle next track command."""
+        try:
+            track_index = payload.get("track_index")
+            if not track_index:
+                raise ValueError("Missing track_index in payload")
+            
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.PLAY_TRACK,
+                payload={"track_index": track_index}
+            ))
+            
+            await self.send_message({
+                "type": "play_track_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Play track: {result}")
+        except Exception as e:
+            logger.error(f"Error handling play_track: {e}")
+            await self.send_message({
+                "type": "play_track_response",
                 "payload": {"status": "error", "message": str(e)}
             })
 
@@ -284,11 +367,38 @@ class WebSocketConnection:
                 "payload": {"status": "error", "message": str(e)}
             })
     
+    async def handle_switch_device(self, payload):
+        try:
+            device = payload.get("device_id")
+            backend = payload.get("device_backend")
+
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.SWITCH_DEVICE,
+                payload={
+                    "device_id": device,
+                    "device_backend": backend,
+                    "client_id": self.client_id
+                }
+            ))
+
+            await self.send_message({
+                "type": "switch_device_response",
+                "payload": result
+            })
+
+            logger.info(f"Switched to device {device} on backend {backend}: {result}")
+        except Exception as e:
+            logger.error(f"Error handling switch_device: {e}")
+            await self.send_message({
+                "type": "switch_device_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
     async def handle_next_track(self, payload):
         """Handle next track command."""
         try:
             from app.core import event_bus, EventType, Event
-            result = event_bus.emit(Event(
+            result = await event_bus.aemit(Event(
                 type=EventType.NEXT_TRACK,
                 payload={"force": True}
             ))
@@ -309,7 +419,7 @@ class WebSocketConnection:
         """Handle previous track command."""
         try:
             from app.core import event_bus, EventType, Event
-            result = event_bus.emit(Event(
+            result = await event_bus.aemit(Event(
                 type=EventType.PREVIOUS_TRACK,
                 payload={}
             ))
@@ -330,7 +440,7 @@ class WebSocketConnection:
         """Handle stop command."""
         try:
             from app.core import event_bus, EventType, Event
-            result = event_bus.emit(Event(
+            result = await event_bus.aemit(Event(
                 type=EventType.STOP,
                 payload={}
             ))
@@ -350,20 +460,47 @@ class WebSocketConnection:
     async def handle_volume_up(self, payload):
         """Handle volume up command."""
         try:
-            player_service = container.get("player_service")
-            await player_service.volume_up()
-            logger.info("Volume up triggered via WS")
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.VOLUME_UP,
+                payload={}
+            ))
+            
+            await self.send_message({
+                "type": "volume_up_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Volume up: {result}")
         except Exception as e:
-            logger.error(f"Error handling volume_up: {e}")
+            logger.error(f"Error handling volume up: {e}")
+            await self.send_message({
+                "type": "volume_up_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
 
     async def handle_volume_down(self, payload):
         """Handle volume down command."""
         try:
-            player_service = container.get("player_service")
-            await player_service.volume_down()
-            logger.info("Volume down triggered via WS")
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.VOLUME_DOWN,
+                payload={}
+            ))
+            
+            await self.send_message({
+                "type": "volume_down_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Volume down: {result}")
         except Exception as e:
-            logger.error(f"Error handling volume_down: {e}")
+            logger.error(f"Error handling volume down: {e}")
+            await self.send_message({
+                "type": "volume_down_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+
+
+
 
     async def handle_volume(self, payload):
         """Handle volume set command."""
@@ -467,14 +604,20 @@ class WebSocketConnection:
                     
                     if msg_type == "register_client":
                         await self.handle_register_client(payload)
+                    elif msg_type == "nfc_encoding_started":
+                        await self.handle_nfc_encoding_started(payload)
                     elif msg_type == "nfc_encoding_complete":
                         await self.handle_nfc_encoding_complete(payload)
+                    elif msg_type == "nfc_encoding_cancelled":
+                        await self.handle_nfc_encoding_cancelled(payload)                                                
                     elif msg_type in ("play_pause", "pause", "resume"):
                         await self.handle_play_pause(payload)
                     elif msg_type == "play_rfid":
                         await self.handle_play_rfid(payload)
                     elif msg_type == "play_album":
                         await self.handle_play_album(payload)
+                    elif msg_type == "play_track":
+                        await self.handle_play_track(payload)                     
                     elif msg_type == "next_track":
                         await self.handle_next_track(payload)
                     elif msg_type == "previous_track":
@@ -491,6 +634,8 @@ class WebSocketConnection:
                         await self.handle_status(payload)
                     elif msg_type == "track_finished":
                         await self.handle_track_finished(payload)
+                    elif msg_type == "switch_device":
+                        await self.handle_switch_device(payload)                        
                     else:
                         logger.debug(f"Received unhandled message type: {msg_type}")
                 

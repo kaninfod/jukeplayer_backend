@@ -58,6 +58,7 @@ class WebSocketEventDispatcher:
         event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed) #self._setup_volume_changed_handler()
         event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification) #self._setup_notification_handler()
         event_bus.subscribe(EventType.TOGGLE_REPEAT_CHANGED, self.handle_toggle_repeat_changed)
+        event_bus.subscribe(EventType.BROADCAST_GENERIC_MESSAGE, self.handle_generic_message)
         
 
         self._dispatch_handlers_registered = True
@@ -139,6 +140,21 @@ class WebSocketEventDispatcher:
         except Exception as e:
             logger.error(f"Error broadcasting toggle_repeat_changed: {e}")
 
+    def handle_generic_message(self, event: Event):
+        """Broadcast generic message to all connected clients."""
+        self._schedule_broadcast(self._broadcast_generic_message(event))
+
+    async def _broadcast_generic_message(self, event: Event):
+        try:
+            client_registry = get_service("client_registry")
+            payload = event.payload if event else {}
+            message_type = payload.get("message_type", "generic_message")
+            message_payload = payload.get("message_payload", {})
+            logger.info(f"Broadcasting generic message with payload: {payload}")
+            message = {"type": message_type, "payload": message_payload}
+            await client_registry.broadcast_to_all(message)
+        except Exception as e:
+            logger.error(f"Error broadcasting generic message: {e}")
 
     def handle_notification(self, event: Event):
         """Broadcast notification to all connected clients."""

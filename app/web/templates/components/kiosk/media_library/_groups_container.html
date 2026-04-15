@@ -3,8 +3,7 @@
   <div class="row g-3">
     {% for g in groups %}
       <div class="col-4">
-        <button class="card library-group-card"
-                onclick="window.kioskOpenLibraryGroup('{{ g.name }}');">
+        <button class="card library-group-card" href="/kiosk/library?group={{ g.name }}" data-action="click->navigation#load">
           <div class="card-body text-center">
             <h2 class="display-4">{{ g.name }}</h2>
           </div>

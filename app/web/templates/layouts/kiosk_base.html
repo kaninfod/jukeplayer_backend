@@ -3,6 +3,15 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script type="importmap">
+      {
+        "imports": {
+          "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js"
+        }
+      }
+    </script>
+    
+    <script type="module" src="{{ url_for('static', path='/js/main.js') }}"></script>
     <title>{% block title %}Jukeplayer{% endblock %}</title>
     <link rel="icon" href="data:,">
     {% include '_global_styles.html' %}
@@ -11,7 +20,16 @@
     <link rel="stylesheet" href="/static/css/nfc-client-select.css">
     {% block head_extra %}{% endblock %}
 </head>
-<body class="kiosk-layout">
+<body class="kiosk-layout" 
+    data-controller="websocket navigation playercontrols device" 
+    data-action="
+      ws:send@window->websocket#handleOutgoing
+      ws:request-sync@window->websocket#syncNowPlaying 
+      switch-device-response@window->device#handleSwitchResponse
+      nav:go@window->navigation#load
+      "
+>
+
     <!-- Kiosk fixed layout structure (1280×720 landscape) -->
     
     <!-- Status Bar at top (increased by 25% for better touch) -->
@@ -25,7 +43,7 @@
         {% include 'components/kiosk/_navigation.html' %}
         
         <!-- Dynamic content area -->
-        <div id="kiosk-content-area" class="flex-grow-1 position-relative">
+        <div id="kiosk-content-area" class="flex-grow-1 position-relative" data-navigation-target="content">
             {% block kiosk_content %}{% endblock %}
         </div>
         
@@ -47,46 +65,11 @@
     <script src="/static/js/kiosk-toast.js"></script>
     <!-- load htmx early so our new template fragments can use hx- attributes
          (harmless if the old loader is still in use) -->
-    <script src="https://unpkg.com/htmx.org@1.9.3"></script>
-    <script>
-      // Global API configuration
-      const API_KEY = "{{ config.API_KEY }}";
-      // Helper function for authenticated API calls
-      function apiFetch(url, options = {}) {
-        const headers = options.headers || {};
-        if (API_KEY) {
-          headers['X-API-Key'] = API_KEY;
-        }
-        return fetch(url, { ...options, headers });
-      }
-      
-      // Check URL parameters for UI visibility options
-      document.addEventListener('DOMContentLoaded', function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        // Hide controls if hidecontrols=1 parameter is present
-        if (urlParams.get('hidecontrols') === '1') {
-          const controlsBar = document.getElementById('kiosk-controls-bar');
-          if (controlsBar) {
-            controlsBar.classList.add('collapsed');
-          }
-        }
-        
-        // Hide volume if hidevolume=1 parameter is present
-        if (urlParams.get('hidevolume') === '1') {
-          const volumeSidebar = document.getElementById('kiosk-volume-sidebar');
-          if (volumeSidebar) {
-            volumeSidebar.classList.add('collapsed');
-          }
-        }
-      });
-    </script>
-    <script src="/static/js/kiosk-loader.js"></script>
-    <script src="/static/js/kiosk/player-status.js"></script>
-    <script src="/static/js/kiosk/device-selector.js"></script>
-    <script src="/static/js/kiosk/system-menu.js"></script>
-    <script src="/static/js/kiosk/nfc-encoding.js"></script>
-    <script src="/static/js/kiosk/nfc-client-select.js"></script>
+
+
+
+
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

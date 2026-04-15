@@ -104,6 +104,30 @@ class MediaPlayerService:
         """Toggle mute on the active playback backend."""    
         await self.volume_manager.toggle_mute()
 
+    async def handle_switch_device(self, event=None):
+        """Switch the active playback device."""
+        if event is None or not hasattr(event, "payload"):
+            logger.error("switch_device called without valid event payload.")
+            return False
+        
+        device_id = event.payload.get("device_id")
+        if device_id is None:   
+            logger.error("switch_device: Invalid device in payload.")
+            return False
+        
+        device_backend = event.payload.get("device_backend")
+        if device_backend is None:   
+            logger.error("switch_device: Invalid device in payload.")
+            return False
+        
+        try:
+            result = await self.switch_playback_backend(device_backend, device_id)
+            logger.info(f"Switched to device {device_backend} on backend {self.playback_backend}: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error switching device: {e}")
+            return False
+
     async def play_pause(self, event=None):
         # Toggle pause/resume timer based on current status
         if self.status == PlayerStatus.PLAY:
@@ -280,7 +304,9 @@ class MediaPlayerService:
 
     async def switch_playback_backend(self, backend: str, device_name: Optional[str] = None) -> Dict:
         from app.playback_backends.factory import switch_playback_backend_fac
-        return await switch_playback_backend_fac(self, self, backend, device_name)
+        
+        result = await switch_playback_backend_fac(self, self, backend, device_name)
+        return result
 
     def get_track_elapsed(self):
         """Return the elapsed play time (seconds) for the current track."""

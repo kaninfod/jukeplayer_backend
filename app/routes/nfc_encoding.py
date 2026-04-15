@@ -13,6 +13,9 @@ class NFCEncodingRequest(BaseModel):
     """Request payload for NFC encoding start endpoint."""
     album_id: str = Field(..., description="Album ID to write to the NFC card")
     client_id: str = Field(None, description="Optional client ID - if provided, sends command to that client's WebSocket")
+    client_name: str = Field(None, description="Optional client name for logging purposes")
+    album_name: str = Field(None, description="Optional album name for logging purposes")
+    rfid: str = Field(None, description="Optional RFID for logging purposes")
 
 
 @router.post("/start")

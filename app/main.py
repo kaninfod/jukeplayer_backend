@@ -107,7 +107,7 @@ app.include_router(wsmediaplayer_router)
 # MUST be mounted AFTER routers to avoid route conflicts
 web_static_dir = os.path.join(os.path.dirname(__file__), "web", "static")
 if os.path.isdir(web_static_dir):
-    app.mount("/static", StaticFiles(directory=web_static_dir), name="web_static")
+    app.mount("/static", StaticFiles(directory=web_static_dir), name="static")
 else:
     logger.warning(f"Web static directory not found: {web_static_dir}")
 
