@@ -1,13 +1,12 @@
 <!-- Kiosk Status Bar (50px height) -->
-<div class="kiosk-status-bar d-flex justify-content-between align-items-center"
-    
->
-    <div href="/kiosk/player" data-action="click->navigation#load" class="kiosk-breadcrumb" title="Back to Now Playing">
+<div class="kiosk-status-bar justify-content-between align-items-center">
+    <div href="/kiosk/player" data-action="click->navigation#load" 
+        class="align-items-center kiosk-breadcrumb" title="Back to Now Playing">
         <i class="mdi mdi-music-circle"></i>
-        <span id="breadcrumb-text">Now Playing</span>
+        <span>Now Playing</span>
     </div>
     <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm" data-action="click->navigation#load" title="Select Playback Device">
         <i class="mdi mdi-cast"></i>
-        <span data-device-target="currentdevice" id="current-device">Loading...</span>
+        <span data-device-target="currentdevice">Loading...</span>
     </button>
 </div>

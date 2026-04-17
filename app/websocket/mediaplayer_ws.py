@@ -256,19 +256,13 @@ class WebSocketConnection:
             result = event_bus.emit(Event(
                 type=EventType.PLAY_PAUSE,
                 payload={}
-            ))
-            
-            rsp = await self.send_message({
-                "type": "nfc_encoding_complete_response",
-                "payload": {"status": "success", "message": f"NFC encoding completed"}
-            })            
+            ))          
             
             await self.send_message({
                 "type": "play_pause_response",
                 "payload": {"status": "success", "message": str(result)}
             })
 
-            
             logger.info(f"Play/pause toggled: {result}")
         except Exception as e:
             logger.error(f"Error handling play_pause: {e}")

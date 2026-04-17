@@ -122,7 +122,7 @@ async def kiosk_devices_partial(request: Request):
         "status_data": await _get_output_status_data(),
     }
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_device_selector.html", context=context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/device_selector/_device_selector.html", context=context)
     context["kiosk_mode"] = True
     return templates.TemplateResponse(request=request, name="pages/kiosk/devices.html", context=context)
 

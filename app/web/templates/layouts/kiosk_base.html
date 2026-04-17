@@ -33,30 +33,43 @@
     <!-- Kiosk fixed layout structure (1280×720 landscape) -->
     
     <!-- Status Bar at top (increased by 25% for better touch) -->
-    <div style="height: 62px; min-height: 62px; max-height: 62px; flex-shrink: 0;">
-        {% include 'components/kiosk/_status_bar.html' %}
-    </div>
+
 
     <!-- Main content area with navigation, dynamic content, and volume bar -->
-    <div class="kiosk-main-content d-flex">
-        <!-- Left navigation sidebar (increased by 50% for better touch) -->
-        {% include 'components/kiosk/_navigation.html' %}
+    <div class="container">
         
-        <!-- Dynamic content area -->
-        <div id="kiosk-content-area" class="flex-grow-1 position-relative" data-navigation-target="content">
-            {% block kiosk_content %}{% endblock %}
+        <div class="row">
+            <div class="col-12">
+                {% include 'components/kiosk/_status_bar.html' %}
+            </div>
         </div>
         
-        <!-- Right volume bar (can be toggled) -->
-        <div id="kiosk-volume-sidebar" class="kiosk-volume-sidebar">
-            {% include 'components/kiosk/_volume_bar.html' %}
+        <div class="h-100 d-flex flex-row">
+            <!-- Left navigation sidebar -->
+            <div class="">
+                {% include 'components/kiosk/_navigation.html' %}
+            </div>
+
+            <!-- Dynamic content area -->
+            <div class="w-100" data-navigation-target="content">
+                {% block kiosk_content %}{% endblock %}
+            </div>
+
+                    <!-- Right volume bar  -->
+            <div class="">
+                {% include 'components/kiosk/_volume_bar.html' %}
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Controls fixed at bottom  -->
+            <div >
+                {% include 'components/kiosk/_controls.html' %}
+            </div>
         </div>
     </div>
 
-    <!-- Controls fixed at bottom (can be toggled) -->
-    <div id="kiosk-controls-bar" style="height: 100px; min-height: 100px; max-height: 100px; flex-shrink: 0;">
-        {% include 'components/kiosk/_controls.html' %}
-    </div>
+
 
     <!-- Toast container for global notifications -->
     <div id="kiosk-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;"></div>

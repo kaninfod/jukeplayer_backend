@@ -30,8 +30,8 @@ body.kiosk-layout {
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
-    width: 1280px !important;  /* Landscape width */
-    height: 720px !important;   /* Landscape height - FIXED */
+    /* width: 1280px !important;
+    height: 720px !important; */
     display: flex;
     flex-direction: column;
 }
@@ -83,17 +83,17 @@ body.kiosk-layout .kiosk-status-bar,
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     display: flex !important;
-    justify-content: space-between !important;
-    align-items: center;
+    /* justify-content: space-between !important;
+    align-items: center; */
     padding: 0 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    flex-shrink: 0 !important;
-    flex: none !important;
+    /* flex-shrink: 0 !important;
+    flex: none !important; */
 }
 
 .kiosk-breadcrumb {
-    display: flex;
-    align-items: center;
+    /* display: flex;
+    align-items: center; */
     gap: 10px;
     font-size: 20px;
     font-weight: 600;
@@ -150,10 +150,8 @@ body.kiosk-layout .kiosk-main-content,
    ============================================ */
 
 .kiosk-nav-sidebar {
-    width: 150px;
+    /* width: 150px; */
     background: #2c3e50;
-    display: flex;
-    flex-direction: column;
     gap: 16px;
     padding: 20px 8px;
     box-shadow: 2px 0 8px rgba(0,0,0,0.1);
@@ -172,8 +170,8 @@ body.kiosk-layout .kiosk-main-content,
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
-    width: 135px;
-    height: 135px;
+    /* width: 135px;
+    height: 135px; */
 }
 
 .kiosk-nav-btn:hover,
@@ -192,20 +190,20 @@ body.kiosk-layout .kiosk-main-content,
 
 .kiosk-player-status {
     position: relative;
-    height: 100%;
-    width: 100%;
-    flex: 1;
+    /* height: 100%;
+    width: 100%; */
+    /* flex: 1;
     display: flex;
-    flex-direction: column;
+    flex-direction: column; */
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    /* padding: 24px; */
     overflow: hidden;
 }
 
 .kiosk-album-art {
-    width: 450px;
-    height: 450px;
+    /* width: 450px;
+    height: 450px; */
     margin-bottom: 24px;
     border-radius: 16px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.3);
@@ -229,6 +227,7 @@ body.kiosk-layout .kiosk-main-content,
 
 .kiosk-track-details {
     text-align: left;
+    margin: 24px;
     max-width: 100%;
     padding-bottom: 60px; /* Space for progress bar */
 }
@@ -374,8 +373,8 @@ body.kiosk-layout .kiosk-controls,
    ============================================ */
 
 .kiosk-volume-sidebar {
-    width: 60px;
-    min-width: 60px;
+    /* width: 60px;
+    min-width: 60px; */
     background: #f8f9fa;
     border-left: 1px solid #dee2e6;
     transition: width 0.3s ease-in-out;
@@ -530,7 +529,8 @@ body.kiosk-layout .kiosk-controls,
 
 .device-card {
     transition: transform 0.2s, box-shadow 0.2s;
-    min-height: 220px; /* slightly larger for better touch targets */
+    min-height: 220px;
+    min-width: 220px; 
     cursor: pointer;
 }
 

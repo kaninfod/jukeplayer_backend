@@ -1,14 +1,17 @@
-{# Top-level groups view for media library (HTMX server-driven) #}
-<div class="library-cards-container">
-  <div class="row g-3">
-    {% for g in groups %}
-      <div class="col-4">
-        <button class="card library-group-card" href="/kiosk/library?group={{ g.name }}" data-action="click->navigation#load">
-          <div class="card-body text-center">
-            <h2 class="display-4">{{ g.name }}</h2>
-          </div>
-        </button>
-      </div>
-    {% endfor %}
+<div class="">
+  <div class="row gap-3">
+      {% for g in groups %}
+        <div class="col-6">
+            <div class="card library-artist-card" class="card" href="/kiosk/library?group={{ g.name }}" data-action="click->navigation#load">
+                <div class="card-body">
+                    <h2 class="card-title mb-0">
+                        <i class="mdi mdi-account-music me-2"></i>
+                        <strong>{{ g.name|e }}</strong>
+                    </h2>
+                    <i class="mdi mdi-chevron-right chevron-icon"></i>
+                </div>
+            </div>
+        </div>
+      {% endfor %}
   </div>
 </div>
