@@ -3,7 +3,8 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
     connect() {
         // This runs the moment the <body> is loaded
-        this.lastTrackData = null; // Initialize cache
+        window.appState = window.appState || {};
+        window.appState.lastTrackData = null; // Initialize cache
         this.connectWebSocket();
     }
 
@@ -34,20 +35,30 @@ export default class extends Controller {
     }
 
     routeMessage(msg) {
-        // Instead of calling functions, we just broadcast events
-
+        
+        
         console.log(`WS: Received message of type "${msg.type}" with payload:`, msg.payload);
 
         if (msg.type === 'current_track') {
-            this.lastTrackData = msg.payload;
+            
+            window.appState.lastTrackData = msg.payload.current_track;
+            window.appState.playlist = msg.payload.playlist;
+            window.appState.volume = msg.payload.volume;
+            window.appState.deviceName = msg.payload.output_device;
+            window.appState.playerStatus = msg.payload.status;
+            window.appState.repeatState = msg.payload.repeat_album;
+            window.appState.isMuted = msg.payload.is_muted;
+
             this.broadcast("nowplaying-update", { track: msg.payload });
         }
 
         if (msg.type === 'volume_changed') {
+            window.appState.volume = msg.payload;
             this.broadcast("volume-change", { volume: msg.payload });
         }
 
         if (msg.type === 'switch_device_response') {
+            window.appState.deviceName = msg.payload.device_id;
             this.broadcast("switch-device-response", { response: msg.payload });
         }
 
@@ -59,6 +70,18 @@ export default class extends Controller {
             this.broadcast("nfc-encoding-completed", { response: msg.payload });
         }
 
+        if (msg.type === 'toggle_repeat_changed') {
+            window.appState.repeatState = msg.payload.mode;
+            this.broadcast("toggle-repeat-changed", { response: msg.payload });
+            }
+
+        if (msg.type === 'volume_mute_response') {
+            window.appState.isMuted = msg.payload.is_muted;
+            this.broadcast("volume_mute_response", { response: msg.payload });
+            
+        }
+
+        console.log("AppState:", window.appState);
     }
 
     broadcast(name, detail) {
@@ -76,17 +99,6 @@ export default class extends Controller {
             console.log(`WS: Sent ${type}`, payload);
         } else {
             console.warn("WS: Attempted to send message while socket was closed.");
-        }
-    }
-
-    syncNowPlaying() {
-        console.log("Syncing Now Playing data to new UI component");
-        if (this.lastTrackData) {
-            console.log("Syncing cached track data to new UI component");
-            this.broadcast("nowplaying-update", { track: this.lastTrackData });
-        } else {
-            // Option 2: If we don't have a cache, ask the server via WS
-            // this.send("get_current_status"); 
         }
     }
 }

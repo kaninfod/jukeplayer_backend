@@ -10,7 +10,7 @@ export default class extends Controller {
 
     // This replaces your updateKioskVolume(data) function
     update(volumeValue) {
-        const volume = parseInt(volumeValue) || 0;
+        const volume = parseInt(window.appState.volume) || 0;
         const timestamp = new Date().toLocaleTimeString('en-US', { 
             hour12: false, hour: '2-digit', minute: '2-digit', 
             second: '2-digit', fractionalSecondDigits: 3 

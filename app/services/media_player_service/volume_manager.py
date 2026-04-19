@@ -59,9 +59,11 @@ class VolumeManager:
             success = await self.playback_backend.set_volume_muted(new_muted)
             
             if success:
+                self.is_muted = new_muted
                 logger.info(f"Volume {'muted' if new_muted else 'unmuted'}")
                 return {"success": True, "muted": new_muted}
             else:
+                self.is_muted = current_muted
                 return {"success": False, "muted": current_muted}
         except Exception as e:
             logger.error(f"Failed to toggle mute: {e}")
@@ -75,4 +77,4 @@ class VolumeManager:
         value = int(backend_volume * 100) if backend_volume is not None else self._volume
         await self.set_volume(value)
 
-        return self._volume        
+        return self._volume

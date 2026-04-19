@@ -1,5 +1,5 @@
 {# Playlist container partial - renders the full playlist #}
-<div class="list-group list-group-flush">
+<div class="list-group list-group-flush overflow-auto">
   {% if playlist and playlist|length > 0 %}
     {% for track in playlist %}
       {% set is_current = (current_track and (track.track_number == current_track.track_number)) %}

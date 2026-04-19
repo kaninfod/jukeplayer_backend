@@ -89,9 +89,41 @@ export default class extends Controller {
         window.dispatchEvent(event);
     }
 
+    toggleRepeat() {
+        console.log("Toggle Repeat button clicked - Sending via WS");
+        
+        const event = new CustomEvent("ws:send", { 
+            detail: { 
+                type: "toggle_repeat", 
+                payload: {} 
+            } 
+        });
+        
+        window.dispatchEvent(event);
+    }
+
+    toggleMute() {
+        console.log("Toggle Mute button clicked - Sending via WS");
+        
+        const event = new CustomEvent("ws:send", { 
+            detail: { 
+                type: "volume_mute", 
+                payload: {} 
+            } 
+        });
+        
+        window.dispatchEvent(event);
+    }    
+
+
     playAlbum(event) {
         console.log("Play Album button clicked - Sending via WS");
         
+
+        window.dispatchEvent(new CustomEvent("nav:go", { 
+            detail: "/kiosk/player" 
+        }));
+
         const albumId = event.params.albumId;
         const wsEvent = new CustomEvent("ws:send", { 
             detail: { 
@@ -101,11 +133,6 @@ export default class extends Controller {
         });
         
         window.dispatchEvent(wsEvent);
-
-
-        window.dispatchEvent(new CustomEvent("nav:go", { 
-            detail: "/kiosk/player" 
-        }));
     }
 
     playTrack(event) {

@@ -40,13 +40,4 @@ export default class extends Controller {
         }
     }
 
-    updateActiveDevice(deviceId) {
-        if (this.hasCurrentdeviceTarget) {
-            this.currentdeviceTarget.textContent = deviceId;
-        } else {
-            console.log("Device UI span not found on this page.");
-        }
-
-        
-    }
 }

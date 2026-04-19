@@ -1,28 +1,37 @@
 <!-- Kiosk Player Status Component -->
 <!-- Album art + track info display in horizontal layout -->
 <div class="container kiosk-player-status align-items-center justify-content-center gap-4 p-4 position-relative h-100"
-    data-controller="nowplaying" data-action="nowplaying-update@window->nowplaying#handleExternalUpdate">
+    >
 
     <div class="flex-row d-flex flex-md-row flex-column">
-        <div id="kiosk-track-thumb" class="col-md-6 kiosk-album-art">
-            <img data-nowplaying-target="cover" src="" alt="Album Cover" />
-            <div data-nowplaying-target="nocover" class="kiosk-no-cover">
-                <i class="mdi mdi-music"></i>
+
+        
+        <div data-nowplaying-target="cover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center d-none">
+            <img data-nowplaying-target="coverimg" src="" alt="Album Cover" />
+        </div>
+
+        <div data-nowplaying-target="nocover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center">
+            <div data-nowplaying-target="nocover" class="kiosk-no-cover d-flex">
+                <i class="mdi mdi-music-off"></i>
             </div>
         </div>
         
-        <div data-nowplaying-target="trackinfo" class="col-md-6 kiosk-track-details d-none">
-            <h1 class="display-1" data-nowplaying-target="artist" class=""></h1>
-            <h3 class="" data-nowplaying-target="title" class=""></h3>
-            <h4 class="" data-nowplaying-target="album" class=""></h4>
-            <h5 class="" data-nowplaying-target="tracknum" class=""></h5>
-            <div class="kiosk-status">
-                <i data-nowplaying-target="status" class="${statusStr}"></i>   
-                <i data-nowplaying-target="repeat" class="${repeatStr}"></i>
-            </div>    
+        <div class="col-md-6 kiosk-track-details ">
+            <div data-nowplaying-target="trackinfo" class="">
+                <h1 class="display-1" data-nowplaying-target="artist"></h1>
+                <h3 data-nowplaying-target="title" class=""></h3>
+                <h4 data-nowplaying-target="album" class=""></h4>
+                <h5 data-nowplaying-target="tracknum" class=""></h5>
+            </div>
         </div>
         
-        <div data-nowplaying-target="notrackinfo" class="kiosk-no-track ">Loading...</div>
+        <div data-nowplaying-target="notrackinfo" class="col-md-6 kiosk-track-details">
+            <h1 class="display-1" class="">No Music Playing</h1>
+            <h3  class="">Insert a card...</h3>
+
+
+
+        </div>
     </div>    
 
     <div class="row kiosk-progress-container w-100 d-none">

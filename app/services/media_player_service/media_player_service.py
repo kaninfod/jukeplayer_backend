@@ -102,7 +102,9 @@ class MediaPlayerService:
 
     async def handle_volume_mute(self, event=None):
         """Toggle mute on the active playback backend."""    
-        await self.volume_manager.toggle_mute()
+        result = await self.volume_manager.toggle_mute()
+
+        return result
 
     async def handle_switch_device(self, event=None):
         """Switch the active playback device."""
@@ -287,7 +289,8 @@ class MediaPlayerService:
                 "elapsed_time": self.track_timer.get_elapsed(),
                 "output_device": self.playback_backend.device_name,
                 "active_client": getattr(self, 'active_client', None),
-                "playback_backend": type(self.playback_backend).__name__
+                "playback_backend": type(self.playback_backend).__name__,
+                "is_muted": self.volume_manager.is_muted
             }
             return context
     

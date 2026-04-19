@@ -493,9 +493,6 @@ class WebSocketConnection:
                 "payload": {"status": "error", "message": str(e)}
             })
 
-
-
-
     async def handle_volume(self, payload):
         """Handle volume set command."""
         try:
@@ -523,6 +520,51 @@ class WebSocketConnection:
                 "payload": {"status": "error", "message": str(e)}
             })
     
+    async def handle_toggle_repeat(self, payload):
+        """Handle toggle repeat command."""
+        try:
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.TOGGLE_REPEAT,
+                payload={}
+            ))
+            
+            await self.send_message({
+                "type": "toggle_repeat_response",
+                "payload": {"status": "success", "message": str(result)}
+            })
+            logger.info(f"Toggle repeat: {result}")
+        except Exception as e:
+            logger.error(f"Error handling toggle repeat: {e}")
+            await self.send_message({
+                "type": "toggle_repeat_response",
+                "payload": {"status": "error", "message": str(e)}
+            })
+
+
+    async def handle_volume_mute(self, payload):
+        """Handle volume mute command."""
+        try:
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.VOLUME_MUTE,
+                payload={}
+            ))
+            
+            is_muted = result[0]['muted'] if result and 'muted' in result[0] else None
+            await self.send_message({
+                "type": "volume_mute_response",
+                "payload": {"status": "success", "is_muted": is_muted}
+            })
+            logger.info(f"Volume mute: {result}")
+        except Exception as e:
+            logger.error(f"Error handling volume mute: {e}")
+            await self.send_message({
+                "type": "volume_mute_response",
+                "payload": {"status": "error", "message": str(e)}
+            })            
+
+
     async def handle_status(self, payload):
         """Handle status request (returns minimal data)."""
         try:
@@ -618,12 +660,16 @@ class WebSocketConnection:
                         await self.handle_previous_track(payload)
                     elif msg_type == "stop":
                         await self.handle_stop(payload)
+                    elif msg_type == "volume_mute":
+                        await self.handle_volume_mute(payload)
                     elif msg_type == "volume_up":
                         await self.handle_volume_up(payload)
                     elif msg_type == "volume_down":
                         await self.handle_volume_down(payload)
                     elif msg_type == "volume":
                         await self.handle_volume(payload)
+                    elif msg_type == "toggle_repeat":
+                        await self.handle_toggle_repeat(payload)
                     elif msg_type == "status":
                         await self.handle_status(payload)
                     elif msg_type == "track_finished":

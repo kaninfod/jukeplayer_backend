@@ -1,5 +1,5 @@
 import { Application } from "@hotwired/stimulus"
-import VolumeController from "./controllers/volume_controller.js"
+// import VolumeController from "./controllers/volume_controller.js"
 import NowPlayingController from "./controllers/now_playing_controller.js"
 import WebSocketController from "./controllers/websocket_controller.js"
 import playerControlsController from "./controllers/player_controls_controller.js"
@@ -13,7 +13,7 @@ const application = Application.start()
 application.debug = true
 
 // 2. Register your controllers
-application.register("volume", VolumeController)
+// application.register("volume", VolumeController)
 application.register("nowplaying", NowPlayingController)
 application.register("websocket", WebSocketController)
 application.register("playercontrols", playerControlsController)

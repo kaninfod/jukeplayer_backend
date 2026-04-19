@@ -49,5 +49,14 @@ export default class extends Controller {
         } catch (error) {
             console.error("Navigation fetch failed:", error);
         }
+
+        console.log("Broadcasting navigation completion for:", url);
+        window.dispatchEvent(new CustomEvent("app:screen-changed", {
+            detail: { 
+                url: url,
+                // Optional: helper to make if/else logic easier in other controllers
+                isPlayer: url.includes("/kiosk/player") 
+            }
+        }));
     }
 }

@@ -140,7 +140,7 @@ async def kiosk_playlist_partial(request: Request):
     }
 
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_playlist_view.html", context=context,
+        return templates.TemplateResponse(request=request, name="components/kiosk/playlist/_playlist_view.html", context=context,
         )
 
     context["kiosk_mode"] = True
@@ -186,7 +186,7 @@ async def kiosk_library_partial(
             "group": group,
         })
         if _is_htmx_request(request):
-            return templates.TemplateResponse(request=request, name="components/kiosk/_media_library.html", context=context)
+            return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
         context["kiosk_mode"] = True
         return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
@@ -201,12 +201,12 @@ async def kiosk_library_partial(
             "group": group,
         })
         if _is_htmx_request(request):
-            return templates.TemplateResponse(request=request, name="components/kiosk/_media_library.html", context=context)
+            return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
         context["kiosk_mode"] = True
         return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_media_library.html", context=context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
     context["kiosk_mode"] = True
     return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
@@ -248,7 +248,7 @@ async def kiosk_nfc_client_select(
         "clients": clients
     }
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_nfc_client_select.html", context=context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/nfc_encoding/_nfc_client_select.html", context=context)
     context["kiosk_mode"] = True
     return templates.TemplateResponse(request=request, name="pages/kiosk/nfc.html", context=context)
 
@@ -275,7 +275,7 @@ async def kiosk_nfc_partial(
 
     if _is_htmx_request(request):
         logger.info(f"Rendering NFC encoding partial for context {album_id} / {album_name} / client {client_id} / {client_name}")
-        return templates.TemplateResponse(request=request, name="components/kiosk/_nfc_encoding.html", context=context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/nfc_encoding/_nfc_encoding.html", context=context)
     context["kiosk_mode"] = True
     return templates.TemplateResponse(request=request, name="pages/kiosk/nfc.html", context=context)
 

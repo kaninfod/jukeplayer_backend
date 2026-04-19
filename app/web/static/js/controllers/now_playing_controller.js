@@ -2,86 +2,97 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-nowplaying-target' in the HTML
-    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "nocover" ]
+    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate" ]
 
     connect() {
-        console.log("Now Playing Controller connected to the DOM")
+        console.log("Now Playing Controller connected to the DOM", window.appState.lastTrackData);
         window.dispatchEvent(new CustomEvent("ws:request-sync"));
+
+        if (window.appState.lastTrackData) {
+            this.update();
+        }
+    
+
+    }
+
+    initialize() {
+        // Listen once and stay awake forever
+        window.addEventListener("app:screen-changed", (event) => {
+            if (event.detail.isPlayer) {
+                this.update();
+            }
+        });
     }
 
     // This replaces your updateKioskVolume(data) function
-    update(data) {
-        const timestamp = new Date().toLocaleTimeString('en-US', { 
-            hour12: false, hour: '2-digit', minute: '2-digit', 
-            second: '2-digit', fractionalSecondDigits: 3 
-        });
-
-        console.log(`[${timestamp}] STIMULUS UPDATE NOW PLAYING: ${data}`);
+    update() {
+        const data = window.appState.lastTrackData;
+        console.log("Updating Now Playing UI with track data:", data.cover_url);
+        const hasTrack = !!data.artist;
         
 
-        const hasTrack = !!data.current_track;
+        if (hasTrack) {
 
+            if (this.hasTrackinfoTarget) {
+                this.trackinfoTarget.classList.remove("d-none");
+            }
+            if (this.hasCoverTarget) {
+                this.coverTarget.classList.remove("d-none");
+            }
+            if (this.hasNotrackinfoTarget) {
+                this.notrackinfoTarget.classList.add("d-none");
+            }
+            if (this.hasNocoverTarget) {
+                this.nocoverTarget.classList.add("d-none");
+            }
 
-        if (data.current_track) {
             if (this.hasArtistTarget) {
-                this.artistTarget.textContent = `${data.current_track.artist}`;
+                this.artistTarget.textContent = `${data.artist}`;
             }
 
             if (this.hasTitleTarget) {
-                this.titleTarget.textContent = `${data.current_track.title}`;
+                this.titleTarget.textContent = `${data.title}`;
             }
 
             if (this.hasAlbumTarget) {
-                this.albumTarget.textContent = `${data.current_track.album}`;
+                this.albumTarget.textContent = `${data.album}`;
             }
 
             if (this.hasTracknumTarget) {
-                const trackNumberText = `Track ${data.current_track.track_number} of ${data.playlist.length}`;
+                const trackNumberText = `Track ${data.track_number} of ${window.appState.playlist.length}`;
                 this.tracknumTarget.textContent = trackNumberText;
             }
             
-            this.renderState(hasTrack);
+            // this.renderState(hasTrack);
 
             if (this.hasCoverTarget) {
-                let coverUrl = data.current_track.cover_url;
+                let coverUrl = data.cover_url;
                 if (coverUrl) {
 
                     if (coverUrl.startsWith('/')) {
                         coverUrl = window.location.origin + coverUrl + '?size=512';
                     }
-                    console.log(`[${timestamp}] UPDATE: Loading album art from: ${coverUrl}`);
-                    this.coverTarget.src = coverUrl;
+                    // console.log(`[${timestamp}] UPDATE: Loading album art from: ${coverUrl}`);
+                    this.coverimgTarget.src = coverUrl;
                 } else {
-                    console.log(`[${timestamp}] UPDATE: No cover_url, showing placeholder`);
-                    this.coverTarget.src = '';
+                    console.log(`UPDATE: No cover_url, showing placeholder`);
+                    this.coverimgTarget.src = '';
                 }
             }
 
-            const iconMap = {
-                    'playing': 'mdi mdi-play',
-                    'paused':  'mdi mdi-pause',
-                    'idle':    'mdi mdi-stop'
-                };
-            
-            const statusStr = iconMap[data.status] || data.status;
-
-            if (this.hasStatusTarget) {
-                this.statusTarget.className = statusStr;
-            }
-
-            
-            const repeatStr = data.repeat_album ? 'mdi mdi-repeat' : 'mdi mdi-repeat-off';
-
-            if (this.hasRepeatTarget) {
-                this.repeatTarget.className = repeatStr;
-            }
-
-            this.updateVolume(data.volume);
-            this.updateDevice(data.output_device);
+        }    
+        
+        console.log(`Playback status: ${window.appState.playerStatus}, hastarget: ${this.hasPlaystatusTarget}, Repeat: ${window.appState.repeatState}, Volume: ${window.appState.volume}, Output Device: ${window.appState.deviceName}`);
 
 
-        }
+        this.updateRepeatState();
+        this.updatePlayerstatus();
+        this.updateVolume();
+        this.updateDevice();
+        this.updateMuteState();
     }
+
+
     renderState(hasTrack) {
         this.trackinfoTarget.classList.toggle("d-none", !hasTrack);
         this.coverTarget.classList.toggle("d-none", !hasTrack);
@@ -90,32 +101,81 @@ export default class extends Controller {
         this.nocoverTarget.classList.toggle("d-none", hasTrack);
     }
 
-    updateVolume(newVol) {
-        const event = new CustomEvent("volume-change", { 
-            detail: { volume: newVol } 
-        });
-        window.dispatchEvent(event);
-    }    
+    updateVolume() {
+        const volume = parseInt(window.appState.volume) || 0;
 
-    updateDevice(deviceId) {
-        console.log("Updating active device in UI to:", deviceId);
+        // Update the fill height
+        if (this.hasVolumefillTarget) {
+            this.volumefillTarget.style.height = `${volume}%`;
+        }
 
-        const mockResponse = [{
-            status: "ok",
-            device_name: deviceId,
-            backend: "manual-update"
-        }];
-        const event = new CustomEvent("switch-device-response", { 
-            detail: { response: mockResponse } 
-        });
-        window.dispatchEvent(event);
-    }    
+        // Update the text
+        if (this.hasVolumetextTarget) {
+            this.volumetextTargets.forEach(element => {
+                element.textContent = `${volume}%`;
+            });
+        }
+
+    }  
+
+    updateDevice() {
+        if (this.hasCurrentdeviceTarget) {
+            this.currentdeviceTarget.textContent = window.appState.deviceName;
+        } else {
+            console.log("Device UI span not found on this page.");
+        }
+    }
+
+    updateRepeatState() {
+        console.log("Updating repeat state in UI");
+        
+        const state = window.appState.repeatState;
+
+        if (this.hasRepeatstatusTarget) {
+            const repeatStr = state ? 'mdi mdi-repeat' : 'mdi mdi-repeat-off';
+            this.repeatstatusTargets.forEach(element => {
+                    element.className = repeatStr
+            });
+        }
+
+    }   
+
+    updateMuteState() {
+        
+        const state = window.appState.isMuted;
+        if (this.hasMutestateTarget) {
+            const muteStr = state ? 'mdi mdi-volume-off' : 'mdi mdi-volume-high';
+            this.mutestateTarget.className = muteStr;
+        }
+
+    }   
+
+
+    updatePlayerstatus() {
+        console.log("Updating player status in UI", window.appState.playerStatus, this.hasPlayerstatusTarget);
+        if (this.hasPlayerstatusTarget) {
+            const iconMap = {
+                    'playing': 'mdi mdi-play',
+                    'paused':  'mdi mdi-pause',
+                    'idle':    'mdi mdi-stop'
+                };
+            
+            const statusStr = iconMap[window.appState.playerStatus] || window.appState.playerStatus;
+            console.log(`Updating player status icon to: ${statusStr}`);
+            if (this.hasPlayerstatusTarget) {
+                this.playerstatusTarget.className = statusStr;
+            }
+        }
+
+    }
 
     handleExternalUpdate(evt) {
-        const trackData = evt.detail.track;
+        const trackData = window.appState.lastTrackData;
         
         if (trackData !== undefined) {
-            this.update(trackData);
+            this.update();
+        } else {
+            console.log("Received nowplaying-update event without track data:", evt.detail);
         }
     }
 }
