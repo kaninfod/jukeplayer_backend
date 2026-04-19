@@ -4,6 +4,26 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
     static targets = ["content"]
 
+    connect() {
+        console.log("Navigation Controller connected to the DOM");
+
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (urlParams.get('fullscreen') === 'true') {
+            // We wrap it in a function because we might need to try a few times
+            this.toggleFullscreen();
+        }
+    }
+
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    }
 
     async load(event) {
         // 1. Prevent default if it's a real click/link event
@@ -29,6 +49,11 @@ export default class extends Controller {
             console.warn("Navigation failed: No URL found in event", event);
             return;
         }
+
+
+
+
+
 
         // 3. The Fetch Logic
         try {

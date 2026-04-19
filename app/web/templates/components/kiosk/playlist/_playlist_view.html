@@ -7,7 +7,7 @@
         <small id="kiosk-playlist-info" class="text-muted">{{ (playlist|length) if playlist else 0 }} tracks</small>
     </div>
     
-    <div id="kiosk-playlist-container" class="list-group list-group-flush flex-grow-1" style="overflow-y: auto;">
+    <div id="kiosk-playlist-container" class="list-group list-group-flush flex-grow-1 h-100">
         {% include 'components/kiosk/playlist/_playlist_container.html' %}
     </div>
 </div>

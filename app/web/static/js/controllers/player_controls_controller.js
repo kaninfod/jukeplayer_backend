@@ -154,4 +154,11 @@ export default class extends Controller {
         }));
     }
 
+    reloadApp() {
+        console.log("Forcing hard refresh for Player kiosk...");
+        // This stops the SPA logic and forces the browser to reload from scratch
+        window.location.href = window.location.pathname + "?" + Date.now();
+        return; 
+    }
+
 }

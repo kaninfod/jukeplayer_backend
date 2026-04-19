@@ -24,6 +24,26 @@
    LAYOUT CONTROL - Show/Hide Desktop vs Kiosk
    ============================================ */
 
+.app-container {
+  /* display: flex;
+  flex-direction: column;
+  height: 100vh;  */
+  overflow: hidden; 
+}
+
+.status-bar, .media-controls {
+  flex-shrink: 0; /* Never let these get squashed */
+  height: 60px;   /* Or whatever fixed height you like */
+}
+
+.content-area {
+  flex-grow: 1;   /* Take up ALL remaining space */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
 /* Kiosk mode: Fixed 720px height, exact sizing */
 html.kiosk-mode,
 body.kiosk-layout {
@@ -32,8 +52,8 @@ body.kiosk-layout {
     overflow: hidden !important;
     /* width: 1280px !important;
     height: 720px !important; */
-    display: flex;
-    flex-direction: column;
+    /* display: flex; */
+    /* flex-direction: column; */
 }
 
 /* Desktop layout: visible by default */
@@ -75,20 +95,19 @@ body.kiosk-layout {
    STATUS BAR (Top - 62px, increased by 25% for better touch targets)
    ============================================ */
 
-body.kiosk-layout .kiosk-status-bar,
-.kiosk-layout .kiosk-status-bar {
+.kiosk-status-bar {
     height: 62px !important;
     max-height: 62px !important;
     min-height: 62px !important;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     display: flex !important;
-    /* justify-content: space-between !important;
-    align-items: center; */
+    justify-content: space-between !important;
+    align-items: center;
     padding: 0 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    /* flex-shrink: 0 !important;
-    flex: none !important; */
+    flex-shrink: 0 !important;
+    flex: none !important;
 }
 
 .kiosk-breadcrumb {
@@ -136,8 +155,7 @@ body.kiosk-layout .kiosk-status-bar,
    Flexible height - grows when controls are hidden
    ============================================ */
 
-body.kiosk-layout .kiosk-main-content,
-.kiosk-layout .kiosk-main-content {
+.kiosk-main-content {
     display: flex !important;
     overflow: hidden !important;
     background: #f5f5f7;
@@ -273,7 +291,7 @@ body.kiosk-layout .kiosk-main-content,
    PROGRESS BAR
    ============================================ */
 
-.kiosk-progress-container {
+/* .kiosk-progress-container {
     padding: 8px 16px;
     background: rgba(255, 255, 255, 0.95);
     border-top: 1px solid #e0e0e0;
@@ -307,14 +325,13 @@ body.kiosk-layout .kiosk-main-content,
     white-space: nowrap;
     min-width: 90px;
     text-align: right;
-}
+} */
 
 /* ============================================
    CONTROLS (Bottom - 100px)
    ============================================ */
 
-body.kiosk-layout .kiosk-controls,
-.kiosk-layout .kiosk-controls {
+.kiosk-controls {
     height: 100px !important;
     max-height: 100px !important;
     min-height: 100px !important;
@@ -330,7 +347,7 @@ body.kiosk-layout .kiosk-controls,
 }
 
 /* Larger touch-friendly media control buttons in kiosk */
-.kiosk-layout .btn-media-control {
+.btn-media-control {
     width: 80px;
     height: 80px;
     font-size: 32px;
@@ -339,7 +356,7 @@ body.kiosk-layout .kiosk-controls,
     transition: all 0.2s;
 }
 
-.kiosk-layout .btn-media-control:active {
+.btn-media-control:active {
     transform: scale(0.95);
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
@@ -350,7 +367,7 @@ body.kiosk-layout .kiosk-controls,
 
 /* Common container for scrollable components */
 .kiosk-component-container {
-    overflow-y: auto;
+
     height: 100%;
     width: 100%;
     padding: 20px;
@@ -430,7 +447,7 @@ body.kiosk-layout .kiosk-controls,
 }
 
 /* Controls bar collapse functionality */
-#kiosk-controls-bar {
+/* #kiosk-controls-bar {
     flex-shrink: 0;
     transition: all 0.3s ease-in-out;
 }
@@ -442,7 +459,7 @@ body.kiosk-layout .kiosk-controls,
     padding: 0 !important;
     overflow: hidden;
     visibility: hidden;
-}
+} */
 
 /* ============================================
    PLAYLIST VIEW COMPONENT
@@ -590,6 +607,7 @@ body.kiosk-layout .kiosk-controls,
 .system-action-card {
     transition: transform 0.2s, box-shadow 0.2s;
     min-height: 180px;
+    cursor: pointer;    
 }
 
 .system-action-card:hover:not([style*="opacity: 0.5"]) {

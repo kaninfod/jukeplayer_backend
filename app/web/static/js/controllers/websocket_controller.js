@@ -58,7 +58,7 @@ export default class extends Controller {
         }
 
         if (msg.type === 'switch_device_response') {
-            window.appState.deviceName = msg.payload.device_id;
+            window.appState.deviceName = msg.payload[0].device_id;
             this.broadcast("switch-device-response", { response: msg.payload });
         }
 
