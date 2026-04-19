@@ -17,7 +17,11 @@ export default class extends Controller {
 
     connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=123456789abcdef&client_id=webclient_hinge`;
+        const token = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+        );
+        console.log(token); 
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${token}&client_id=webclient_hinge`;
         
         this.socket = new WebSocket(wsUrl);
 
