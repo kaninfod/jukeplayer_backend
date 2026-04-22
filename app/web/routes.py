@@ -157,6 +157,20 @@ async def kiosk_system_partial(request: Request):
     )
 
 
+@router.get("/kiosk/clients", response_class=HTMLResponse)
+async def kiosk_clients_partial(request: Request):
+    import json
+    client_registry = get_service("client_registry")
+    clients = client_registry.get_all()  # Ensure we have the latest clients for logging
+    logger.info(f"Rendering clients page with {json.dumps(clients[0].__dict__, indent=2, default=str)}")
+    
+    if _is_htmx_request(request):
+        return templates.TemplateResponse(request=request, name="components/kiosk/clients/_clients_container.html", context={"request": request, "clients": clients},
+        )
+    return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "config": config, "kiosk_mode": True},
+    )
+
+
 @router.get("/kiosk/library", response_class=HTMLResponse)
 async def kiosk_library_partial(
     request: Request,

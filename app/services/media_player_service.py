@@ -7,8 +7,8 @@ from app.playback_backends.factory import get_playback_backend, get_playback_bac
 #from app.playback_backends.factory import get_playback_backend_by_name
 from app.core import EventType, Event
 from app.core import PlayerStatus
-from .playlist_manager import PlaylistManager
-from .volume_manager import VolumeManager
+from jukeplayer_backend.app.services.media_player_service.playlist_manager import PlaylistManager
+from jukeplayer_backend.app.services.media_player_service.volume_manager import VolumeManager
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +43,9 @@ class MediaPlayerService:
             getattr(self.playback_backend, "device_name", "unknown"),
         )
 
-    async def toggle_repeat(self, event=None):
+    async def toggle_repeat_album(self, event=None):
         """Toggle repeat album setting."""
         mode = self.playlist_manager.toggle_repeat()
-        self.event_bus.emit(Event(
-            type=EventType.TOGGLE_REPEAT_CHANGED,
-            payload={"mode": mode}
-        ))
         return mode
     
     async def previous_track(self, event=None):
@@ -85,50 +81,16 @@ class MediaPlayerService:
         return volume
 
     async def handle_volume_up(self, event=None):
-        volume = await self.volume_manager.volume_up()
-        self.event_bus.emit(Event(
-            type=EventType.VOLUME_CHANGED,
-            payload=self.get_context()
-        ))
-        return volume
+        await self.volume_manager.volume_up()
+        return True
 
     async def handle_volume_down(self, event=None):
-        volume = await self.volume_manager.volume_down()
-        self.event_bus.emit(Event(
-            type=EventType.VOLUME_CHANGED,
-            payload=self.get_context()
-        ))
-        return volume
+        await self.volume_manager.volume_down()
+        return True
 
     async def handle_volume_mute(self, event=None):
         """Toggle mute on the active playback backend."""    
-        result = await self.volume_manager.toggle_mute()
-
-        return result
-
-    async def handle_switch_device(self, event=None):
-        """Switch the active playback device."""
-        if event is None or not hasattr(event, "payload"):
-            logger.error("switch_device called without valid event payload.")
-            return False
-        
-        device_id = event.payload.get("device_id")
-        if device_id is None:   
-            logger.error("switch_device: Invalid device in payload.")
-            return False
-        
-        device_backend = event.payload.get("device_backend")
-        if device_backend is None:   
-            logger.error("switch_device: Invalid device in payload.")
-            return False
-        
-        try:
-            result = await self.switch_playback_backend(device_backend, device_id)
-            logger.info(f"Switched to device {device_backend} on backend {self.playback_backend}: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"Error switching device: {e}")
-            return False
+        await self.volume_manager.toggle_mute()
 
     async def play_pause(self, event=None):
         # Toggle pause/resume timer based on current status
@@ -137,23 +99,9 @@ class MediaPlayerService:
             self.status = PlayerStatus.PAUSE
             await self.playback_backend.pause()
         elif self.status == PlayerStatus.PAUSE:
-            status = self.playback_backend.ensure_connected()
-            connected = status.get("connected", False)
-            reconnected = status.get("reconnected", False)
-            
-            if not connected:
-                logger.error("Cannot resume playback: backend not connected and reconnection failed.")
-                return False
-            if reconnected:
-                logger.info("Backend reconnected successfully during play_pause resume.")
-                await self.play_current_track()
-            else:
-                self.track_timer.resume()
-                self.status = PlayerStatus.PLAY
-                stat = await self.playback_backend.resume()
-                logger.info(f"Resuming playback: {stat}")
-        elif self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
-            await self.play_current_track()
+            self.track_timer.resume()
+            self.status = PlayerStatus.PLAY
+            await self.playback_backend.resume()
 
         self.emit_update()
         return True
@@ -281,7 +229,6 @@ class MediaPlayerService:
                 "status": self.status.value,
                 "current_index": self.playlist_manager.current_index,
                 "volume": self.volume_manager.volume,
-                "repeat_album": self.playlist_manager._repeat_album,
             }
         else:
             context = {
@@ -303,8 +250,7 @@ class MediaPlayerService:
                 "elapsed_time": self.track_timer.get_elapsed(),
                 "output_device": self.playback_backend.device_name,
                 "active_client": getattr(self, 'active_client', None),
-                "playback_backend": type(self.playback_backend).__name__,
-                "is_muted": self.volume_manager.is_muted
+                "playback_backend": type(self.playback_backend).__name__
             }
             return context
     
@@ -321,9 +267,7 @@ class MediaPlayerService:
 
     async def switch_playback_backend(self, backend: str, device_name: Optional[str] = None) -> Dict:
         from app.playback_backends.factory import switch_playback_backend_fac
-        
-        result = await switch_playback_backend_fac(self, self, backend, device_name)
-        return result
+        return await switch_playback_backend_fac(self, self, backend, device_name)
 
     def get_track_elapsed(self):
         """Return the elapsed play time (seconds) for the current track."""

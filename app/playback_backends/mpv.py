@@ -165,6 +165,11 @@ class MPVService(PlaybackBackend):
         except Exception:
             return None
 
+    def ensure_connected(self) -> dict:
+
+        status = self._bt_checker.check_ready()
+        return {"connected": status.get("ready", False), "reconnected": False}
+
     async def get_status(self) -> Optional[dict]:
         try:
             idle_active = self.player.idle_active

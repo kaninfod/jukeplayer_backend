@@ -21,9 +21,9 @@ def get_playback_backend_by_name(backend_name: str, device_name: str | None = No
         logger.info("Using MPV playback backend")
         return get_mpv_service()
     
-    if backend == "streaming":
-        logger.info("Using WebSocket streaming playback backend")
-        return get_websocket_backend()
+    # if backend == "streaming":
+    #     logger.info("Using WebSocket streaming playback backend")
+    #     return get_websocket_backend()
 
     if backend != "chromecast":
         logger.warning("Unknown PLAYBACK_BACKEND '%s', falling back to chromecast", backend)

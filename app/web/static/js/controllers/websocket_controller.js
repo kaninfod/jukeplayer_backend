@@ -21,7 +21,7 @@ export default class extends Controller {
           (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
         );
         console.log(token); 
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${token}&client_id=webclient_hinge`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${token}&client_id=webclient`;
         
         this.socket = new WebSocket(wsUrl);
 
@@ -62,7 +62,7 @@ export default class extends Controller {
         }
 
         if (msg.type === 'switch_device_response') {
-            window.appState.deviceName = msg.payload[0].device_id;
+            window.appState.deviceName = msg.payload[0].device_name;
             this.broadcast("switch-device-response", { response: msg.payload });
         }
 
@@ -85,7 +85,6 @@ export default class extends Controller {
             
         }
 
-        console.log("AppState:", window.appState);
     }
 
     broadcast(name, detail) {

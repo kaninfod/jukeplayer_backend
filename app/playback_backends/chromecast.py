@@ -11,9 +11,20 @@ import logging
 import time
 from app.config import config
 from .base import PlaybackBackend
+from pychromecast.discovery import CastBrowser, SimpleCastListener
 
 logger = logging.getLogger(__name__)
+_global_zeroconf = None
+_global_browser = None
 
+def _get_global_browser():
+    global _global_zeroconf, _global_browser
+    if _global_zeroconf is None:
+        _global_zeroconf = Zeroconf()
+        _global_browser = CastBrowser(DiscoveryListener(), _global_zeroconf)
+        _global_browser.start_discovery()
+        logger.info("Started global background Chromecast discovery")
+    return _global_browser
 
 DEFAULT_MEDIA_RECEIVER_APP_ID = "CC1AD845"
 
@@ -26,6 +37,7 @@ class ChromecastMediaStatusListener:
         self.device_name = device_name
         self.last_player_state = None
         self.last_current_time = None
+        self.last_session_id = None
     def new_media_status(self, status):
         try:
             player_state = getattr(status, 'player_state', 'UNKNOWN')
@@ -35,7 +47,8 @@ class ChromecastMediaStatusListener:
             content_id = getattr(status, 'content_id', None)
             if player_state != self.last_player_state:
                 logger.info(f"[{self.device_name}] Media state changed: {self.last_player_state} → {player_state}")
-                self._log_full_status(status)
+                self.log_media_status(status)
+                # self._log_full_status(status)
                 if player_state == 'IDLE':
                     if idle_reason:
                         logger.info(f"[{self.device_name}] IDLE reason: {idle_reason}")
@@ -60,22 +73,21 @@ class ChromecastMediaStatusListener:
                 logger.debug(f"[{self.device_name}] Progress: {current_time:.1f}s / {duration:.1f}s ({progress_pct:.1f}%)")
             self.last_current_time = current_time
         except Exception as e:
-            logger.error(f"[{self.device_name}] Error processing media status: {e}")
-    
-    def load_media_failed(self, item, error_code):
-        """Called when media fails to load on the Chromecast device.
-        
-        This is a required callback for pychromecast v12.0.0+
-        
-        Args:
-            item: The media item that failed to load
-            error_code: Error code from the Chromecast device
-        """
-        try:
-            logger.warning(f"[{self.device_name}] Media load failed: error_code={error_code}, item={item}")
-        except Exception as e:
-            logger.error(f"[{self.device_name}] Error in load_media_failed callback: {e}")
-    
+            logger.error(f"[{self.device_name}] Error processing media status: {e}")      
+
+    def log_media_status(self, status):
+        """Logs playback state, media metadata, and session IDs."""
+        state = getattr(status, 'player_state', 'UNKNOWN')
+        title = getattr(status, 'title', 'No Title')
+        artist = getattr(status, 'artist', 'No Artist')
+        current_time = getattr(status, 'current_time', 0)
+        session_id = getattr(status, 'media_session_id', 'None')
+        idle_reason = getattr(status, 'idle_reason', 'N/A')
+
+        logger.info(f"📀 Media Status: [{state}] {title} - {artist}")
+        logger.info(f"   Position: {current_time}s | SessionID: {session_id} | IdleReason: {idle_reason}")
+
+
     def _log_full_status(self, status):
         try:
             logger.info(f"[{self.device_name}] 📊 FULL STATUS DUMP:")
@@ -107,24 +119,42 @@ class ChromecastMediaStatusListener:
         except Exception as e:
             logger.error(f"[{self.device_name}] Error logging full status: {e}")
 
-from pychromecast.discovery import CastBrowser, SimpleCastListener
+    def new_cast_status(self, status):
+        print(f"App Active: {status.display_name}, Session ID: {status.session_id}")
+        self.log_cast_status(status)
+        session_id = getattr(status, 'session_id', 'None')
+        if session_id not in (None, self.last_session_id):
+            logger.info(f"[{self.device_name}] 🎬 New Cast Session Detected: {session_id}")
+            self.last_session_id = session_id
+        if session_id is None and self.last_session_id is not None:
+            logger.info(f"[{self.device_name}] 📴 Cast Session Ended")
+            self.last_session_id = None
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.STOP,
+                payload={}
+            ))
+        
+      
+
+    def log_cast_status(self, status):
+        """Logs the active application and device-level state."""
+        app_name = getattr(status, 'display_name', 'Backdrop')
+        app_id = getattr(status, 'app_id', 'N/A')
+        volume = getattr(status, 'volume_level', 0.0) * 100
+        is_muted = getattr(status, 'volume_muted', False)
+        cast_session = getattr(status, 'session_id', 'None')
+
+        logger.info(f"📺 Cast Status: App='{app_name}' ({app_id})")
+        logger.info(f"   Volume: {volume:.0f}% | Muted: {is_muted} | App Session: {cast_session}")
+
 
 # Move DiscoveryListener to module level
 class DiscoveryListener(SimpleCastListener):
     def add_cast(self, uuid, mdns_name):
         pass
 
-_global_zeroconf = None
-_global_browser = None
 
-def _get_global_browser():
-    global _global_zeroconf, _global_browser
-    if _global_zeroconf is None:
-        _global_zeroconf = Zeroconf()
-        _global_browser = CastBrowser(DiscoveryListener(), _global_zeroconf)
-        _global_browser.start_discovery()
-        logger.info("Started global background Chromecast discovery")
-    return _global_browser
 
 class ChromecastService(PlaybackBackend):
     """
@@ -280,6 +310,7 @@ class ChromecastService(PlaybackBackend):
                 self.cast = pychromecast.get_chromecast_from_cast_info(
                     target_cast_info, _global_zeroconf
                 )
+                
                 logger.info(f"Waiting for {self.cast.name} to be ready...")
                 self.cast.wait(timeout=config.CHROMECAST_WAIT_TIMEOUT)
                 if not self.cast.status:
@@ -288,6 +319,8 @@ class ChromecastService(PlaybackBackend):
                 self.mc = self.cast.media_controller
                 self.status_listener = ChromecastMediaStatusListener(self.cast.name)
                 self.mc.register_status_listener(self.status_listener)
+                self.cast.register_status_listener(self.status_listener)
+
                 self.device_name = self.cast.name
                 logger.info(f"Registered media status listener for {self.cast.name}")
                 logger.info(f"Successfully connected to {self.cast.name}")
@@ -334,10 +367,11 @@ class ChromecastService(PlaybackBackend):
         if not self.cast or not self.mc:
             return False
         try:
-            return self.cast.status is not None
+            status = self.cast.status
+            return status is not None
         except Exception:
             return False
-        
+
     def ensure_connected(self) -> bool:
         if self.is_connected():
             return True

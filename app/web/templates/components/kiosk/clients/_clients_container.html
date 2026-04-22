@@ -1,0 +1,17 @@
+<!-- Kiosk Device Selector Component -->
+<div class="kiosk-component-container">
+    <div class="mb-4">
+        <h3 class="kiosk-artist mb-2">
+            <i class="mdi mdi-speaker-multiple"></i> Clients registered on server
+        </h3>
+
+    </div>
+    
+    <!-- Device grid -->
+    <div id="device-grid" class="kiosk-grid-3col">
+        {% include 'components/kiosk/clients/_clients.html' %}
+    </div>
+    
+    <!-- Status message area -->
+    <div id="device-status" class="mt-4"></div>
+</div>

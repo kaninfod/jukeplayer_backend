@@ -20,7 +20,7 @@ class EventBus:
         with self._lock:
             # Prevent duplicate subscriptions
             if handler not in self._handlers[event_type]:
-                logger.info(f"Subscribing handler {handler.__name__} to event type {event_type}")
+                #logger.info(f"Subscribing handler {handler.__name__} to event type {event_type}")
                 self._handlers[event_type].append(handler)
             else:
                 logger.debug(f"Handler {handler.__name__} already subscribed to {event_type} - skipping duplicate")

@@ -21,11 +21,11 @@ class VolumeManager:
 
     async def volume_up(self, step=5):
         new_volume = min(100, self._volume + step if step is not None else 0)
-        await self.set_volume(new_volume)
+        return await self.set_volume(new_volume)
 
     async def volume_down(self, step=5):
         new_volume = max(0, self._volume - step if step is not None else 0)
-        await self.set_volume(new_volume)
+        return await self.set_volume(new_volume)
 
 
     async def set_volume(self, volume=None):

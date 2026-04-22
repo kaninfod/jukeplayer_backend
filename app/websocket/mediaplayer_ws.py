@@ -253,15 +253,18 @@ class WebSocketConnection:
         """Handle play/pause toggle command."""
         try:
             from app.core import event_bus, EventType, Event
-            result = event_bus.emit(Event(
+            result = await event_bus.aemit(Event(
                 type=EventType.PLAY_PAUSE,
                 payload={}
             ))          
             
-            await self.send_message({
-                "type": "play_pause_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "play_pause_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))
 
             logger.info(f"Play/pause toggled: {result}")
         except Exception as e:
@@ -286,13 +289,17 @@ class WebSocketConnection:
                 payload={"rfid": rfid, "client_id": getattr(self, 'client_id', None) or "ws_client"}
             ))
             
-            await self.send_message({
-                "type": "play_rfid_response",
-                "payload": {
-                    "status": "success" if result else "error",
-                    "message": str(result) if result else "Failed to process RFID"
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "play_rfid_response",
+                    "message_payload": {
+                        "status": "success" if result else "error",
+                        "message": str(result) if result else "Failed to process RFID"
+                    }
                 }
-            })
+            ))
+
         except Exception as e:
             logger.error(f"Error handling play_rfid: {e}")
             await self.send_message({
@@ -312,11 +319,15 @@ class WebSocketConnection:
                 type=EventType.PLAY_TRACK,
                 payload={"track_index": track_index}
             ))
-            
-            await self.send_message({
-                "type": "play_track_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
+
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "play_track_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))
+
             logger.info(f"Play track: {result}")
         except Exception as e:
             logger.error(f"Error handling play_track: {e}")
@@ -348,11 +359,19 @@ class WebSocketConnection:
                     "client_id": self.client_id
                 }
             ))
-            
-            await self.send_message({
-                "type": "play_album_response",
-                "payload": {"status": "success", "album_id": album_id, "start_track_index": start_track_index, "message": str(result)}
-            })
+
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "play_album_response",
+                    "message_payload": {
+                        "status": "success", 
+                        "album_id": album_id, 
+                        "start_track_index": start_track_index, 
+                        "message": str(result)}
+                }
+            ))
+
             logger.info(f"Playing album {album_id} starting at track {start_track_index}: {result}")
         except Exception as e:
             logger.error(f"Error handling play_album: {e}")
@@ -376,10 +395,13 @@ class WebSocketConnection:
                 }
             ))
 
-            await self.send_message({
-                "type": "switch_device_response",
-                "payload": result
-            })
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "switch_device_response",
+                    "message_payload": result
+                }
+            ))
 
             logger.info(f"Switched to device {device} on backend {backend}: {result}")
         except Exception as e:
@@ -396,11 +418,15 @@ class WebSocketConnection:
                 type=EventType.NEXT_TRACK,
                 payload={"force": True}
             ))
-            
-            await self.send_message({
-                "type": "next_track_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
+
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "next_track_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))            
+
             logger.info(f"Next track: {result}")
         except Exception as e:
             logger.error(f"Error handling next_track: {e}")
@@ -418,10 +444,14 @@ class WebSocketConnection:
                 payload={}
             ))
             
-            await self.send_message({
-                "type": "previous_track_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "previous_track_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))            
+
             logger.info(f"Previous track: {result}")
         except Exception as e:
             logger.error(f"Error handling previous_track: {e}")
@@ -438,11 +468,15 @@ class WebSocketConnection:
                 type=EventType.STOP,
                 payload={}
             ))
-            
-            await self.send_message({
-                "type": "stop_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
+
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "stop_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))             
+
             logger.info(f"Stop: {result}")
         except Exception as e:
             logger.error(f"Error handling stop: {e}")
@@ -459,11 +493,15 @@ class WebSocketConnection:
                 type=EventType.VOLUME_UP,
                 payload={}
             ))
-            
-            await self.send_message({
-                "type": "volume_up_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
+
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "volume_up_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))  
+
             logger.info(f"Volume up: {result}")
         except Exception as e:
             logger.error(f"Error handling volume up: {e}")
@@ -481,11 +519,14 @@ class WebSocketConnection:
                 payload={}
             ))
             
-            await self.send_message({
-                "type": "volume_down_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
-            logger.info(f"Volume down: {result}")
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "volume_down_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))             
+            
         except Exception as e:
             logger.error(f"Error handling volume down: {e}")
             await self.send_message({
@@ -498,20 +539,20 @@ class WebSocketConnection:
         try:
             volume = payload.get("value")
             
-            if volume is None:
-                raise ValueError("Missing volume value")
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.SET_VOLUME,
+                payload={"volume": volume}
+            ))
             
-            if not 0 <= volume <= 100:
-                raise ValueError("Volume must be 0-100")
-            
-            # Call service directly (no event for volume_set)
-            player_service = get_service("media_player_service")
-            await player_service.set_volume(volume=volume)
-            
-            await self.send_message({
-                "type": "volume_response",
-                "payload": {"status": "success", "volume": volume}
-            })
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "volume_response",
+                    "message_payload": {"status": "success", "message": str(result[0])}
+                }
+            ))  
+
             logger.info(f"Volume set to {volume}")
         except Exception as e:
             logger.error(f"Error handling volume: {e}")
@@ -529,10 +570,14 @@ class WebSocketConnection:
                 payload={}
             ))
             
-            await self.send_message({
-                "type": "toggle_repeat_response",
-                "payload": {"status": "success", "message": str(result)}
-            })
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "toggle_repeat_response",
+                    "message_payload": {"status": "success", "message": str(result)}
+                }
+            ))              
+
             logger.info(f"Toggle repeat: {result}")
         except Exception as e:
             logger.error(f"Error handling toggle repeat: {e}")
@@ -552,10 +597,15 @@ class WebSocketConnection:
             ))
             
             is_muted = result[0]['muted'] if result and 'muted' in result[0] else None
-            await self.send_message({
-                "type": "volume_mute_response",
-                "payload": {"status": "success", "is_muted": is_muted}
-            })
+            
+            result = await event_bus.aemit(Event(
+                type=EventType.BROADCAST_GENERIC_MESSAGE,
+                payload={
+                    "message_type": "volume_mute_response",
+                    "message_payload": {"status": "success", "is_muted": is_muted}
+                }
+            ))              
+            
             logger.info(f"Volume mute: {result}")
         except Exception as e:
             logger.error(f"Error handling volume mute: {e}")
@@ -602,32 +652,6 @@ class WebSocketConnection:
                 "payload": {"status": "error", "message": str(e)}
             })
 
-    async def handle_track_finished(self, payload):
-        """Handle track finished event from ESP32 audio stream."""
-        try:
-            reason = payload.get("reason", "unknown")
-            logger.info(f"Track finished received from ESP32 (reason: {reason})")
-            
-            # Emit the track finished event
-            from app.core import event_bus, EventType, Event
-            
-            # Check for duplicate events (debounce - only emit if last event >1s ago)
-            current_time = time.time()
-            if not hasattr(self, '_last_track_finished_time'):
-                self._last_track_finished_time = 0
-            
-            if current_time - self._last_track_finished_time >= 1.0:
-                event_bus.emit(Event(
-                    type=EventType.TRACK_FINISHED,
-                    payload={"Reason": reason, "Source": "websocket_audio"}
-                ))
-                self._last_track_finished_time = current_time
-                logger.debug(f"Emitted TRACK_FINISHED event (reason: {reason})")
-            else:
-                logger.debug(f"Skipped duplicate track_finished event (reason: {reason})")
-        except Exception as e:
-            logger.error(f"Error handling track_finished: {e}", exc_info=True)
-    
     async def receive_client_messages(self):
         """Listen for incoming messages from the client and route them."""
         try:
@@ -672,8 +696,6 @@ class WebSocketConnection:
                         await self.handle_toggle_repeat(payload)
                     elif msg_type == "status":
                         await self.handle_status(payload)
-                    elif msg_type == "track_finished":
-                        await self.handle_track_finished(payload)
                     elif msg_type == "switch_device":
                         await self.handle_switch_device(payload)                        
                     else:
