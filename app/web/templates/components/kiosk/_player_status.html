@@ -1,23 +1,21 @@
 <!-- Kiosk Player Status Component -->
 <!-- Album art + track info display in horizontal layout -->
-<div class="container kiosk-player-status align-items-center justify-content-center gap-4 p-4 position-relative h-100"
-    >
+<div class="container kiosk-player-status d-flex align-items-center justify-content-center h-100">
 
-    <div class="flex-row d-flex flex-md-row flex-column">
+    <div class="flex-row d-flex flex-md-row flex-column w-100">
 
-        
-        <div data-nowplaying-target="cover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center d-none">
-            <img data-nowplaying-target="coverimg" src="" alt="Album Cover" />
+        <div data-nowplaying-target="cover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center d-none h-100">
+            <img data-nowplaying-target="coverimg" src="" alt="Album Cover" class="h-100 object-fit-cover" />
         </div>
 
-        <div data-nowplaying-target="nocover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center">
-            <div data-nowplaying-target="nocover" class="kiosk-no-cover d-flex">
+        <div data-nowplaying-target="nocover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center ">
+            <div class="kiosk-no-cover d-flex align-items-center justify-content-center w-100">
                 <i class="mdi mdi-music-off"></i>
             </div>
         </div>
         
-        <div class="col-md-6 kiosk-track-details ">
-            <div data-nowplaying-target="trackinfo" class="">
+        <div data-nowplaying-target="trackinfo" class="col-md-6 kiosk-track-details ">
+            <div  class="">
                 <h1 class="display-1" data-nowplaying-target="artist"></h1>
                 <h3 data-nowplaying-target="title" class=""></h3>
                 <h4 data-nowplaying-target="album" class=""></h4>
@@ -28,9 +26,6 @@
         <div data-nowplaying-target="notrackinfo" class="col-md-6 kiosk-track-details">
             <h1 class="display-1" class="">No Music Playing</h1>
             <h3  class="">Insert a card...</h3>
-
-
-
         </div>
     </div>    
 

@@ -8,7 +8,6 @@
     <div class="d-flex justify-content-end gap-2">
         <button class="kiosk-device-selector btn btn-sm" data-action="click->playercontrols#playPause" >
             <i data-nowplaying-target="playerstatus" class="mdi mdi-play"></i>
-            
         </button>
 
         <button data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState" class="kiosk-device-selector btn btn-sm" >
@@ -19,6 +18,11 @@
         <button data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState" class="kiosk-device-selector btn btn-sm" >
             <i data-nowplaying-target="volumetext mutestate" class="mdi mdi-volume-high">27%</i>
             
+        </button>
+
+
+        <button data-action="ws-status@window->nowplaying#updateSocketStatus" class="kiosk-device-selector btn btn-sm" >
+            <i data-nowplaying-target="wsstatus" class="mdi mdi-search_web"></i>
         </button>
 
         <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm" data-action="click->navigation#load" data-nowplaying-target="currentdevice">

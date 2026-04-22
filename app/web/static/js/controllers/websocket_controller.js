@@ -25,7 +25,11 @@ export default class extends Controller {
         
         this.socket = new WebSocket(wsUrl);
 
-        this.socket.onopen = () => console.log("WS: Connected");
+        this.socket.onopen = () => {
+            console.log("WS: Connected");
+            window.appState.wsStatus = "connected";
+            this.broadcast("ws-status", {"status": "connected"});
+        };
 
         this.socket.onmessage = (event) => {
             const msg = JSON.parse(event.data);
@@ -34,6 +38,8 @@ export default class extends Controller {
 
         this.socket.onclose = () => {
             console.log("WS: Closed. Reconnecting...");
+            window.appState.wsStatus = "closed";
+            this.broadcast("ws-status", {"status": "closed"});
             setTimeout(() => this.connectWebSocket(), 2000);
         };
     }
@@ -82,7 +88,11 @@ export default class extends Controller {
         if (msg.type === 'volume_mute_response') {
             window.appState.isMuted = msg.payload.is_muted;
             this.broadcast("volume_mute_response", { response: msg.payload });
-            
+        }
+
+        if (msg.type === 'ping') {
+            window.appState.wsStatus = "connected";
+            this.broadcast("ws-status", {"status": "connected"});
         }
 
     }

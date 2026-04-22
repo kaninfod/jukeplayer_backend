@@ -31,35 +31,30 @@
       "
 >
 
-    <!-- Kiosk fixed layout structure (1280×720 landscape) -->
-    
-    <!-- Status Bar at top (increased by 25% for better touch) -->
 
-
-    <!-- Main content area with navigation, dynamic content, and volume bar -->
-<div class="vh-100 vw-100 d-flex flex-column overflow-hidden">
-    
-    <header class="flex-shrink-0">
-        {% include 'components/kiosk/_status_bar.html' %}
-    </header>
-    
-    <main class="flex-grow-1 d-flex flex-row overflow-hidden" style="min-height: 0;">
+    <div class="vh-100 vw-100 d-flex flex-column overflow-hidden">
         
-        <nav class="h-100 flex-shrink-0">
-            {% include 'components/kiosk/_navigation.html' %}
-        </nav>
-
-        <section class="flex-grow-1 h-100 d-flex flex-column overflow-hidden" data-navigation-target="content">
-            {% block kiosk_content %}{% endblock %}
-        </section>
+        <header class="flex-shrink-0">
+            {% include 'components/kiosk/_status_bar.html' %}
+        </header>
         
-    </main>
-    
-    <footer class="flex-shrink-0">
-        {% include 'components/kiosk/_controls.html' %}
-    </footer>
+        <main class="flex-grow-1 d-flex flex-row overflow-hidden" style="min-height: 0;">
+            
+            <nav class="h-100 flex-shrink-0">
+                {% include 'components/kiosk/_navigation.html' %}
+            </nav>
 
-</div>
+            <section class="flex-grow-1 h-100 d-flex flex-column overflow-hidden" data-navigation-target="content">
+                {% block kiosk_content %}{% endblock %}
+            </section>
+            
+        </main>
+        
+        <footer class="flex-shrink-0">
+            {% include 'components/kiosk/_controls.html' %}
+        </footer>
+
+    </div>
 
 
 

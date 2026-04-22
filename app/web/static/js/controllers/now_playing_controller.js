@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-nowplaying-target' in the HTML
-    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate" ]
+    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus" ]
 
     connect() {
         console.log("Now Playing Controller connected to the DOM", window.appState.lastTrackData);
@@ -27,12 +27,12 @@ export default class extends Controller {
     // This replaces your updateKioskVolume(data) function
     update() {
         const data = window.appState.lastTrackData;
-        console.log("Updating Now Playing UI with track data:", data.cover_url);
         const hasTrack = !!data.artist;
         
-
+        console.log(`Has track: ${hasTrack}, Artist: ${data.artist}, Title: ${data.title}, Album: ${data.album}, Tracknum: ${data.track_number}, Cover URL: ${data.cover_url}`);
+        
         if (hasTrack) {
-
+            console.log("Track data is present, updating UI elements.");
             if (this.hasTrackinfoTarget) {
                 this.trackinfoTarget.classList.remove("d-none");
             }
@@ -80,7 +80,21 @@ export default class extends Controller {
                 }
             }
 
-        }    
+        } else {
+            console.log("No track data available, showing placeholders.");
+            if (this.hasTrackinfoTarget) {
+                this.trackinfoTarget.classList.add("d-none");
+            }
+            if (this.hasCoverTarget) {
+                this.coverTarget.classList.add("d-none");
+            }
+            if (this.hasNotrackinfoTarget) {
+                this.notrackinfoTarget.classList.remove("d-none");
+            }
+            if (this.hasNocoverTarget) {
+                this.nocoverTarget.classList.remove("d-none");
+            }
+        }  
         
         console.log(`Playback status: ${window.appState.playerStatus}, hastarget: ${this.hasPlaystatusTarget}, Repeat: ${window.appState.repeatState}, Volume: ${window.appState.volume}, Output Device: ${window.appState.deviceName}`);
 
@@ -104,12 +118,6 @@ export default class extends Controller {
     updateVolume() {
         const volume = parseInt(window.appState.volume) || 0;
 
-        // Update the fill height
-        if (this.hasVolumefillTarget) {
-            this.volumefillTarget.style.height = `${volume}%`;
-        }
-
-        // Update the text
         if (this.hasVolumetextTarget) {
             this.volumetextTargets.forEach(element => {
                 element.textContent = `${volume}%`;
@@ -139,6 +147,19 @@ export default class extends Controller {
         }
 
     }   
+
+    updateSocketStatus() {
+        const status = window.appState.wsStatus;
+        
+        if (this.hasWsstatusTarget) {
+            
+            const statusIconMap = {
+                'connected': 'mdi mdi-web-check',
+                'closed': 'mdi mdi-web-off'
+            };
+            this.wsstatusTarget.className = statusIconMap[status] || 'mdi mdi-web-off';
+        }
+    }
 
     updateMuteState() {
         
