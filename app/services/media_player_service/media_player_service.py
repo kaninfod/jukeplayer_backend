@@ -137,21 +137,10 @@ class MediaPlayerService:
             self.status = PlayerStatus.PAUSE
             await self.playback_backend.pause()
         elif self.status == PlayerStatus.PAUSE:
-            status = self.playback_backend.ensure_connected()
-            connected = status.get("connected", False)
-            reconnected = status.get("reconnected", False)
-            
-            if not connected:
-                logger.error("Cannot resume playback: backend not connected and reconnection failed.")
-                return False
-            if reconnected:
-                logger.info("Backend reconnected successfully during play_pause resume.")
-                await self.play_current_track()
-            else:
-                self.track_timer.resume()
-                self.status = PlayerStatus.PLAY
-                stat = await self.playback_backend.resume()
-                logger.info(f"Resuming playback: {stat}")
+            self.track_timer.resume()
+            self.status = PlayerStatus.PLAY
+            stat = await self.playback_backend.resume()
+            logger.info(f"Resuming playback: {stat}")
         elif self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
             await self.play_current_track()
 
