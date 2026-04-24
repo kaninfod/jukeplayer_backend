@@ -337,7 +337,7 @@ body.kiosk-layout {
     min-height: 100px !important;
     background: white;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
-    display: flex !important;
+    display: flex;
     justify-content: space-evenly !important;
     align-items: center !important;
     padding: 0 8px !important;
@@ -540,24 +540,24 @@ body.kiosk-layout {
    DEVICE SELECTOR COMPONENT
    ============================================ */
 
-.device-card {
+.list-card {
     transition: transform 0.2s, box-shadow 0.2s;
     min-height: 220px;
     min-width: 220px; 
     cursor: pointer;
 }
 
-.device-card h5 {
+.list-card h5 {
     color: #212529 !important;
     font-weight: 600;
 }
 
-.device-card:hover {
+.list-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
-.device-card:active {
+.list-card:active {
     transform: translateY(-2px);
 }
 

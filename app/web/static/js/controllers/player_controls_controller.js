@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-playercontrols-target' in the HTML
-    static targets = []
+    static targets = ["controlspanel"]
 
     connect() {
         console.log("player controls Controller connected to the DOM")
@@ -160,5 +160,16 @@ export default class extends Controller {
         window.location.href = window.location.pathname + "?" + Date.now();
         return; 
     }
+
+    toggleviewControls() {
+
+        
+        if (this.controlspanelTarget.classList.contains("d-none")) {
+            this.controlspanelTarget.classList.remove("d-none");
+        } else {
+            this.controlspanelTarget.classList.add("d-none");
+        }
+    }
+
 
 }

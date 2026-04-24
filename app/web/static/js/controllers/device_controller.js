@@ -2,11 +2,10 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-playercontrols-target' in the HTML
-    static targets = ["currentdevice"]
+    static targets = ["activedevice"]
 
     connect() {
         console.log("player controls Controller connected to the DOM")
-
     }
 
 
@@ -23,10 +22,20 @@ export default class extends Controller {
         });
         
         window.dispatchEvent(wsEvent);
+
+        window.dispatchEvent(new CustomEvent("nav:go", { 
+            detail: "/kiosk/player" 
+        }));
+
+        if (this.hasActivedeviceTarget) {
+            console.log("Updating active device UI");
+            this.activedeviceTargets.forEach(el => el.classList.remove("active"));
+        }
     }
 
     handleSwitchResponse(event) {
         const [data] = event.detail.response;
+        console.log("Received switch device response:", data);
         if (data && data.status === "ok") {
             this.updateActiveDevice(data.device_name);
 

@@ -122,7 +122,7 @@ async def kiosk_devices_partial(request: Request):
         "status_data": await _get_output_status_data(),
     }
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/device_selector/_device_selector.html", context=context)
+        return templates.TemplateResponse(request=request, name="components/kiosk/device_selector/_devices_container.html", context=context)
     context["kiosk_mode"] = True
     return templates.TemplateResponse(request=request, name="pages/kiosk/devices.html", context=context)
 
@@ -162,13 +162,14 @@ async def kiosk_clients_partial(request: Request):
     import json
     client_registry = get_service("client_registry")
     clients = client_registry.get_all()  # Ensure we have the latest clients for logging
-    logger.info(f"Rendering clients page with {json.dumps(clients[0].__dict__, indent=2, default=str)}")
+    
     
     if _is_htmx_request(request):
+        logger.info(f"Rendering clients partial with {json.dumps(clients[0].__dict__, indent=2, default=str)}") 
         return templates.TemplateResponse(request=request, name="components/kiosk/clients/_clients_container.html", context={"request": request, "clients": clients},
         )
-    return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "config": config, "kiosk_mode": True},
-    )
+    logger.info(f"Rendering clients page with {json.dumps(clients[0].__dict__, indent=2, default=str)}")
+    return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "kiosk_mode": True, "clients": clients})
 
 
 @router.get("/kiosk/library", response_class=HTMLResponse)

@@ -1,6 +1,59 @@
-<!-- Kiosk Media Library Component -->
+<div class="kiosk-component-container h-100 d-flex flex-column">
+    <div class="mb-4 flex-shrink-0">
+
+        <div class="mb-3 d-flex align-items-center gap-3">
+            {% if back_url %}
+            <button href="{{ back_url }}" data-action="click->navigation#load" id="library-back-btn" class="btn btn-outline-secondary">
+                <i class="mdi mdi-arrow-left"></i> Back
+            </button>
+            {% else %}
+            <button id="library-back-btn" class="btn btn-outline-secondary library-back-btn-hidden">
+                <i class="mdi mdi-arrow-left"></i> Back
+            </button>
+            {% endif %}
+            <h3 class="kiosk-artist mb-0">
+                <i class="mdi mdi-folder-music"></i> <span id="library-title">{{ title or 'Music Library' }}</span>
+            </h3>
+        </div>
+
+
+
+
+    </div>
+    
+        {% if content_template %}
+            {% include content_template %}
+        {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="mdi mdi-loading mdi-spin" style="font-size: 48px;"></i>
+                <p class="mt-3">Loading...</p>
+            </div>
+        {% endif %}
+    
+    <div id="device-status" class="mt-auto pt-3"></div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 
 <div class="kiosk-component-container">
-    <!-- Header with back button and title -->
+    
     <div class="mb-3 d-flex align-items-center gap-3">
         {% if back_url %}
         <button href="{{ back_url }}" data-action="click->navigation#load" id="library-back-btn" class="btn btn-outline-secondary">
@@ -16,7 +69,7 @@
         </h3>
     </div>
     
-    <!-- Content area that changes based on view -->
+    
     <div id="library-content" class="flex-grow-1" style="overflow-y: auto; max-height: calc(558px - 80px);">
         {% if content_template %}
             {% include content_template %}
@@ -27,4 +80,4 @@
             </div>
         {% endif %}
     </div>
-</div>
+</div> -->
