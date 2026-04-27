@@ -165,12 +165,12 @@ async def kiosk_clients_partial(request: Request):
     
     
     if _is_htmx_request(request):
-        logger.info(f"Rendering clients partial with {json.dumps(clients[0].__dict__, indent=2, default=str)}") 
+        
         return templates.TemplateResponse(request=request, name="components/kiosk/clients/_clients_container.html", context={"request": request, "clients": clients},
         )
-    logger.info(f"Rendering clients page with {json.dumps(clients[0].__dict__, indent=2, default=str)}")
+    
     return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "kiosk_mode": True, "clients": clients})
-
+    
 
 @router.get("/kiosk/library", response_class=HTMLResponse)
 async def kiosk_library_partial(
