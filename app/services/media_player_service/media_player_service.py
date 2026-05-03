@@ -150,12 +150,14 @@ class MediaPlayerService:
     async def stop(self, event=None):
         await self.playback_backend.stop()
         self.status = PlayerStatus.STOP
-        self.playlist_manager.current_index = 0  # Reset to start of playlist
+        
+        if self.playlist_manager.count() > 0:
+            self.playlist_manager.current_index = 0
         self.track_timer.reset()
 
         self.playlist = []  
         self.emit_update()                
-        return True    
+        return True
 
     async def play_track(self, event=None):
         """Play a specific track by index from the event payload."""
