@@ -92,7 +92,7 @@ services:
     network_mode: "host"
     
     volumes:
-      - /home/pi/jukeplayer/data/covers:/static_files/covers
+      - /home/pi/jukeplayer/data/covers:/jukeplayer_backend/static_files/covers
       - /home/pi/jukeplayer/data:/app/database           # Database, cache
       - /home/pi/jukeplayer/logs:/app/logs           # Application logs
       - /run/user/1000/pulse:/run/user/1000/pulse    # PulseAudio sockets for container audio
