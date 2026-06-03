@@ -597,7 +597,7 @@ class ChromecastService(PlaybackBackend):
             return None
         try:
             status = {
-                'device_name': self.cast.name,
+                'device_name': self.device_name,
                 'volume_level': self.cast.status.volume_level,
                 'volume_muted': self.cast.status.volume_muted,
                 'is_active_input': getattr(self.cast.status, 'is_active_input', None),
