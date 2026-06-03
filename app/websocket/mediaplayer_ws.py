@@ -272,7 +272,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.PLAY_PAUSE,
-                payload={"client_id": self.client_id}
+                payload={"client_id": self.registered_client_id or self.client_id}
             ))          
             
             result = await event_bus.aemit(Event(
@@ -334,7 +334,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.PLAY_TRACK,
-                payload={"track_index": track_index, "client_id": self.client_id}
+                payload={"track_index": track_index, "client_id": self.registered_client_id or self.client_id}
             ))
 
             result = await event_bus.aemit(Event(
@@ -373,7 +373,7 @@ class WebSocketConnection:
                 payload={
                     "album_id": album_id,
                     "start_track_index": start_track_index,
-                    "client_id": self.client_id
+                    "client_id": self.registered_client_id or self.client_id
                 }
             ))
 
@@ -408,7 +408,7 @@ class WebSocketConnection:
                 payload={
                     "device_id": device,
                     "device_backend": backend,
-                    "client_id": self.client_id
+                    "client_id": self.registered_client_id or self.client_id
                 }
             ))
 
@@ -433,7 +433,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.NEXT_TRACK,
-                payload={"force": True, "client_id": self.client_id}
+                payload={"force": True, "client_id": self.registered_client_id or self.client_id}
             ))
 
             result = await event_bus.aemit(Event(
@@ -458,7 +458,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.PREVIOUS_TRACK,
-                payload={"client_id": self.client_id}
+                payload={"client_id": self.registered_client_id or self.client_id}
             ))
             
             result = await event_bus.aemit(Event(
@@ -483,7 +483,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.STOP,
-                payload={"client_id": self.client_id}
+                payload={"client_id": self.registered_client_id or self.client_id}
             ))
 
             result = await event_bus.aemit(Event(
@@ -508,7 +508,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.VOLUME_UP,
-                payload={"client_id": self.client_id}
+                payload={"client_id": self.registered_client_id or self.client_id}
             ))
 
             result = await event_bus.aemit(Event(
@@ -533,7 +533,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.VOLUME_DOWN,
-                payload={"client_id": self.client_id}
+                payload={"client_id": self.registered_client_id or self.client_id}
             ))
             
             result = await event_bus.aemit(Event(
@@ -559,7 +559,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.SET_VOLUME,
-                payload={"volume": volume, "client_id": self.client_id}
+                payload={"volume": volume, "client_id": self.registered_client_id or self.client_id}
             ))
             
             result = await event_bus.aemit(Event(
@@ -584,7 +584,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.TOGGLE_REPEAT,
-                payload={"client_id": self.client_id}
+                payload={"client_id": self.registered_client_id or self.client_id}
             ))
             
             result = await event_bus.aemit(Event(
@@ -610,7 +610,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.VOLUME_MUTE,
-                payload={"client_id": self.client_id}
+                payload={"client_id": self.registered_client_id or self.client_id}
             ))
             
             is_muted = result[0]['muted'] if result and 'muted' in result[0] else None

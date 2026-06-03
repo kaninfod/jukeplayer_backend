@@ -21,7 +21,16 @@ export default class extends Controller {
           (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
         );
         console.log(token); 
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${token}&client_id=webclient`;
+        
+        // Generate or retrieve unique client ID per browser tab (using sessionStorage)
+        let clientId = sessionStorage.getItem('clientId');
+        if (!clientId) {
+            clientId = crypto.randomUUID ? crypto.randomUUID() : 'client-' + Date.now();
+            sessionStorage.setItem('clientId', clientId);
+        }
+        console.log("Client ID:", clientId);
+        
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${token}&client_id=${clientId}`;
         
         this.socket = new WebSocket(wsUrl);
 
