@@ -323,11 +323,9 @@ class ChromecastService(PlaybackBackend):
                     raise Exception("Device status not available after connection")
                 
                 self.mc = self.cast.media_controller
-                self.status_listener = ChromecastMediaStatusListener(self.cast.name)
+                self.status_listener = ChromecastMediaStatusListener(self.device_name)
                 self.mc.register_status_listener(self.status_listener)
                 self.cast.register_status_listener(self.status_listener)
-
-                self.device_name = self.cast.name
                 logger.info(f"Registered media status listener for {self.cast.name}")
                 logger.info(f"Successfully connected to {self.cast.name}")
                 logger.debug(f"Device status: {self.cast.status}")
