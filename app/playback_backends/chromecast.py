@@ -622,13 +622,8 @@ class ChromecastService(PlaybackBackend):
         await asyncio.to_thread(self.disconnect)
         self._cleanup_zeroconf()        
 
-_service_instance = None
 def get_chromecast_service(device_name: Optional[str] = None) -> ChromecastService:
-    global _service_instance
-    if _service_instance is None:
-        _service_instance = ChromecastService(device_name)
-        logger.info("Initialized persistent Chromecast service")
-    if device_name and device_name != _service_instance.device_name:
-        _service_instance.device_name = device_name
-        logger.info(f"Updated target device to: {device_name}")
-    return _service_instance
+    """Create a new ChromecastService instance for the specified device.
+    Each device gets its own independent service instance.
+    """
+    return ChromecastService(device_name or config.DEFAULT_CHROMECAST_DEVICE)

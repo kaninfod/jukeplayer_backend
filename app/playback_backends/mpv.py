@@ -212,18 +212,8 @@ class MPVService(PlaybackBackend):
         except Exception:
             pass
 
-_mpv_instance = None
-
-def get_mpv_service() -> MPVService:
-    global _mpv_instance
-    if _mpv_instance is None:
-        _mpv_instance = MPVService()
-    return _mpv_instance
-
-_mpv_instance = None
-
-def get_mpv_service() -> MPVService:
-    global _mpv_instance
-    if _mpv_instance is None:
-        _mpv_instance = MPVService()
-    return _mpv_instance
+def get_mpv_service(device_name: str = None) -> MPVService:
+    """Create a new MPVService instance.
+    Each instance is independent for multi-device support.
+    """
+    return MPVService()

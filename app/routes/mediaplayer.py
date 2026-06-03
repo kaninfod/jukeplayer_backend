@@ -585,40 +585,56 @@ async def load_album_v2(
     target_device: str = Body(None),
     start_track_index: int = Body(0)
 ):
-    """Load album to client's active instance or explicit target device (v2 with instance routing)."""
+    """Load album to client's active instance or explicit target device (v2 with instance routing).
+    
+    Args:
+        album_id: Album to load
+        client_id: Client ID (optional) - determines device if no target_device specified
+        target_device: Explicit device name (optional) - overrides client's active device
+        start_track_index: Track to start from (default 0)
+    """
     try:
         from app.core import event_bus, EventType, Event
+        from app.core.service_container import get_service
+        
+        client_registry = get_service("client_registry")
+        
+        # Determine target device: explicit > client's device > first instance
+        resolved_device = target_device
+        
+        if not resolved_device and client_id:
+            # Get the device from client's active instance
+            instance = client_registry.get_client_active_instance(client_id)
+            if instance:
+                resolved_device = instance.device_name
+        
+        if not resolved_device:
+            # Fall back to first instance
+            instances = client_registry.list_player_instances()
+            if instances:
+                resolved_device = instances[0].device_name
+        
+        # Emit event with resolved device
         result = await event_bus.aemit(Event(
             type=EventType.PLAY_ALBUM,
             payload={
                 "album_id": album_id,
                 "client_id": client_id,
-                "target_device": target_device,
+                "target_device": resolved_device,
                 "start_track_index": start_track_index
             }
         ))
         
         if result:
             # Get updated context
-            from app.core.service_container import get_service
-            client_registry = get_service("client_registry")
-            
-            # Determine which instance was used
-            if target_device:
-                instance = client_registry.get_player_instance(target_device)
-            elif client_id:
-                instance = client_registry.get_client_active_instance(client_id)
-            else:
-                instances = client_registry.list_player_instances()
-                instance = instances[0] if instances else None
-            
+            instance = client_registry.get_player_instance(resolved_device)
             payload = instance.get_context() if instance else {}
             
             return {
                 "status": "success",
                 "message": f"Successfully queued album_id: {album_id}",
                 "album_id": album_id,
-                "device_name": instance.device_name if instance else None,
+                "device_name": instance.device_name if instance else resolved_device,
                 "start_track_index": start_track_index,
                 "current_track_info": payload
             }
