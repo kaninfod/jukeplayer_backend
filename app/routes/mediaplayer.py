@@ -375,6 +375,266 @@ async def stream_current_track():
             
     return RawStreamingResponse(stream_url)
 
+# ===== Phase 2: Instance & Control Management =====
+
+@router.get("/instances")
+async def list_instances():
+    """List all MediaPlayerService instances and their state."""
+    try:
+        from app.core.service_container import get_service
+        client_registry = get_service("client_registry")
+        instances = client_registry.list_player_instances()
+        
+        result = {
+            "instances": []
+        }
+        
+        for instance in instances:
+            context = instance.get_context()
+            result["instances"].append({
+                "device_name": instance.device_name,
+                "backend_type": type(instance.playback_backend).__name__,
+                "active_clients": list(instance.active_clients),
+                "status": context.get("status"),
+                "current_track": context.get("current_track"),
+                "volume": context.get("volume"),
+                "playlist_size": len(instance.playlist_manager.playlist) if hasattr(instance.playlist_manager, 'playlist') else 0
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to list instances: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/instances/{device_name}")
+async def get_instance(device_name: str):
+    """Get details of a specific MediaPlayerService instance."""
+    try:
+        from app.core.service_container import get_service
+        client_registry = get_service("client_registry")
+        instance = client_registry.get_player_instance(device_name)
+        
+        if not instance:
+            return {"status": "error", "message": f"Device '{device_name}' not found"}
+        
+        context = instance.get_context()
+        return {
+            "device_name": instance.device_name,
+            "backend_type": type(instance.playback_backend).__name__,
+            "active_clients": list(instance.active_clients),
+            "status": context.get("status"),
+            "current_track": context.get("current_track"),
+            "volume": context.get("volume"),
+            "current_index": instance.playlist_manager.current_index if hasattr(instance.playlist_manager, 'current_index') else -1,
+            "playlist": [
+                {
+                    "track_id": item.track_id,
+                    "title": item.title,
+                    "artist": item.artist,
+                    "duration": item.duration
+                }
+                for item in (instance.playlist_manager.playlist if hasattr(instance.playlist_manager, 'playlist') else [])
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get instance {device_name}: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.post("/instances/{device_name}/control")
+async def take_control(device_name: str, client_id: str = Body(..., embed=True)):
+    """Client takes control of a MediaPlayerService instance (supports shared control)."""
+    try:
+        from app.core.service_container import get_service
+        client_registry = get_service("client_registry")
+        
+        # Get or create instance for device
+        instance = client_registry.get_or_create_player_instance(device_name)
+        
+        # Add client to instance's active clients
+        client_registry.set_client_active_instance(client_id, instance)
+        
+        logger.info(f"Client {client_id} now controlling {device_name}. Active clients: {instance.active_clients}")
+        
+        return {
+            "status": "success",
+            "message": f"{client_id} now controlling {device_name}",
+            "device_name": device_name,
+            "active_clients": list(instance.active_clients)
+        }
+    except KeyError as e:
+        logger.error(f"Device not configured: {device_name}")
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(f"Failed to take control of {device_name}: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.delete("/instances/{device_name}/control")
+async def release_control(device_name: str, client_id: str = Body(..., embed=True)):
+    """Client releases control of a MediaPlayerService instance."""
+    try:
+        from app.core.service_container import get_service
+        client_registry = get_service("client_registry")
+        
+        # Release client from instance
+        client_registry.release_client_instance(client_id)
+        
+        # Get instance to return updated active_clients
+        instance = client_registry.get_player_instance(device_name)
+        active_clients = list(instance.active_clients) if instance else []
+        
+        logger.info(f"Client {client_id} released {device_name}. Active clients: {active_clients}")
+        
+        return {
+            "status": "success",
+            "message": f"{client_id} released {device_name}",
+            "device_name": device_name,
+            "active_clients": active_clients
+        }
+    except Exception as e:
+        logger.error(f"Failed to release control of {device_name}: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/clients")
+async def list_clients():
+    """List all clients and their active instance mappings (introspection endpoint)."""
+    try:
+        from app.core.service_container import get_service
+        client_registry = get_service("client_registry")
+        
+        return {
+            "client_mappings": client_registry.list_client_instance_mappings(),
+            "instance_mappings": client_registry.list_instance_client_mappings()
+        }
+    except Exception as e:
+        logger.error(f"Failed to list clients: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# ===== Update Existing Endpoints to Support Client-Based Control =====
+
+@router.post("/play_pause_v2")
+async def play_pause_v2(client_id: str = Query(None)):
+    """Toggle play/pause on client's active instance (v2 with client support)."""
+    from app.core import event_bus, EventType, Event
+    result = await event_bus.aemit(Event(
+        type=EventType.PLAY_PAUSE,
+        payload={"client_id": client_id}
+    ))
+    
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to toggle playback"}
+
+
+@router.post("/next_track_v2")
+async def next_track_v2(client_id: str = Query(None)):
+    """Skip to next track on client's active instance (v2 with client support)."""
+    from app.core import event_bus, EventType, Event
+    result = await event_bus.aemit(Event(
+        type=EventType.NEXT_TRACK,
+        payload={"client_id": client_id, "force": True}
+    ))
+    
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to advance to next track"}
+
+
+@router.post("/previous_track_v2")
+async def previous_track_v2(client_id: str = Query(None)):
+    """Go to previous track on client's active instance (v2 with client support)."""
+    from app.core import event_bus, EventType, Event
+    result = await event_bus.aemit(Event(
+        type=EventType.PREVIOUS_TRACK,
+        payload={"client_id": client_id}
+    ))
+    
+    if result:
+        return {"status": "success", "message": result}
+    else:
+        return {"status": "error", "message": "Failed to go to previous track"}
+
+
+@router.post("/set_volume_v2")
+async def set_volume_v2(volume: int = Query(..., ge=0, le=100), client_id: str = Query(None)):
+    """Set volume on client's active instance (v2 with client support)."""
+    from app.core import event_bus, EventType, Event
+    result = await event_bus.aemit(Event(
+        type=EventType.SET_VOLUME,
+        payload={"volume": volume, "client_id": client_id}
+    ))
+    
+    logger.debug(f"Volume set event result: {result}")
+    
+    if result is not None:
+        return {"status": "success", "volume": volume}
+    else:
+        return {"status": "error", "message": "Failed to set volume"}
+
+
+@router.post("/load_album_v2")
+async def load_album_v2(
+    album_id: str = Body(...),
+    client_id: str = Body(None),
+    target_device: str = Body(None),
+    start_track_index: int = Body(0)
+):
+    """Load album to client's active instance or explicit target device (v2 with instance routing)."""
+    try:
+        from app.core import event_bus, EventType, Event
+        result = await event_bus.aemit(Event(
+            type=EventType.PLAY_ALBUM,
+            payload={
+                "album_id": album_id,
+                "client_id": client_id,
+                "target_device": target_device,
+                "start_track_index": start_track_index
+            }
+        ))
+        
+        if result:
+            # Get updated context
+            from app.core.service_container import get_service
+            client_registry = get_service("client_registry")
+            
+            # Determine which instance was used
+            if target_device:
+                instance = client_registry.get_player_instance(target_device)
+            elif client_id:
+                instance = client_registry.get_client_active_instance(client_id)
+            else:
+                instances = client_registry.list_player_instances()
+                instance = instances[0] if instances else None
+            
+            payload = instance.get_context() if instance else {}
+            
+            return {
+                "status": "success",
+                "message": f"Successfully queued album_id: {album_id}",
+                "album_id": album_id,
+                "device_name": instance.device_name if instance else None,
+                "start_track_index": start_track_index,
+                "current_track_info": payload
+            }
+        else:
+            return {
+                "status": "error", 
+                "message": f"Failed to load album_id: {album_id}"
+            }
+    except Exception as e:
+        logger.error(f"Exception while loading album_id {album_id}: {e}")
+        return {
+            "status": "error", 
+            "message": f"Exception while loading album_id {album_id}: {str(e)}"
+        }
+
+
 # Dedicated WebSocket routes for events (status + control) and audio streaming
 # Handlers moved to app.websocket.mediaplayer_ws and app.websocket.audio_stream for better organization
 
