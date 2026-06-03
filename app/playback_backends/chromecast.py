@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 _global_zeroconf = None
 _global_browser = None
 
+def _normalize_device_name(device_name: str) -> str:
+    """Convert device_name format: 'living_room' -> 'Living Room', 'kitchen' -> 'Kitchen'"""
+    # Split by underscore, capitalize each word, join with spaces
+    return ' '.join(word.capitalize() for word in device_name.lower().split('_'))
+
 def _get_global_browser():
     global _global_zeroconf, _global_browser
     if _global_zeroconf is None:
@@ -268,11 +273,13 @@ class ChromecastService(PlaybackBackend):
         """
         Connect to a Chromecast device from the statically configured device list.
         
-        If the target device is unavailable and fallback=True, tries fallback devices
-        in priority order from CHROMECAST_FALLBACK_DEVICES config.
+        Device names are normalized from config format (e.g., 'living_room') 
+        to discovery format (e.g., 'Living Room').
+        
+        If the target device is unavailable and fallback=True, tries fallback devices.
         
         Args:
-            device_name: Target device name (must be in CHROMECAST_DEVICES config)
+            device_name: Target device name (e.g., 'living_room', 'bedroom', 'kitchen')
             fallback: If True, try fallback devices if target is unavailable
             
         Returns:
@@ -291,17 +298,16 @@ class ChromecastService(PlaybackBackend):
         
         # Try each device in order
         for attempt_device in devices_to_try:
-            if attempt_device not in config.CHROMECAST_DEVICES:
-                logger.warning(f"Device '{attempt_device}' not in configured devices list, skipping")
-                continue
+            # Normalize device name for discovery (living_room -> Living Room)
+            normalized_device = _normalize_device_name(attempt_device)
             
             try:
-                logger.info(f"Trying to connect to {attempt_device}...")
+                logger.info(f"Trying to connect to {normalized_device}...")
                 # Discover only the target device on the network
-                devices, target_cast_info, _ = self._discover_chromecasts(target_name=attempt_device)
+                devices, target_cast_info, _ = self._discover_chromecasts(target_name=normalized_device)
                 
                 if not target_cast_info:
-                    logger.warning(f"Device '{attempt_device}' not found on network")
+                    logger.warning(f"Device '{normalized_device}' not found on network")
                     if attempt_device == target_name and fallback:
                         logger.info(f"Primary device unavailable, trying fallback devices...")
                     continue
