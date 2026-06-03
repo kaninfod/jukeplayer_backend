@@ -48,8 +48,8 @@ class PlaybackService:
         self.event_bus.subscribe(EventType.VOLUME_UP, self.player.handle_volume_up)
         self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.handle_volume_down)
         self.event_bus.subscribe(EventType.SET_VOLUME, self.player._on_volume_event)
-        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.handle_volume_mute)            
-        self.event_bus.subscribe(EventType.SWITCH_DEVICE, self.player.handle_switch_device) 
+        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.handle_volume_mute)
+        # Note: SWITCH_DEVICE is now handled via API endpoints, not event subscriptions 
 
 
     def get_stream_url_for_track(self, track: Dict) -> Optional[str]:

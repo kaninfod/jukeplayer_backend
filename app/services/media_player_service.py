@@ -44,7 +44,7 @@ class MediaPlayerService:
             getattr(self.playback_backend, "device_name", "unknown"),
         )
 
-    async def toggle_repeat_album(self, event=None):
+    async def toggle_repeat(self, event=None):
         """Toggle repeat album setting."""
         mode = self.playlist_manager.toggle_repeat()
         return mode
