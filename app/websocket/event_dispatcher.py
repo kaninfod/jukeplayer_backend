@@ -54,10 +54,9 @@ class WebSocketEventDispatcher:
             return
         
         # Create and register handlers for each event type
-        event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed) #self._setup_track_changed_handler()
-        event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed) #self._setup_volume_changed_handler()
-        event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification) #self._setup_notification_handler()
-        event_bus.subscribe(EventType.TOGGLE_REPEAT_CHANGED, self.handle_toggle_repeat_changed)
+        event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed)
+        event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
+        event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
         event_bus.subscribe(EventType.BROADCAST_GENERIC_MESSAGE, self.handle_generic_message)
         
 
@@ -86,20 +85,29 @@ class WebSocketEventDispatcher:
     async def _broadcast_track_changed(self):
         try:
             client_registry = get_service("client_registry")
-            media_player_service = get_service("media_player_service")
             count = 0
             for client in getattr(client_registry, '_clients', {}).values():
                 try:
+                    # Get this client's active device instance
+                    player_instance = client_registry.get_client_active_instance(
+                        getattr(client, 'registered_client_id', None) or getattr(client, 'client_id', None)
+                    )
+                    if not player_instance:
+                        logger.debug(f"Client {getattr(client, 'client_id', '?')} has no active device")
+                        continue
+                    
+                    # Send THIS client's device state
                     if "minimal_messaging" in getattr(client, 'capabilities', []):
-                        shaped_payload = media_player_service.get_context(minimal=True)
+                        shaped_payload = player_instance.get_context(minimal=True)
                     else:
-                        shaped_payload = media_player_service.get_context()
+                        shaped_payload = player_instance.get_context()
+                    
                     message = {"type": "current_track", "payload": shaped_payload}
                     await client.send_message(message)
                     count += 1
                 except Exception as e:
                     logger.error(f"Failed to send current_track to client {getattr(client, 'client_id', '?')}: {e}")
-            logger.info(f"Broadcasted current_track to {count} clients (per-client shaping)")
+            logger.info(f"Broadcasted current_track to {count} clients (per-client device state)")
         except Exception as e:
             logger.error(f"Error broadcasting track_changed: {e}")
 
@@ -110,35 +118,30 @@ class WebSocketEventDispatcher:
     async def _broadcast_volume_changed(self, event: Event):
         try:
             client_registry = get_service("client_registry")
-            # If we have a fetcher, use fresh data; otherwise use event payload
-            if EventType.VOLUME_CHANGED in self._topic_data_fetchers:
+            count = 0
+            for client in getattr(client_registry, '_clients', {}).values():
                 try:
-                    payload = self._topic_data_fetchers[EventType.VOLUME_CHANGED]()
+                    # Get this client's active device instance
+                    player_instance = client_registry.get_client_active_instance(
+                        getattr(client, 'registered_client_id', None) or getattr(client, 'client_id', None)
+                    )
+                    if not player_instance:
+                        logger.debug(f"Client {getattr(client, 'client_id', '?')} has no active device")
+                        continue
+                    
+                    # Send THIS client's device volume
+                    payload = player_instance.get_context()
+                    volume = payload.get('volume')
+                    
+                    message = {"type": "volume_changed", "payload": volume}
+                    await client.send_message(message)
+                    count += 1
                 except Exception as e:
-                    logger.error(f"Error fetching volume data: {e}")
-                    payload = event.payload
-            else:
-                payload = event.payload
-
-            message = {"type": "volume_changed", "payload": payload}
-            
-            await client_registry.broadcast_to_all(message)
+                    logger.error(f"Failed to send volume_changed to client {getattr(client, 'client_id', '?')}: {e}")
+            logger.info(f"Broadcasted volume_changed to {count} clients (per-client device state)")
         except Exception as e:
             logger.error(f"Error broadcasting volume_changed: {e}")
 
-    def handle_toggle_repeat_changed(self, event: Event):
-        """Broadcast toggle repeat change to all connected clients."""
-        self._schedule_broadcast(self._broadcast_toggle_repeat_changed(event))
-
-    async def _broadcast_toggle_repeat_changed(self, event: Event):
-        try:
-            client_registry = get_service("client_registry")
-            payload = event.payload if event else {}
-            logger.info(f"Broadcasting toggle_repeat_changed with payload: {payload}")
-            message = {"type": "toggle_repeat_changed", "payload": payload}
-            await client_registry.broadcast_to_all(message)
-        except Exception as e:
-            logger.error(f"Error broadcasting toggle_repeat_changed: {e}")
 
     def handle_generic_message(self, event: Event):
         """Broadcast generic message to all connected clients."""
