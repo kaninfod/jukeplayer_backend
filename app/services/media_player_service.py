@@ -82,19 +82,24 @@ class MediaPlayerService:
         return volume
 
     async def handle_volume_up(self, event=None):
-        await self.volume_manager.volume_up()
+        step = 5
+        new_volume = min(100, self.volume_manager.volume + step)
+        await self.set_volume(new_volume)
         return True
 
     async def handle_volume_down(self, event=None):
-        await self.volume_manager.volume_down()
+        step = 5
+        new_volume = max(0, self.volume_manager.volume - step)
+        await self.set_volume(new_volume)
         return True
 
     async def handle_volume_mute(self, event=None):
         """Toggle mute on the active playback backend."""    
         await self.volume_manager.toggle_mute()
-
-    async def play_pause(self, event=None):
-        # Toggle pause/resume timer based on current status
+        self.event_bus.emit(Event(
+            type=EventType.VOLUME_CHANGED,
+            payload=self.get_context()
+        ))
         if self.status == PlayerStatus.PLAY:
             self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
