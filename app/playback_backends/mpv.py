@@ -70,7 +70,7 @@ class MPVService(PlaybackBackend):
         logger.info("MPV track finished (reason=%s), emitting TRACK_FINISHED", reason)
         try:
             from app.core import event_bus, EventType, Event
-            payload = {"Reason": reason}
+            payload = {"Reason": reason, "device_name": self.device_name}
             if error is not None:
                 payload["error"] = error
             event_bus.emit(Event(type=EventType.TRACK_FINISHED, payload=payload))

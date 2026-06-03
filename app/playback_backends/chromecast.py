@@ -61,7 +61,7 @@ class ChromecastMediaStatusListener:
                         from app.core import event_bus, EventType, Event
                         event_bus.emit(Event(
                             type=EventType.TRACK_FINISHED,
-                            payload={"Reason": idle_reason}
+                            payload={"Reason": idle_reason, "device_name": self.device_name}
                         ))
                         logger.info(f"[{self.device_name}] 🎵 TRACK FINISHED - Duration: {duration}s, Position: {current_time}s")
                 elif player_state == 'PLAYING':
@@ -137,7 +137,7 @@ class ChromecastMediaStatusListener:
             from app.core import event_bus, EventType, Event
             result = event_bus.emit(Event(
                 type=EventType.STOP,
-                payload={}
+                payload={"device_name": self.device_name}
             ))
         
       

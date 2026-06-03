@@ -33,23 +33,104 @@ class PlaybackService:
         
         logger.info("PlaybackService initialized with dependency injection.")
         
+    def _get_player_instance_for_event(self, event):
+        """
+        Determine which MediaPlayerService instance should handle an event.
+        
+        Looks for client_id or device_name in the event payload, then uses ClientRegistry
+        to find the right instance. Falls back to self.player if not found.
+        """
+        from app.core.service_container import get_service
+        
+        payload = event.payload if hasattr(event, 'payload') else {}
+        client_id = payload.get('client_id')
+        device_name = payload.get('device_name')
+        
+        client_registry = get_service("client_registry")
+        
+        # Try to find instance by client_id first (higher priority - explicit client control)
+        if client_id:
+            instance = client_registry.get_client_active_instance(client_id)
+            if instance:
+                logger.debug(f"Routed event to device '{instance.device_name}' via client_id {client_id}")
+                return instance
+        
+        # Try to find instance by device_name (e.g., from backend events like TRACK_FINISHED)
+        if device_name:
+            instances = client_registry.list_player_instances()
+            for inst in instances:
+                if inst.device_name == device_name:
+                    logger.debug(f"Routed event to device '{device_name}' via device_name in payload")
+                    return inst
+        
+        # Fall back to default player
+        logger.debug("No client_id or device_name in event, using default player")
+        return self.player
+    
     def _setup_event_subscriptions(self):
         """Setup all event subscriptions using injected event_bus"""
         self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
         self.event_bus.subscribe(EventType.PLAY_ALBUM, self.load_album)
         self.event_bus.subscribe(EventType.ENCODE_CARD, self._encode_card)
-        self.event_bus.subscribe(EventType.TOGGLE_REPEAT, self.player.toggle_repeat)
-        self.event_bus.subscribe(EventType.TRACK_FINISHED, self.player.next_track)
-        self.event_bus.subscribe(EventType.PREVIOUS_TRACK, self.player.previous_track)
-        self.event_bus.subscribe(EventType.NEXT_TRACK, self.player.next_track)
-        self.event_bus.subscribe(EventType.PLAY_TRACK, self.player.play_track)
-        self.event_bus.subscribe(EventType.PLAY_PAUSE, self.player.play_pause)
-        self.event_bus.subscribe(EventType.STOP, self.player.stop)
-        self.event_bus.subscribe(EventType.VOLUME_UP, self.player.handle_volume_up)
-        self.event_bus.subscribe(EventType.VOLUME_DOWN, self.player.handle_volume_down)
-        self.event_bus.subscribe(EventType.SET_VOLUME, self.player._on_volume_event)
-        self.event_bus.subscribe(EventType.VOLUME_MUTE, self.player.handle_volume_mute)
-        # Note: SWITCH_DEVICE is now handled via API endpoints, not event subscriptions 
+        
+        # Use wrapper handlers for playback control events to route to correct device
+        self.event_bus.subscribe(EventType.TOGGLE_REPEAT, self._handle_toggle_repeat)
+        self.event_bus.subscribe(EventType.TRACK_FINISHED, self._handle_track_finished)
+        self.event_bus.subscribe(EventType.PREVIOUS_TRACK, self._handle_previous_track)
+        self.event_bus.subscribe(EventType.NEXT_TRACK, self._handle_next_track)
+        self.event_bus.subscribe(EventType.PLAY_TRACK, self._handle_play_track)
+        self.event_bus.subscribe(EventType.PLAY_PAUSE, self._handle_play_pause)
+        self.event_bus.subscribe(EventType.STOP, self._handle_stop)
+        self.event_bus.subscribe(EventType.VOLUME_UP, self._handle_volume_up)
+        self.event_bus.subscribe(EventType.VOLUME_DOWN, self._handle_volume_down)
+        self.event_bus.subscribe(EventType.SET_VOLUME, self._handle_set_volume)
+        self.event_bus.subscribe(EventType.VOLUME_MUTE, self._handle_volume_mute)
+        # Note: SWITCH_DEVICE is now handled via API endpoints, not event subscriptions
+    
+    # Event wrapper handlers - route to correct device instance
+    async def _handle_toggle_repeat(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.toggle_repeat(event)
+    
+    async def _handle_track_finished(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.next_track(event, force=True)
+    
+    async def _handle_previous_track(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.previous_track(event)
+    
+    async def _handle_next_track(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.next_track(event)
+    
+    async def _handle_play_track(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.play_track(event)
+    
+    async def _handle_play_pause(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.play_pause(event)
+    
+    async def _handle_stop(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.stop(event)
+    
+    async def _handle_volume_up(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.handle_volume_up(event)
+    
+    async def _handle_volume_down(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.handle_volume_down(event)
+    
+    async def _handle_set_volume(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player._on_volume_event(event)
+    
+    async def _handle_volume_mute(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await player.handle_volume_mute(event) 
 
 
     def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
