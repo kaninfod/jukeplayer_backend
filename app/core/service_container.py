@@ -1,5 +1,10 @@
 # Service Container for Jukebox Application
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class ServiceContainer:
     """
     Service container for managing dependencies and their lifecycle
@@ -53,10 +58,25 @@ def create_subsonic_service(container):
     return SubsonicService(config)
 
 def create_media_player_service(container):
-    from app.services import MediaPlayerService
-    from app.playback_backends.factory import get_playback_backend
-    event_bus = container.get('event_bus')
-    return MediaPlayerService(event_bus, playback_backend=get_playback_backend())
+    """
+    Phase 1: Get default player instance from ClientRegistry.
+    For backward compatibility, returns the first player instance (or default device).
+    """
+    from app.config import config
+    
+    client_registry = container.get('client_registry')
+    instances = client_registry.list_player_instances()
+    
+    if instances:
+        # Return the first instance (for backward compatibility)
+        return instances[0]
+    else:
+        # Fallback: create a default instance if registry is empty
+        logger.warning("No player instances in registry, creating default instance")
+        from app.services import MediaPlayerService
+        from app.playback_backends.factory import get_playback_backend
+        event_bus = container.get('event_bus')
+        return MediaPlayerService(event_bus, playback_backend=get_playback_backend())
 
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService
@@ -70,7 +90,23 @@ def create_playback_service(container):
 
 def create_client_registry(container):
     from app.services.client_registry import ClientRegistry
-    return ClientRegistry()
+    from app.config import config
+    
+    registry = ClientRegistry()
+    
+    # Initialize player instances from configured devices
+    # For Phase 1: Create one instance per Chromecast device
+    device_config = {}
+    for device_name in config.CHROMECAST_DEVICES:
+        # Normalize device name to lowercase with underscores
+        normalized_name = device_name.lower().replace(" ", "_")
+        device_config[normalized_name] = "chromecast"
+    
+    if device_config:
+        registry.initialize_player_instances(device_config)
+        logger.info(f"ClientRegistry initialized with devices: {list(device_config.keys())}")
+    
+    return registry
 
 # --- Setup function ---
 def setup_service_container():
@@ -83,11 +119,14 @@ def setup_service_container():
     container.register_singleton('event_bus', create_event_bus)
     container.register_singleton('album_database', create_album_database)
     container.register_singleton('subsonic_service', create_subsonic_service)
-    # Register media player service as singleton
+    
+    # Register ClientRegistry BEFORE MediaPlayerService (dependency order)
+    container.register_singleton('client_registry', create_client_registry)
+    
+    # Register media player service as singleton (gets default instance from registry)
     container.register_singleton('media_player_service', create_media_player_service)
     container.register_singleton('playback_service', create_playback_service)
 
-    container.register_singleton('client_registry', create_client_registry)
     return container
 
 # --- Global access helper ---

@@ -186,18 +186,22 @@ class WebSocketConnection:
         """Process NFC encoding start message.
         """
         try:
-            from app.core import event_bus, EventType, Event
-            result = event_bus.emit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
+            await self.send_message({
+                "type": "nfc_encoding_started",
+                "payload": {
                     "message_type": "nfc_encoding_started",
                     "message_payload": {
                         "status": "started",
                         "nfc_write_state": "started",
                     }
                 }
-            ))
-            logger.info(f"Sent nfc_encoding_started. response={result}")
+            })
+            #from app.core import event_bus, EventType, Event
+            #result = event_bus.emit(Event(
+            #    type=EventType.BROADCAST_GENERIC_MESSAGE,
+            #    payload=payload
+            #))
+            #logger.info(f"Sent nfc_encoding_started. response={result}")
             
         except Exception as e:
             logger.error(f"Error handling nfc_encoding_started: {e}")
@@ -217,11 +221,9 @@ class WebSocketConnection:
             result = nfc_state.set_result(status=status, uid=uid, error_message=error_message)
             
             logger.info("About to send nfc_encoding_completed")
-
-            from app.core import event_bus, EventType, Event
-            result = event_bus.emit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
+            await self.send_message({
+                "type": "nfc_encoding_completed",
+                "payload": {
                     "message_type": "nfc_encoding_completed",
                     "message_payload": {
                         "status": status,
@@ -230,7 +232,22 @@ class WebSocketConnection:
                         "error_message": error_message
                     }
                 }
-            ))
+            })
+
+
+            # from app.core import event_bus, EventType, Event
+            # result = event_bus.emit(Event(
+            #     type=EventType.BROADCAST_GENERIC_MESSAGE,
+            #     payload={
+            #         "message_type": "nfc_encoding_completed",
+            #         "message_payload": {
+            #             "status": status,
+            #             "uid": uid,
+            #             "nfc_write_state": "completed",
+            #             "error_message": error_message
+            #         }
+            #     }
+            # ))
             logger.info(f"NFC encoding completion received: status={status}, uid={uid}")
         except Exception as e:
             logger.error(f"Error handling nfc_encoding_completed: {e}")

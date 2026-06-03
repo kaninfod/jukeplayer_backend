@@ -286,4 +286,162 @@ class ClientRegistry:
             if await client.send_message(message):
                 count += 1
         return count
+    
+    # ===== Player Instance Management (Phase 1+) =====
+    
+    def initialize_player_instances(self, device_config: Dict[str, str]):
+        """
+        Initialize player instances from device configuration.
+        Creates one MediaPlayerService per configured device.
+        
+        Args:
+            device_config: Dict mapping device_name -> backend_type
+                          e.g., {"bedroom": "chromecast", "kitchen": "chromecast"}
+        """
+        from app.services import MediaPlayerService
+        from app.playback_backends.factory import get_playback_backend_by_name
+        from app.core.service_container import get_service
+        
+        if not hasattr(self, '_player_instances'):
+            self._player_instances = {}
+            self._client_active_instance = {}
+        
+        self._device_config = device_config
+        
+        for device_name, backend_type in device_config.items():
+            if device_name not in self._player_instances:
+                backend = get_playback_backend_by_name(backend_type, device_name)
+                instance = MediaPlayerService(
+                    event_bus=get_service("event_bus"),
+                    playback_backend=backend,
+                    device_name=device_name
+                )
+                self._player_instances[device_name] = instance
+                logger.info(f"Created MediaPlayerService for device: {device_name}")
+    
+    def get_or_create_player_instance(self, device_name: str) -> Optional:
+        """
+        Get MediaPlayerService instance for device.
+        Raises KeyError if device not in config.
+        """
+        if not hasattr(self, '_player_instances'):
+            self._player_instances = {}
+            self._client_active_instance = {}
+            self._device_config = {}
+        
+        if device_name not in self._device_config:
+            raise KeyError(
+                f"Device '{device_name}' not configured. "
+                f"Available: {list(self._device_config.keys())}"
+            )
+        
+        if device_name not in self._player_instances:
+            # Lazy create from config
+            from app.services import MediaPlayerService
+            from app.playback_backends.factory import get_playback_backend_by_name
+            from app.core.service_container import get_service
+            
+            backend_type = self._device_config[device_name]
+            backend = get_playback_backend_by_name(backend_type, device_name)
+            instance = MediaPlayerService(
+                event_bus=get_service("event_bus"),
+                playback_backend=backend,
+                device_name=device_name
+            )
+            self._player_instances[device_name] = instance
+            logger.info(f"Lazy-created MediaPlayerService for device: {device_name}")
+        
+        return self._player_instances[device_name]
+    
+    def get_player_instance(self, device_name: str) -> Optional:
+        """Get existing instance for device, or None."""
+        if not hasattr(self, '_player_instances'):
+            return None
+        return self._player_instances.get(device_name)
+    
+    def set_client_active_instance(self, client_id: str, player_instance) -> None:
+        """
+        Client takes control of a specific MediaPlayerService instance.
+        Multiple clients can control the same instance (shared control).
+        """
+        if not hasattr(self, '_client_active_instance'):
+            self._client_active_instance = {}
+        
+        # Release old instance (if any)
+        old_instance = self._client_active_instance.get(client_id)
+        if old_instance and old_instance != player_instance:
+            old_instance.active_clients.discard(client_id)
+        
+        # Take new instance
+        self._client_active_instance[client_id] = player_instance
+        player_instance.active_clients.add(client_id)
+        
+        logger.debug(
+            f"Client {client_id} now controlling {player_instance.device_name}. "
+            f"Active clients: {player_instance.active_clients}"
+        )
+    
+    def release_client_instance(self, client_id: str) -> None:
+        """Client releases control of its current instance."""
+        if not hasattr(self, '_client_active_instance'):
+            return
+        
+        instance = self._client_active_instance.pop(client_id, None)
+        if instance:
+            instance.active_clients.discard(client_id)
+            logger.debug(
+                f"Client {client_id} released {instance.device_name}. "
+                f"Active clients: {instance.active_clients}"
+            )
+    
+    def get_client_active_instance(self, client_id: str) -> Optional:
+        """Which instance is this client currently controlling?"""
+        if not hasattr(self, '_client_active_instance'):
+            return None
+        return self._client_active_instance.get(client_id)
+    
+    def get_instance_active_clients(self, device_name: str) -> set:
+        """Which clients are currently controlling this instance?"""
+        if not hasattr(self, '_player_instances'):
+            return set()
+        instance = self._player_instances.get(device_name)
+        if instance:
+            return instance.active_clients.copy()
+        return set()
+    
+    def list_player_instances(self) -> List:
+        """Return all active MediaPlayerService instances."""
+        if not hasattr(self, '_player_instances'):
+            return []
+        return list(self._player_instances.values())
+    
+    def list_client_instance_mappings(self) -> Dict:
+        """
+        Return all client -> instance mappings.
+        Useful for API: shows which client controls which device.
+        """
+        if not hasattr(self, '_client_active_instance'):
+            return {}
+        return {
+            client_id: instance.device_name 
+            for client_id, instance in self._client_active_instance.items()
+        }
+    
+    def list_instance_client_mappings(self) -> Dict:
+        """
+        Return all instance -> clients mappings.
+        Useful for API: shows which clients control each instance.
+        """
+        if not hasattr(self, '_player_instances'):
+            return {}
+        result = {}
+        for device_name, instance in self._player_instances.items():
+            result[device_name] = list(instance.active_clients)
+        return result
+    
+    def get_configured_devices(self) -> List[str]:
+        """Return list of all configured physical devices."""
+        if not hasattr(self, '_device_config'):
+            return []
+        return list(self._device_config.keys())
 

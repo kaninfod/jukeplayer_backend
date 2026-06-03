@@ -60,3 +60,15 @@ This backend serves multiple clients:
 - ESP32 hardware client
 - Web browser client
 - Home Assistant integration
+
+
+## fixing missing coverart
+
+beet fetchart -f 'Eric Clapton/24 Nights'
+
+file Eric\ Clapton/24\ Nights/cover.jpg
+Eric Clapton/24 Nights/cover.jpg: JPEG image data, JFIF standard 1.01, aspect ratio, density 1x1, segment length 16, baseline, precision 8, 1000x1000, components 3
+
+ ffmpeg -i "Eric Clapton/24 Nights/cover.jpg" -map_metadata -1 -c:v mjpeg -q:v 2 "Eric Clapton/24 Nights/cover_fixed.jpg"
+
+ 

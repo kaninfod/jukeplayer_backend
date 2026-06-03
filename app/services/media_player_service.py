@@ -14,18 +14,19 @@ logger = logging.getLogger(__name__)
 
 class MediaPlayerService:
 
-    def __init__(self, event_bus, playback_backend=None):
+    def __init__(self, event_bus, playback_backend=None, device_name=None):
         """
         Initialize MediaPlayerService with dependency injection.
         
         Args:
-            playlist: List of tracks to play
             event_bus: EventBus instance for event communication
             playback_backend: Preferred backend implementation (chromecast/mpv)
+            device_name: Name of the device this instance controls (e.g., 'bedroom', 'kitchen')
         """
         self.playlist_manager = PlaylistManager("new_playlist")
         self.status = PlayerStatus.STOP
-        self.active_client = None
+        self.active_clients = set()  # Multiple clients can control same instance
+        self.device_name = device_name  # LOCKED at instantiation
         self.event_bus = event_bus
         
         
