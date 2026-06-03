@@ -95,16 +95,14 @@ def create_client_registry(container):
     registry = ClientRegistry()
     
     # Initialize player instances from configured devices
-    # For Phase 1: Create one instance per Chromecast device
-    device_config = {}
-    for device_name in config.CHROMECAST_DEVICES:
-        # Normalize device name to lowercase with underscores
-        normalized_name = device_name.lower().replace(" ", "_")
-        device_config[normalized_name] = "chromecast"
+    # Uses PLAYBACK_DEVICES env var format: device_name=backend_type,device_name=backend_type,...
+    device_config = config.PLAYBACK_DEVICES
     
     if device_config:
         registry.initialize_player_instances(device_config)
-        logger.info(f"ClientRegistry initialized with devices: {list(device_config.keys())}")
+        logger.info(f"ClientRegistry initialized with devices: {list(device_config.keys())} and backends: {list(device_config.values())}")
+    else:
+        logger.warning("No devices configured in PLAYBACK_DEVICES")
     
     return registry
 

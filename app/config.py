@@ -58,6 +58,31 @@ class Config:
     # Playback backend selection: chromecast | mpv
     PLAYBACK_BACKEND: str = os.getenv("PLAYBACK_BACKEND", "chromecast").strip().lower()
 
+    # Unified multi-device configuration: format is "device_name=backend_type,device_name=backend_type,..."
+    @classmethod
+    def _parse_playback_devices(cls) -> dict:
+        """Parse PLAYBACK_DEVICES env var into {device_name: backend_type} dict"""
+        devices_str = os.getenv("PLAYBACK_DEVICES", "")
+        device_config = {}
+        
+        if not devices_str:
+            logger.warning("PLAYBACK_DEVICES not configured, using empty device config")
+            return device_config
+        
+        for pair in devices_str.split(','):
+            pair = pair.strip()
+            if '=' not in pair:
+                logger.warning(f"Invalid PLAYBACK_DEVICES format: '{pair}' (expected 'device_name=backend_type')")
+                continue
+            device_name, backend_type = pair.split('=', 1)
+            device_name = device_name.strip().lower()
+            backend_type = backend_type.strip().lower()
+            device_config[device_name] = backend_type
+        
+        return device_config
+    
+    PLAYBACK_DEVICES: dict = _parse_playback_devices.__func__(None)
+
     # MPV local player configuration
     MPV_BINARY: str = os.getenv("MPV_BINARY", "mpv")
     MPV_IPC_SOCKET: str = os.getenv("MPV_IPC_SOCKET", "/tmp/jukebox-mpv.sock")

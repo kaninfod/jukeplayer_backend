@@ -7,8 +7,8 @@ from app.playback_backends.factory import get_playback_backend, get_playback_bac
 #from app.playback_backends.factory import get_playback_backend_by_name
 from app.core import EventType, Event
 from app.core import PlayerStatus
-from jukeplayer_backend.app.services.media_player_service.playlist_manager import PlaylistManager
-from jukeplayer_backend.app.services.media_player_service.volume_manager import VolumeManager
+from app.services.media_player_service.playlist_manager import PlaylistManager
+from app.services.media_player_service.volume_manager import VolumeManager
 
 logger = logging.getLogger(__name__)
 
