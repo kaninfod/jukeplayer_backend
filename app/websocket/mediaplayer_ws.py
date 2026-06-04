@@ -398,35 +398,76 @@ class WebSocketConnection:
             })
     
     async def handle_switch_device(self, payload):
+        """Switch client to control a different device.
+        
+        Does NOT restart playback. Just changes which MediaPlayerService 
+        instance this client controls. Future commands go to that device.
+        
+        Args:
+            payload: {"device_id": "kitchen"} or {"device_id": "bedroom"}
+        """
         try:
-            device = payload.get("device_id")
-            backend = payload.get("device_backend")
-
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.SWITCH_DEVICE,
-                payload={
-                    "device_id": device,
-                    "device_backend": backend,
-                    "client_id": self.registered_client_id or self.client_id
-                }
-            ))
-
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "switch_device_response",
-                    "message_payload": result
-                }
-            ))
-
-            logger.info(f"Switched to device {device} on backend {backend}: {result}")
-        except Exception as e:
-            logger.error(f"Error handling switch_device: {e}")
+            device_id = payload.get("device_id")
+            
+            if not device_id:
+                raise ValueError("Missing device_id in payload")
+            
+            client_registry = get_service("client_registry")
+            
+            # Get the MediaPlayerService instance for this device
+            # Raises KeyError if device not configured
+            try:
+                player_instance = client_registry.get_or_create_player_instance(device_id)
+            except KeyError as e:
+                # List available devices for error message
+                available = client_registry.get_configured_devices()
+                raise ValueError(
+                    f"Device '{device_id}' not configured. "
+                    f"Available devices: {', '.join(available) if available else 'None'}"
+                )
+            
+            # Map this client to the new device instance
+            client_id = self.registered_client_id or self.client_id
+            client_registry.set_client_active_instance(client_id, player_instance)
+            
+            # Get current state of the new device
+            device_state = player_instance.get_context()
+            
+            # Send success response with new device state
             await self.send_message({
                 "type": "switch_device_response",
-                "payload": {"status": "error", "message": str(e)}
+                "payload": {
+                    "status": "success",
+                    "message": f"Switched to device '{device_id}'",
+                    "device_id": device_id,
+                    "current_state": device_state
+                }
             })
+            
+            logger.info(
+                f"Client {client_id} switched to device '{device_id}' | "
+                f"Active clients on {device_id}: "
+                f"{client_registry.get_instance_active_clients(device_id)}"
+            )
+            
+        except ValueError as e:
+            await self.send_message({
+                "type": "switch_device_response",
+                "payload": {
+                    "status": "error",
+                    "message": str(e)
+                }
+            })
+            logger.warning(f"Device switch failed: {e}")
+        except Exception as e:
+            await self.send_message({
+                "type": "switch_device_response",
+                "payload": {
+                    "status": "error",
+                    "message": f"Unexpected error: {str(e)}"
+                }
+            })
+            logger.error(f"Error handling switch_device: {e}", exc_info=True)
     async def handle_next_track(self, payload):
         """Handle next track command."""
         try:
