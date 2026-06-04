@@ -323,11 +323,15 @@ class ClientRegistry:
         """
         Get MediaPlayerService instance for device.
         Raises KeyError if device not in config.
+        Device names are case-insensitive (normalized to lowercase).
         """
         if not hasattr(self, '_player_instances'):
             self._player_instances = {}
             self._client_active_instance = {}
             self._device_config = {}
+        
+        # Normalize device_name to lowercase for case-insensitive lookup
+        device_name = device_name.lower()
         
         if device_name not in self._device_config:
             raise KeyError(
@@ -354,9 +358,13 @@ class ClientRegistry:
         return self._player_instances[device_name]
     
     def get_player_instance(self, device_name: str) -> Optional:
-        """Get existing instance for device, or None."""
+        """Get existing instance for device, or None.
+        Device names are case-insensitive (normalized to lowercase).
+        """
         if not hasattr(self, '_player_instances'):
             return None
+        # Normalize device_name to lowercase for case-insensitive lookup
+        device_name = device_name.lower()
         return self._player_instances.get(device_name)
     
     def set_client_active_instance(self, client_id: str, player_instance) -> None:
@@ -401,9 +409,13 @@ class ClientRegistry:
         return self._client_active_instance.get(client_id)
     
     def get_instance_active_clients(self, device_name: str) -> set:
-        """Which clients are currently controlling this instance?"""
+        """Which clients are currently controlling this instance?
+        Device names are case-insensitive (normalized to lowercase).
+        """
         if not hasattr(self, '_player_instances'):
             return set()
+        # Normalize device_name to lowercase for case-insensitive lookup
+        device_name = device_name.lower()
         instance = self._player_instances.get(device_name)
         if instance:
             return instance.active_clients.copy()

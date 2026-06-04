@@ -405,12 +405,16 @@ class WebSocketConnection:
         
         Args:
             payload: {"device_id": "kitchen"} or {"device_id": "bedroom"}
+                    Device names are case-insensitive.
         """
         try:
             device_id = payload.get("device_id")
             
             if not device_id:
                 raise ValueError("Missing device_id in payload")
+            
+            # Normalize device_id to lowercase (case-insensitive)
+            device_id = device_id.lower()
             
             client_registry = get_service("client_registry")
             
