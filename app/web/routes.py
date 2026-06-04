@@ -116,11 +116,15 @@ async def kiosk_player_partial(request: Request):
 
 @router.get("/kiosk/devices", response_class=HTMLResponse)
 async def kiosk_devices_partial(request: Request):
+    from app.routes.mediaplayer import list_instances
+    
+    instances = await list_instances()
     context = {
         "request": request,
         "config": config,
-        "status_data": await _get_output_status_data(),
+        "status_data": instances,
     }
+    logger.info(f"Rendering devices partial with {len(instances)} instances")
     if _is_htmx_request(request):
         return templates.TemplateResponse(request=request, name="components/kiosk/device_selector/_devices_container.html", context=context)
     context["kiosk_mode"] = True

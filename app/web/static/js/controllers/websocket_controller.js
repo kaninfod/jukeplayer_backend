@@ -17,20 +17,26 @@ export default class extends Controller {
 
     connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const token = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
-        );
-        console.log(token); 
         
         // Generate or retrieve unique client ID per browser tab (using sessionStorage)
+        // Prefers crypto.randomUUID(), falls back to manual UUID generation
         let clientId = sessionStorage.getItem('clientId');
         if (!clientId) {
-            clientId = crypto.randomUUID ? crypto.randomUUID() : 'client-' + Date.now();
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                clientId = crypto.randomUUID();
+            } else {
+                // Fallback: Generate UUID v4 manually
+                clientId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
             sessionStorage.setItem('clientId', clientId);
         }
         console.log("Client ID:", clientId);
         
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${token}&client_id=${clientId}`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${clientId}&client_id=${clientId}`;
         
         this.socket = new WebSocket(wsUrl);
 
@@ -58,6 +64,17 @@ export default class extends Controller {
         
         console.log(`WS: Received message of type "${msg.type}" with payload:`, msg.payload);
 
+        if (msg.type === 'register_response') {
+            // Backend-assigned client ID - store it and update app state
+            if (msg.payload.status === 'success' && msg.payload.client_id) {
+                const backendClientId = msg.payload.client_id;
+                sessionStorage.setItem('clientId', backendClientId);
+                window.appState.clientId = backendClientId;
+                console.log("Client registered with backend ID:", backendClientId);
+                this.broadcast("register-response", { response: msg.payload });
+            }
+        }
+
         if (msg.type === 'current_track') {
             
             window.appState.lastTrackData = msg.payload.current_track;
@@ -77,7 +94,8 @@ export default class extends Controller {
         }
 
         if (msg.type === 'switch_device_response') {
-            window.appState.deviceName = msg.payload[0].device_name;
+            console.log("Handling switch device response:", msg.payload);
+            window.appState.deviceName = msg.payload.device_id;
             this.broadcast("switch-device-response", { response: msg.payload });
         }
 

@@ -80,6 +80,16 @@ class WebSocketConnection:
                 )
                 self.registered_client_id = client_info.client_id
                 logger.info(f"Web client auto-registered with ID: {self.registered_client_id}")
+                
+                # Send registration confirmation with assigned client_id back to browser
+                await self.send_message({
+                    "type": "register_response",
+                    "payload": {
+                        "status": "success",
+                        "client_id": client_info.client_id,
+                        "message": "Web client auto-registered"
+                    }
+                })
             except Exception as e:
                 logger.error(f"Error auto-registering web client: {e}")
         else:
