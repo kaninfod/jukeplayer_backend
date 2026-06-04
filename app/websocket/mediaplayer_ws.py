@@ -56,7 +56,7 @@ class WebSocketConnection:
         self.receive_task = None
     
     async def setup(self):
-        """Initialize connection and auto-register clients."""
+        """Initialize connection and auto-register clients, assign default device."""
         logger.info(
             f"WebSocket connection accepted | "
             f"Client IP: {self.client_ip}:{self.client_port} | "
@@ -80,6 +80,25 @@ class WebSocketConnection:
             self.registered_client_id = client_info.client_id
             logger.info(f"Web client auto-registered with ID: {self.registered_client_id}")
             
+            # Ensure client has a device mapping (forced default if not already set)
+            # Recovery case: mapping should already exist from previous session
+            # First connection: assign default device (kitchen)
+            existing_device = client_registry.get_client_active_instance(self.registered_client_id)
+            if existing_device:
+                logger.info(f"Client device mapping recovered: {existing_device.device_name}")
+                self._assigned_device = existing_device
+            else:
+                # First connection: assign default device (kitchen)
+                default_device_name = "kitchen"
+                try:
+                    default_device = client_registry.get_or_create_player_instance(default_device_name)
+                    client_registry.set_client_active_instance(self.registered_client_id, default_device)
+                    logger.info(f"Assigned default device '{default_device_name}' to new client {self.registered_client_id}")
+                    self._assigned_device = default_device
+                except Exception as e:
+                    logger.error(f"Failed to assign default device: {e}")
+                    self._assigned_device = None
+            
             # Store the assigned client_id (may differ if generated new)
             # This will be sent to browser in initial state message
             self._assigned_client_id = client_info.client_id
@@ -87,6 +106,7 @@ class WebSocketConnection:
         except Exception as e:
             logger.error(f"Error auto-registering web client: {e}")
             self._assigned_client_id = None
+            self._assigned_device = None
     
     async def send_ping(self):
         """Send a single heartbeat ping."""
@@ -838,7 +858,13 @@ class WebSocketConnection:
         try:
             # Send initial state on connection
             try:
-                payload = self.get_data_fn()
+                # Get state from the client's assigned device (not default)
+                if hasattr(self, '_assigned_device') and self._assigned_device:
+                    payload = self._assigned_device.get_context()
+                else:
+                    # Fallback to get_data_fn if device not available
+                    payload = self.get_data_fn()
+                
                 message = {
                     "type": "current_track",
                     "payload": payload,
