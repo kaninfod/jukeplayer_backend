@@ -122,6 +122,19 @@ class MediaPlayerService:
         self.emit_update()                
         return True    
 
+    async def play_pause(self, event=None):
+        """Toggle between play and pause."""
+        if self.status == PlayerStatus.PLAY:
+            # Currently playing - pause it
+            await self.playback_backend.pause()
+            self.status = PlayerStatus.PAUSE
+            self.emit_update()
+            return True
+        else:
+            # Not playing (paused, stopped, etc.) - resume/play current track
+            await self.play_current_track()
+            return True
+
     async def play_track(self, event=None):
         """Play a specific track by index from the event payload."""
         if event is None or not hasattr(event, "payload"):

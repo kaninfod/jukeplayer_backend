@@ -298,11 +298,13 @@ class WebSocketConnection:
                 payload={"client_id": self.registered_client_id or self.client_id}
             ))          
             
+            result_msg = result[0] if isinstance(result, list) and result else result
+            
             result = await event_bus.aemit(Event(
                 type=EventType.BROADCAST_GENERIC_MESSAGE,
                 payload={
                     "message_type": "play_pause_response",
-                    "message_payload": {"status": "success", "message": str(result[0])}
+                    "message_payload": {"status": "success", "message": str(result_msg)}
                 }
             ))
 
