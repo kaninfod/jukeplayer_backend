@@ -123,17 +123,21 @@ class MediaPlayerService:
         return True    
 
     async def play_pause(self, event=None):
-        """Toggle between play and pause."""
+        """Toggle pause/resume timer based on current status."""
         if self.status == PlayerStatus.PLAY:
-            # Currently playing - pause it
-            await self.playback_backend.pause()
+            self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
-            self.emit_update()
-            return True
-        else:
-            # Not playing (paused, stopped, etc.) - resume/play current track
+            await self.playback_backend.pause()
+        elif self.status == PlayerStatus.PAUSE:
+            self.track_timer.resume()
+            self.status = PlayerStatus.PLAY
+            stat = await self.playback_backend.resume()
+            logger.info(f"Resuming playback: {stat}")
+        elif self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
             await self.play_current_track()
-            return True
+
+        self.emit_update()
+        return True
 
     async def play_track(self, event=None):
         """Play a specific track by index from the event payload."""
