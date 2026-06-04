@@ -7,10 +7,14 @@ Manages persistent client connections and event broadcasting.
 import asyncio
 import logging
 import uuid
-from typing import Dict, List, Optional, Callable
-from datetime import datetime
+from typing import Dict, List, Optional, Callable, Tuple
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+# Session reconnection timeout: allow client to reconnect within this window
+# Reconnections within timeout reuse the same client_id and device mapping
+RECONNECTION_TIMEOUT = timedelta(minutes=5)
 
 
 class ClientInfo:
@@ -87,6 +91,9 @@ class ClientRegistry:
         self._by_ip: Dict[str, str] = {}  # ip_address -> client_id
         # Track by session token for web clients (prevents IP-based deduplication)
         self._by_session_token: Dict[str, str] = {}  # session_token -> client_id
+        # Track disconnected sessions for recovery: session_token -> (client_id, disconnected_at)
+        # Allows recognizing returning clients within RECONNECTION_TIMEOUT window
+        self._disconnected_sessions: Dict[str, Tuple[str, datetime]] = {}
     
     def register(self, client_type: str, user_name: str, capabilities: List[str], 
                  client_ip: Optional[str] = None, websocket=None, send_callback: Optional[Callable] = None,
@@ -97,7 +104,7 @@ class ClientRegistry:
         For hardware clients: If a client from the same IP is already registered, the old one is 
         unregistered first. This handles the case where a device restarts and reconnects with a new name or ID.
         
-        """
+        
         For web clients: Uses session_token to uniquely identify each session. If a web client reconnects
         with the same session token, the old connection is unregistered first.
         
@@ -116,6 +123,7 @@ class ClientRegistry:
         # For web clients with session token: reuse existing client_id on reconnection
         client_id = None
         if client_type == "web" and session_token:
+            # Check if client is currently connected with this session_token
             if session_token in self._by_session_token:
                 old_client_id = self._by_session_token[session_token]
                 logger.info(
@@ -125,6 +133,26 @@ class ClientRegistry:
                 self.unregister(old_client_id)
                 # Reuse the old client_id to maintain session continuity
                 client_id = old_client_id
+            # Check if client recently disconnected and is reconnecting within timeout
+            elif session_token in self._disconnected_sessions:
+                old_client_id, disconnected_at = self._disconnected_sessions[session_token]
+                elapsed = datetime.now() - disconnected_at
+                if elapsed < RECONNECTION_TIMEOUT:
+                    logger.info(
+                        f"Web client reconnected within timeout ({elapsed.total_seconds():.1f}s). "
+                        f"Reusing client ID: {old_client_id}"
+                    )
+                    # Reuse the old client_id to maintain session continuity
+                    client_id = old_client_id
+                    # Remove from disconnected sessions
+                    del self._disconnected_sessions[session_token]
+                else:
+                    logger.info(
+                        f"Web client reconnection timeout expired ({elapsed.total_seconds():.1f}s > "
+                        f"{RECONNECTION_TIMEOUT.total_seconds():.0f}s). Generating new client ID."
+                    )
+                    # Session expired, generate new client_id
+                    del self._disconnected_sessions[session_token]
         
         # For hardware clients only: unregister old connection from same IP
         if not client_id and client_type != "web" and client_ip and client_ip in self._by_ip:
@@ -201,8 +229,21 @@ class ClientRegistry:
         if client_info.client_ip in self._by_ip:
             del self._by_ip[client_info.client_ip]
         
-        # Remove from session token index
-        if client_info.session_token and client_info.session_token in self._by_session_token:
+        # For web clients: soft-delete session token (allow reconnection recovery)
+        # Move to disconnected_sessions so we can recognize the returning client
+        if client_info.session_token and client_info.client_type == "web":
+            # Remove from active index
+            if client_info.session_token in self._by_session_token:
+                del self._by_session_token[client_info.session_token]
+            # Add to disconnected sessions for recovery window
+            self._disconnected_sessions[client_info.session_token] = (client_id, datetime.now())
+            logger.info(
+                f"Web client session marked for recovery: "
+                f"session={client_info.session_token[:8]}..., "
+                f"client_id={client_id} (will remain available for {RECONNECTION_TIMEOUT.total_seconds():.0f}s)"
+            )
+        # For hardware clients: hard-delete session token (no recovery)
+        elif client_info.session_token and client_info.session_token in self._by_session_token:
             del self._by_session_token[client_info.session_token]
         
         logger.info(f"Client unregistered: {client_info.user_name} (ID: {client_id})")
@@ -243,6 +284,31 @@ class ClientRegistry:
     def count(self) -> int:
         """Get total number of connected clients."""
         return len(self._clients)
+    
+    def cleanup_stale_sessions(self) -> int:
+        """
+        Remove stale disconnected sessions that have exceeded the reconnection timeout.
+        
+        Returns:
+            Number of sessions cleaned up
+        """
+        now = datetime.now()
+        stale_sessions = []
+        
+        for session_token, (client_id, disconnected_at) in self._disconnected_sessions.items():
+            elapsed = now - disconnected_at
+            if elapsed >= RECONNECTION_TIMEOUT:
+                stale_sessions.append(session_token)
+        
+        for session_token in stale_sessions:
+            client_id, disconnected_at = self._disconnected_sessions.pop(session_token)
+            elapsed = (now - disconnected_at).total_seconds()
+            logger.info(
+                f"Cleaned up stale session: session={session_token[:8]}..., "
+                f"client_id={client_id}, disconnected_at={elapsed:.1f}s ago"
+            )
+        
+        return len(stale_sessions)
     
     async def broadcast_to_all(self, message: Dict) -> int:
         """
@@ -459,7 +525,9 @@ class ClientRegistry:
         return result
     
     def get_configured_devices(self) -> List[str]:
-        """Return list of all configured physical devices."""
+        """
+        Return list of all configured physical devices.
+        """
         if not hasattr(self, '_device_config'):
             return []
         return list(self._device_config.keys())
