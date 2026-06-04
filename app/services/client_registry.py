@@ -97,6 +97,7 @@ class ClientRegistry:
         For hardware clients: If a client from the same IP is already registered, the old one is 
         unregistered first. This handles the case where a device restarts and reconnects with a new name or ID.
         
+        """
         For web clients: Uses session_token to uniquely identify each session. If a web client reconnects
         with the same session token, the old connection is unregistered first.
         
@@ -112,18 +113,21 @@ class ClientRegistry:
         Returns:
             ClientInfo object with generated client_id
         """
-        # For web clients with session token: unregister old connection if it exists
+        # For web clients with session token: reuse existing client_id on reconnection
+        client_id = None
         if client_type == "web" and session_token:
             if session_token in self._by_session_token:
                 old_client_id = self._by_session_token[session_token]
                 logger.info(
                     f"Web client reconnected with same session token. "
-                    f"Unregistering previous entry (ID: {old_client_id})"
+                    f"Reusing client ID (ID: {old_client_id})"
                 )
                 self.unregister(old_client_id)
+                # Reuse the old client_id to maintain session continuity
+                client_id = old_client_id
         
         # For hardware clients only: unregister old connection from same IP
-        elif client_type != "web" and client_ip and client_ip in self._by_ip:
+        if not client_id and client_type != "web" and client_ip and client_ip in self._by_ip:
             old_client_id = self._by_ip[client_ip]
             logger.info(
                 f"Hardware client from IP {client_ip} reconnected. "
@@ -131,7 +135,10 @@ class ClientRegistry:
             )
             self.unregister(old_client_id)
         
-        client_id = str(uuid.uuid4())
+        # Generate new client_id only if not reusing (new session)
+        if not client_id:
+            client_id = str(uuid.uuid4())
+        
         now = datetime.now()
         
         client_info = ClientInfo(

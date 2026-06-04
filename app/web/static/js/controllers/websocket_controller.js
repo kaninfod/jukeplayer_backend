@@ -18,10 +18,16 @@ export default class extends Controller {
     connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         
-        // Generate or retrieve unique client ID per browser tab (using sessionStorage)
-        // Prefers crypto.randomUUID(), falls back to manual UUID generation
-        let clientId = sessionStorage.getItem('clientId');
+        // Retrieve or generate unique client ID (persisted across page refreshes)
+        // Uses localStorage for persistence so client session survives cmd+R
+        let clientId = localStorage.getItem('clientId');
         if (!clientId) {
+            // Fall back to sessionStorage for first-time load
+            clientId = sessionStorage.getItem('clientId');
+        }
+        
+        if (!clientId) {
+            // Generate new client ID only if none exists
             if (typeof crypto !== 'undefined' && crypto.randomUUID) {
                 clientId = crypto.randomUUID();
             } else {
@@ -32,6 +38,8 @@ export default class extends Controller {
                     return v.toString(16);
                 });
             }
+            // Persist to localStorage so reconnections reuse same session
+            localStorage.setItem('clientId', clientId);
             sessionStorage.setItem('clientId', clientId);
         }
         console.log("Client ID:", clientId);
@@ -65,9 +73,10 @@ export default class extends Controller {
         console.log(`WS: Received message of type "${msg.type}" with payload:`, msg.payload);
 
         if (msg.type === 'register_response') {
-            // Backend-assigned client ID - store it and update app state
+            // Backend-assigned client ID - persist to localStorage for session recovery
             if (msg.payload.status === 'success' && msg.payload.client_id) {
                 const backendClientId = msg.payload.client_id;
+                localStorage.setItem('clientId', backendClientId);
                 sessionStorage.setItem('clientId', backendClientId);
                 window.appState.clientId = backendClientId;
                 console.log("Client registered with backend ID:", backendClientId);
