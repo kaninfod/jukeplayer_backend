@@ -943,7 +943,7 @@ async def websocket_status_handler(websocket: WebSocket, get_data_fn):
     client_ip = websocket.client.host if websocket.client else "unknown"
     client_port = websocket.client.port if websocket.client else "unknown"
     user_agent = websocket.headers.get("user-agent", "unknown")
-    client_id = websocket.query_params.get("client_id", "unspecified")
+    client_id = websocket.query_params.get("client_id", None)
     
     # Create and setup connection
     conn = WebSocketConnection(websocket, client_ip, client_port, user_agent, client_id, get_data_fn)
