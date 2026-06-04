@@ -97,80 +97,90 @@ class ClientRegistry:
     
     def register(self, client_type: str, user_name: str, capabilities: List[str], 
                  client_ip: Optional[str] = None, websocket=None, send_callback: Optional[Callable] = None,
-                 session_token: Optional[str] = None) -> ClientInfo:
+                 client_id: Optional[str] = None) -> ClientInfo:
         """
-        Register a new connected client.
+        Register a connected client.
         
-        For hardware clients: If a client from the same IP is already registered, the old one is 
-        unregistered first. This handles the case where a device restarts and reconnects with a new name or ID.
+        Smart client_id handling:
+        - If client_id provided: Check if reconnecting (within timeout window)
+          - Within timeout: Reuse client_id (recover device mapping + session state)
+          - After timeout: Treat as new session
+        - If client_id not provided: Generate new UUID
         
-        
-        For web clients: Uses session_token to uniquely identify each session. If a web client reconnects
-        with the same session token, the old connection is unregistered first.
+        This supports:
+        - Web browsers: Generate UUID on first load, reuse on page refresh
+        - Hardware clients: Hardcode their own client_id (e.g., "esp32-bedroom", "ha-instance-1")
+        - HomeAssistant: Can provide fixed client_id for persistent sessions
         
         Args:
-            client_type: Type of client ('rpi', 'esp32', 'web', etc.)
+            client_type: Type of client ('web', 'rpi', 'esp32', 'homeassistant', etc.)
             user_name: User-defined name from client config
-            capabilities: List of capabilities
-            client_ip: IP address of the client (used to identify same physical device for hardware)
+            capabilities: List of capabilities (e.g., ['nfc_reader', 'display'])
+            client_ip: IP address of the client (informational)
             websocket: Optional WebSocket connection reference
             send_callback: Optional async function(message) to send messages to this client
-            session_token: Unique session token for web clients (generated and stored in browser)
+            client_id: Optional client_id. If not provided, a new UUID will be generated.
+                      For reconnections, provide the previous client_id.
             
         Returns:
-            ClientInfo object with generated client_id
+            ClientInfo object with the assigned client_id (either reused or newly generated)
         """
-        # For web clients with session token: reuse existing client_id on reconnection
-        client_id = None
-        if client_type == "web" and session_token:
-            # Check if client is currently connected with this session_token
-            if session_token in self._by_session_token:
-                old_client_id = self._by_session_token[session_token]
+        # Determine the client_id to use
+        assigned_client_id = None
+        session_recovered = False
+        
+        if client_id:
+            # Client provided an ID (reconnect or hardcoded)
+            
+            # Check if currently connected with this client_id
+            if client_id in self._clients:
+                # Already connected - unregister old connection first
+                old_client_info = self._clients[client_id]
                 logger.info(
-                    f"Web client reconnected with same session token. "
-                    f"Reusing client ID (ID: {old_client_id})"
+                    f"Client {client_id} reconnected while still connected. "
+                    f"Unregistering old connection first."
                 )
-                self.unregister(old_client_id)
-                # Reuse the old client_id to maintain session continuity
-                client_id = old_client_id
-            # Check if client recently disconnected and is reconnecting within timeout
-            elif session_token in self._disconnected_sessions:
-                old_client_id, disconnected_at = self._disconnected_sessions[session_token]
+                self.unregister(client_id)
+                assigned_client_id = client_id
+                session_recovered = True
+            
+            # Check if in recovery window (recently disconnected)
+            elif client_id in self._disconnected_sessions:
+                old_client_id_stored, disconnected_at = self._disconnected_sessions[client_id]
                 elapsed = datetime.now() - disconnected_at
+                
                 if elapsed < RECONNECTION_TIMEOUT:
+                    # Within recovery window - reuse this client_id
                     logger.info(
-                        f"Web client reconnected within timeout ({elapsed.total_seconds():.1f}s). "
-                        f"Reusing client ID: {old_client_id}"
+                        f"Client {client_id} reconnected within recovery window ({elapsed.total_seconds():.1f}s). "
+                        f"Recovering session and device mapping."
                     )
-                    # Reuse the old client_id to maintain session continuity
-                    client_id = old_client_id
+                    assigned_client_id = client_id
+                    session_recovered = True
                     # Remove from disconnected sessions
-                    del self._disconnected_sessions[session_token]
+                    del self._disconnected_sessions[client_id]
                 else:
+                    # Recovery window expired - treat as new session
                     logger.info(
-                        f"Web client reconnection timeout expired ({elapsed.total_seconds():.1f}s > "
-                        f"{RECONNECTION_TIMEOUT.total_seconds():.0f}s). Generating new client ID."
+                        f"Client {client_id} recovery window expired ({elapsed.total_seconds():.1f}s > "
+                        f"{RECONNECTION_TIMEOUT.total_seconds():.0f}s). Starting fresh session."
                     )
-                    # Session expired, generate new client_id
-                    del self._disconnected_sessions[session_token]
+                    del self._disconnected_sessions[client_id]
+                    assigned_client_id = client_id  # Still use the provided ID
+            else:
+                # New client providing their own ID (hardware devices, HA, etc.)
+                logger.info(f"New client with hardcoded ID: {client_id}")
+                assigned_client_id = client_id
         
-        # For hardware clients only: unregister old connection from same IP
-        if not client_id and client_type != "web" and client_ip and client_ip in self._by_ip:
-            old_client_id = self._by_ip[client_ip]
-            logger.info(
-                f"Hardware client from IP {client_ip} reconnected. "
-                f"Unregistering previous entry (ID: {old_client_id})"
-            )
-            self.unregister(old_client_id)
-        
-        # Generate new client_id only if not reusing (new session)
-        if not client_id:
-            client_id = str(uuid.uuid4())
+        # No client_id provided - generate new UUID (typically for web browsers on first load)
+        if not assigned_client_id:
+            assigned_client_id = str(uuid.uuid4())
+            logger.info(f"Generated new client_id: {assigned_client_id}")
         
         now = datetime.now()
         
         client_info = ClientInfo(
-            client_id=client_id,
+            client_id=assigned_client_id,
             client_type=client_type,
             user_name=user_name,
             capabilities=capabilities,
@@ -178,27 +188,26 @@ class ClientRegistry:
             client_ip=client_ip,
             websocket=websocket,
             send_callback=send_callback,
-            session_token=session_token
+            session_token=assigned_client_id  # Use client_id as session identifier
         )
         
-        self._clients[client_id] = client_info
+        self._clients[assigned_client_id] = client_info
         
         # Track by name for collision handling
         if user_name not in self._by_name:
             self._by_name[user_name] = []
-        self._by_name[user_name].append(client_id)
+        self._by_name[user_name].append(assigned_client_id)
         
-        # Track by IP (only for hardware clients)
-        if client_ip and client_type != "web":
-            self._by_ip[client_ip] = client_id
+        # Track by IP (informational only)
+        if client_ip:
+            self._by_ip[client_ip] = assigned_client_id
         
-        # Track by session token (only for web clients)
-        if session_token:
-            self._by_session_token[session_token] = client_id
+        # Track by session (use client_id directly)
+        self._by_session_token[assigned_client_id] = assigned_client_id
         
         logger.info(
-            f"Client registered: {user_name} (ID: {client_id}, Type: {client_type}, "
-            f"IP: {client_ip}, Session: {session_token}, Capabilities: {capabilities})"
+            f"Client registered: {user_name} (ID: {assigned_client_id}, Type: {client_type}, "
+            f"IP: {client_ip}, Capabilities: {capabilities}, Recovered: {session_recovered})"
         )
         
         return client_info

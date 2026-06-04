@@ -18,33 +18,23 @@ export default class extends Controller {
     connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         
-        // Retrieve or generate unique client ID (persisted across page refreshes)
-        // Uses localStorage for persistence so client session survives cmd+R
+        // Retrieve client ID (persisted across page refreshes via localStorage)
+        // Backend will generate a new one if not provided or if session expired
         let clientId = localStorage.getItem('clientId');
-        if (!clientId) {
-            // Fall back to sessionStorage for first-time load
-            clientId = sessionStorage.getItem('clientId');
-        }
         
         if (!clientId) {
-            // Generate new client ID only if none exists
-            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-                clientId = crypto.randomUUID();
-            } else {
-                // Fallback: Generate UUID v4 manually
-                clientId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                    const r = Math.random() * 16 | 0;
-                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                    return v.toString(16);
-                });
-            }
-            // Persist to localStorage so reconnections reuse same session
-            localStorage.setItem('clientId', clientId);
-            sessionStorage.setItem('clientId', clientId);
+            // Not in persistent storage - no client ID to send
+            // Backend will generate a new UUID and send it back
+            console.log("No stored client ID - backend will generate new one");
+        } else {
+            console.log("Restored client ID from storage:", clientId);
         }
-        console.log("Client ID:", clientId);
         
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full&session_token=${clientId}&client_id=${clientId}`;
+        // Build WebSocket URL with optional client_id
+        let wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full`;
+        if (clientId) {
+            wsUrl += `&client_id=${clientId}`;
+        }
         
         this.socket = new WebSocket(wsUrl);
 
@@ -72,19 +62,19 @@ export default class extends Controller {
         
         console.log(`WS: Received message of type "${msg.type}" with payload:`, msg.payload);
 
-        if (msg.type === 'register_response') {
-            // Backend-assigned client ID - persist to localStorage for session recovery
-            if (msg.payload.status === 'success' && msg.payload.client_id) {
-                const backendClientId = msg.payload.client_id;
-                localStorage.setItem('clientId', backendClientId);
-                sessionStorage.setItem('clientId', backendClientId);
-                window.appState.clientId = backendClientId;
-                console.log("Client registered with backend ID:", backendClientId);
-                this.broadcast("register-response", { response: msg.payload });
-            }
-        }
-
         if (msg.type === 'current_track') {
+            // Extract and store the assigned client_id from server
+            // This ensures browser and backend use the same ID across reconnects
+            if (msg.client_id) {
+                const assignedClientId = msg.client_id;
+                // Only update if different from current stored value
+                const storedClientId = localStorage.getItem('clientId');
+                if (storedClientId !== assignedClientId) {
+                    localStorage.setItem('clientId', assignedClientId);
+                    console.log("Updated stored client ID:", assignedClientId);
+                }
+                window.appState.clientId = assignedClientId;
+            }
             
             window.appState.lastTrackData = msg.payload.current_track;
             window.appState.playlist = msg.payload.playlist;

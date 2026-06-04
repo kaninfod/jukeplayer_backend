@@ -56,47 +56,37 @@ class WebSocketConnection:
         self.receive_task = None
     
     async def setup(self):
-        """Initialize connection and auto-register web clients."""
+        """Initialize connection and auto-register clients."""
         logger.info(
             f"WebSocket connection accepted | "
             f"Client IP: {self.client_ip}:{self.client_port} | "
-            f"Session Token: {self.session_token[:8] if self.session_token else 'None'}... | "
+            f"Client ID: {self.client_id[:8] if self.client_id else 'None'}... | "
             f"User-Agent: {self.user_agent}"
         )
         
-        # Only auto-register web browsers with session tokens
-        # Hardware clients and other integrations must send explicit register_client messages
-        if self.session_token:
-            try:
-                client_registry = get_service("client_registry")
-                client_info = client_registry.register(
-                    client_type="web",
-                    user_name=self.client_id,
-                    capabilities=["websocket_status"],
-                    client_ip=self.client_ip,
-                    websocket=self.websocket,
-                    send_callback=self.send_message,
-                    session_token=self.session_token
-                )
-                self.registered_client_id = client_info.client_id
-                logger.info(f"Web client auto-registered with ID: {self.registered_client_id}")
-                
-                # Send registration confirmation with assigned client_id back to browser
-                await self.send_message({
-                    "type": "register_response",
-                    "payload": {
-                        "status": "success",
-                        "client_id": client_info.client_id,
-                        "message": "Web client auto-registered"
-                    }
-                })
-            except Exception as e:
-                logger.error(f"Error auto-registering web client: {e}")
-        else:
-            logger.debug(
-                f"No session token provided. Waiting for explicit register_client message. "
-                f"(Hardware clients and integrations must register themselves)"
+        # Register client with backend-controlled ID
+        # Pass client_id from query params (if browser reconnect or hardcoded hardware ID)
+        try:
+            client_registry = get_service("client_registry")
+            client_info = client_registry.register(
+                client_type="web",
+                user_name=self.client_id if self.client_id else "web_client",
+                capabilities=["websocket_status"],
+                client_ip=self.client_ip,
+                websocket=self.websocket,
+                send_callback=self.send_message,
+                client_id=self.client_id  # May be None for first connection, provided for reconnects
             )
+            self.registered_client_id = client_info.client_id
+            logger.info(f"Web client auto-registered with ID: {self.registered_client_id}")
+            
+            # Store the assigned client_id (may differ if generated new)
+            # This will be sent to browser in initial state message
+            self._assigned_client_id = client_info.client_id
+            
+        except Exception as e:
+            logger.error(f"Error auto-registering web client: {e}")
+            self._assigned_client_id = None
     
     async def send_ping(self):
         """Send a single heartbeat ping."""
@@ -849,7 +839,11 @@ class WebSocketConnection:
             # Send initial state on connection
             try:
                 payload = self.get_data_fn()
-                message = {"type": "current_track", "payload": payload}
+                message = {
+                    "type": "current_track",
+                    "payload": payload,
+                    "client_id": self._assigned_client_id  # Include assigned client_id for browser to store
+                }
                 await self.send_message(message)
             except Exception as e:
                 logger.error(f"Error sending initial state: {e}")
