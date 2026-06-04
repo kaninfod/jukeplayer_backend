@@ -88,15 +88,18 @@ class WebSocketConnection:
                 logger.info(f"Client device mapping recovered: {existing_device.device_name}")
                 self._assigned_device = existing_device
             else:
-                # First connection: assign default device (kitchen)
-                default_device_name = "kitchen"
+                # First connection: assign default device from config (or living_room as fallback)
+                config = get_service("config")
+                # Get default device from config: DEFAULT_CHROMECAST_DEVICE="Living Room" → normalize to "living_room"
+                default_device_from_config = getattr(config, "DEFAULT_CHROMECAST_DEVICE", "Living Room")
+                default_device_name = default_device_from_config.lower().replace(" ", "_")
                 try:
                     default_device = client_registry.get_or_create_player_instance(default_device_name)
                     client_registry.set_client_active_instance(self.registered_client_id, default_device)
                     logger.info(f"Assigned default device '{default_device_name}' to new client {self.registered_client_id}")
                     self._assigned_device = default_device
                 except Exception as e:
-                    logger.error(f"Failed to assign default device: {e}")
+                    logger.error(f"Failed to assign default device '{default_device_name}': {e}")
                     self._assigned_device = None
             
             # Store the assigned client_id (may differ if generated new)

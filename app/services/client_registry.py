@@ -129,6 +129,12 @@ class ClientRegistry:
         assigned_client_id = None
         session_recovered = False
         
+        # Detect invalid placeholder IDs and treat as None (generate new UUID)
+        # "unspecified" was a bug from previous sessions - should never be used
+        if client_id == "unspecified":
+            logger.info(f"Detected invalid placeholder client_id 'unspecified' - generating new UUID")
+            client_id = None
+        
         if client_id:
             # Client provided an ID (reconnect or hardcoded)
             
