@@ -22,7 +22,8 @@ class ClientInfo:
     
     def __init__(self, client_id: str, client_type: str, user_name: str, 
                  capabilities: List[str], connected_at: datetime, client_ip: Optional[str] = None, 
-                 websocket=None, send_callback: Optional[Callable] = None, session_token: Optional[str] = None):
+                 websocket=None, send_callback: Optional[Callable] = None, session_token: Optional[str] = None,
+                 device_id: Optional[str] = None):
         """
         Args:
             client_id: System-generated UUID for this client
@@ -34,6 +35,7 @@ class ClientInfo:
             websocket: Reference to the WebSocket connection (if applicable)
             send_callback: Async function to send messages to this client
             session_token: Unique session token for web clients (prevents IP-based deduplication)
+            device_id: Optional device name/id that this client controls (e.g., 'living_room', 'kitchen')
         """
         self.client_id = client_id
         self.client_type = client_type
@@ -44,6 +46,7 @@ class ClientInfo:
         self.websocket = websocket
         self.send_callback = send_callback
         self.session_token = session_token
+        self.device_id = device_id
     
     def to_dict(self):
         """Serialize to dictionary for API responses."""
@@ -54,6 +57,7 @@ class ClientInfo:
             "capabilities": self.capabilities,
             "client_ip": self.client_ip,
             "connected_at": self.connected_at.isoformat(),
+            "device_id": self.device_id,
         }
     
     async def send_message(self, message: Dict) -> bool:
@@ -94,10 +98,15 @@ class ClientRegistry:
         # Track disconnected sessions for recovery: session_token -> (client_id, disconnected_at)
         # Allows recognizing returning clients within RECONNECTION_TIMEOUT window
         self._disconnected_sessions: Dict[str, Tuple[str, datetime]] = {}
+        
+        # Player instance management (initialized lazily or by initialize_player_instances)
+        self._player_instances: Dict[str, any] = {}  # device_name -> MediaPlayerService
+        self._client_active_instance: Dict[str, any] = {}  # client_id -> MediaPlayerService
+        self._device_config: Dict[str, str] = {}  # device_name -> backend_type
     
     def register(self, client_type: str, user_name: str, capabilities: List[str], 
                  client_ip: Optional[str] = None, websocket=None, send_callback: Optional[Callable] = None,
-                 client_id: Optional[str] = None) -> ClientInfo:
+                 client_id: Optional[str] = None, device_id: Optional[str] = None) -> ClientInfo:
         """
         Register a connected client.
         
@@ -121,6 +130,7 @@ class ClientRegistry:
             send_callback: Optional async function(message) to send messages to this client
             client_id: Optional client_id. If not provided, a new UUID will be generated.
                       For reconnections, provide the previous client_id.
+            device_id: Optional device name/id that this client controls (e.g., 'living_room', 'kitchen')
             
         Returns:
             ClientInfo object with the assigned client_id (either reused or newly generated)
@@ -131,9 +141,9 @@ class ClientRegistry:
         
         # Detect invalid placeholder IDs and treat as None (generate new UUID)
         # "unspecified" was a bug from previous sessions - should never be used
-        if client_id == "unspecified":
-            logger.info(f"Detected invalid placeholder client_id 'unspecified' - generating new UUID")
-            client_id = None
+        # if client_id == "unspecified":
+        #     logger.info(f"Detected invalid placeholder client_id 'unspecified' - generating new UUID")
+        #     client_id = None
         
         if client_id:
             # Client provided an ID (reconnect or hardcoded)
@@ -194,7 +204,8 @@ class ClientRegistry:
             client_ip=client_ip,
             websocket=websocket,
             send_callback=send_callback,
-            session_token=assigned_client_id  # Use client_id as session identifier
+            session_token=assigned_client_id,  # Use client_id as session identifier
+            device_id=device_id
         )
         
         self._clients[assigned_client_id] = client_info
@@ -264,6 +275,19 @@ class ClientRegistry:
         logger.info(f"Client unregistered: {client_info.user_name} (ID: {client_id})")
         
         return client_info
+    
+    def _ensure_player_instances_initialized(self) -> None:
+        """Ensure player instance dictionaries are initialized.
+        
+        Called by methods that use _player_instances, _client_active_instance, or _device_config.
+        This consolidates initialization logic to prevent partial initialization issues.
+        """
+        if not hasattr(self, '_player_instances') or not isinstance(self._player_instances, dict):
+            self._player_instances = {}
+        if not hasattr(self, '_client_active_instance') or not isinstance(self._client_active_instance, dict):
+            self._client_active_instance = {}
+        if not hasattr(self, '_device_config') or not isinstance(self._device_config, dict):
+            self._device_config = {}
     
     def get_by_id(self, client_id: str) -> Optional[ClientInfo]:
         """Get a client by its system ID."""
@@ -390,10 +414,7 @@ class ClientRegistry:
         from app.playback_backends.factory import get_playback_backend_by_name
         from app.core.service_container import get_service
         
-        if not hasattr(self, '_player_instances'):
-            self._player_instances = {}
-            self._client_active_instance = {}
-        
+        self._ensure_player_instances_initialized()
         self._device_config = device_config
         
         for device_name, backend_type in device_config.items():
@@ -413,10 +434,7 @@ class ClientRegistry:
         Raises KeyError if device not in config.
         Device names are case-insensitive (normalized to lowercase).
         """
-        if not hasattr(self, '_player_instances'):
-            self._player_instances = {}
-            self._client_active_instance = {}
-            self._device_config = {}
+        self._ensure_player_instances_initialized()
         
         # Normalize device_name to lowercase for case-insensitive lookup
         device_name = device_name.lower()
@@ -449,8 +467,7 @@ class ClientRegistry:
         """Get existing instance for device, or None.
         Device names are case-insensitive (normalized to lowercase).
         """
-        if not hasattr(self, '_player_instances'):
-            return None
+        self._ensure_player_instances_initialized()
         # Normalize device_name to lowercase for case-insensitive lookup
         device_name = device_name.lower()
         return self._player_instances.get(device_name)
@@ -460,8 +477,7 @@ class ClientRegistry:
         Client takes control of a specific MediaPlayerService instance.
         Multiple clients can control the same instance (shared control).
         """
-        if not hasattr(self, '_client_active_instance'):
-            self._client_active_instance = {}
+        self._ensure_player_instances_initialized()
         
         # Release old instance (if any)
         old_instance = self._client_active_instance.get(client_id)
@@ -479,8 +495,7 @@ class ClientRegistry:
     
     def release_client_instance(self, client_id: str) -> None:
         """Client releases control of its current instance."""
-        if not hasattr(self, '_client_active_instance'):
-            return
+        self._ensure_player_instances_initialized()
         
         instance = self._client_active_instance.pop(client_id, None)
         if instance:
@@ -492,16 +507,14 @@ class ClientRegistry:
     
     def get_client_active_instance(self, client_id: str) -> Optional:
         """Which instance is this client currently controlling?"""
-        if not hasattr(self, '_client_active_instance'):
-            return None
+        self._ensure_player_instances_initialized()
         return self._client_active_instance.get(client_id)
     
     def get_instance_active_clients(self, device_name: str) -> set:
         """Which clients are currently controlling this instance?
         Device names are case-insensitive (normalized to lowercase).
         """
-        if not hasattr(self, '_player_instances'):
-            return set()
+        self._ensure_player_instances_initialized()
         # Normalize device_name to lowercase for case-insensitive lookup
         device_name = device_name.lower()
         instance = self._player_instances.get(device_name)
@@ -511,8 +524,8 @@ class ClientRegistry:
     
     def list_player_instances(self) -> List:
         """Return all active MediaPlayerService instances."""
-        if not hasattr(self, '_player_instances'):
-            return []
+        self._ensure_player_instances_initialized()
+        self.cleanup_stale_sessions()
         return list(self._player_instances.values())
     
     def list_client_instance_mappings(self) -> Dict:
@@ -520,8 +533,7 @@ class ClientRegistry:
         Return all client -> instance mappings.
         Useful for API: shows which client controls which device.
         """
-        if not hasattr(self, '_client_active_instance'):
-            return {}
+        self._ensure_player_instances_initialized()
         return {
             client_id: instance.device_name 
             for client_id, instance in self._client_active_instance.items()
@@ -532,8 +544,7 @@ class ClientRegistry:
         Return all instance -> clients mappings.
         Useful for API: shows which clients control each instance.
         """
-        if not hasattr(self, '_player_instances'):
-            return {}
+        self._ensure_player_instances_initialized()
         result = {}
         for device_name, instance in self._player_instances.items():
             result[device_name] = list(instance.active_clients)
@@ -543,7 +554,60 @@ class ClientRegistry:
         """
         Return list of all configured physical devices.
         """
-        if not hasattr(self, '_device_config'):
-            return []
+        self._ensure_player_instances_initialized()
         return list(self._device_config.keys())
 
+    def switch_device(self, device_id: str, client_id: str) -> None:
+
+        """Switch client to control a different device.
+        
+        Does NOT restart playback. Just changes which MediaPlayerService 
+        instance this client controls. Future commands go to that device.
+        
+        Args:
+            device_id: {"device_id": "kitchen"} or {"device_id": "bedroom"}
+                       Device names are case-insensitive.
+            client_id: The ID of the client requesting the switch.
+        """
+        try:
+            if not device_id:
+                raise ValueError("Missing device_id")
+            
+            if not device_id:
+                raise ValueError("Missing device_id in payload")
+            
+            # Normalize device_id to lowercase (case-insensitive)
+            device_id = device_id.lower()
+            
+            #client_registry = get_service("client_registry")
+            
+            # Get the MediaPlayerService instance for this device
+            # Raises KeyError if device not configured
+            try:
+                player_instance = self.get_or_create_player_instance(device_id)
+            except KeyError as e:
+                # List available devices for error message
+                available = self.get_configured_devices()
+                raise ValueError(
+                    f"Device '{device_id}' not configured. "
+                    f"Available devices: {', '.join(available) if available else 'None'}"
+                )
+            
+            # Map this client to the new device instance
+            #client_id = self.registered_client_id or self.client_id
+            self.set_client_active_instance(client_id, player_instance)
+            
+            # Get current state of the new device
+            device_state = player_instance.get_context()
+            
+
+            logger.info(
+                f"Client {client_id} switched to device '{device_id}' | "
+                f"Active clients on {device_id}: "
+                f"{self.get_instance_active_clients(device_id)}"
+            )
+            
+        except ValueError as e:
+            logger.warning(f"Device switch failed: {e}")
+        except Exception as e:
+            logger.error(f"Error handling switch_device: {e}", exc_info=True)    

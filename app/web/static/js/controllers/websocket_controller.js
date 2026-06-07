@@ -18,23 +18,8 @@ export default class extends Controller {
     connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         
-        // Retrieve client ID (persisted across page refreshes via localStorage)
-        // Backend will generate a new one if not provided or if session expired
-        let clientId = localStorage.getItem('clientId');
-        
-        if (!clientId) {
-            // Not in persistent storage - no client ID to send
-            // Backend will generate a new UUID and send it back
-            console.log("No stored client ID - backend will generate new one");
-        } else {
-            console.log("Restored client ID from storage:", clientId);
-        }
-        
-        // Build WebSocket URL with optional client_id
+        // Build WebSocket URL (client_id now sent via register_client message, not query param)
         let wsUrl = `${wsProtocol}//${window.location.host}/ws/mediaplayer/events?detail=full`;
-        if (clientId) {
-            wsUrl += `&client_id=${clientId}`;
-        }
         
         this.socket = new WebSocket(wsUrl);
 
@@ -42,6 +27,9 @@ export default class extends Controller {
             console.log("WS: Connected");
             window.appState.wsStatus = "connected";
             this.broadcast("ws-status", {"status": "connected"});
+            
+            // Send explicit registration message (like ESP32 does)
+            this.sendRegisterClient();
         };
 
         this.socket.onmessage = (event) => {
@@ -57,10 +45,46 @@ export default class extends Controller {
         };
     }
 
+    sendRegisterClient() {
+        // Send registration message to backend
+        // Retrieve stored client_id from previous session (if exists)
+        const storedClientId = localStorage.getItem('clientId');
+        const storedDeviceId = localStorage.getItem('deviceId');  
+        
+        const registrationMsg = {
+            "type": "register_client",
+            "payload": {
+                "client_type": "web",
+                "client_name": "web_client",
+                "capabilities": ["websocket_status"],
+                "device_id": storedDeviceId || null,  // Web clients don't specify device_id - backend assigns default
+                "client_id": storedClientId  // Send stored ID to enable session recovery
+            }
+        };
+        
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify(registrationMsg));
+            console.log("WS: Sent register_client message", storedClientId ? `(recovery: ${storedClientId.substring(0, 8)}...)` : "(new session)");
+        }
+    }
+
     routeMessage(msg) {
         
         
         console.log(`WS: Received message of type "${msg.type}" with payload:`, msg.payload);
+
+        if (msg.type === 'register_response') {
+            // Extract client_id from registration response and store it
+            if (msg.payload && msg.payload.status === 'success') {
+                const clientId = msg.payload.client_id;
+                localStorage.setItem('clientId', clientId);
+                window.appState.clientId = clientId;
+
+                console.log("WS: Registration successful, client and device ID stored:", clientId);
+            } else {
+                console.error("WS: Registration failed:", msg.payload);
+            }
+        }
 
         if (msg.type === 'current_track') {
             // Extract and store the assigned client_id from server
@@ -80,9 +104,15 @@ export default class extends Controller {
             window.appState.playlist = msg.payload.playlist;
             window.appState.volume = msg.payload.volume;
             window.appState.deviceName = msg.payload.output_device;
+            window.appState.mediaplayerInstanceName = msg.payload.mediaplayer_instance_name;
             window.appState.playerStatus = msg.payload.status;
             window.appState.repeatState = msg.payload.repeat_album;
             window.appState.isMuted = msg.payload.is_muted;
+
+            
+            localStorage.setItem('deviceId', window.appState.deviceName);
+            
+
 
             this.broadcast("nowplaying-update", { track: msg.payload });
         }

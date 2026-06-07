@@ -17,7 +17,7 @@ export default class extends Controller {
         const event = new CustomEvent("ws:send", { 
             detail: { 
                 type: "play_pause", 
-                payload: {} // Your server expects this payload
+                payload: {} 
             } 
         });
         

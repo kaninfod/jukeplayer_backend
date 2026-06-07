@@ -39,9 +39,6 @@ class WebSocketConnection:
         self.client_id = client_id
         self.get_data_fn = get_data_fn
         
-        # Extract session token from query parameters (for web clients)
-        self.session_token = websocket.query_params.get("session_token")
-        
         # Connection state
         self.connection_start = time.time()
         self.handler_active = {"active": True}
@@ -56,60 +53,63 @@ class WebSocketConnection:
         self.receive_task = None
     
     async def setup(self):
-        """Initialize connection and auto-register clients, assign default device."""
+        """Initialize connection. Registration deferred until explicit register_client message."""
         logger.info(
             f"WebSocket connection accepted | "
             f"Client IP: {self.client_ip}:{self.client_port} | "
             f"Client ID: {self.client_id[:8] if self.client_id else 'None'}... | "
             f"User-Agent: {self.user_agent}"
         )
+        logger.info(f"Awaiting explicit register_client message")
+    
+    async def _emit_and_broadcast_response(self, event_type, event_payload, response_type, response_message):
+        """Emit event and broadcast generic response message.
         
-        # Register client with backend-controlled ID
-        # Pass client_id from query params (if browser reconnect or hardcoded hardware ID)
-        try:
-            client_registry = get_service("client_registry")
-            client_info = client_registry.register(
-                client_type="web",
-                user_name=self.client_id if self.client_id else "web_client",
-                capabilities=["websocket_status"],
-                client_ip=self.client_ip,
-                websocket=self.websocket,
-                send_callback=self.send_message,
-                client_id=self.client_id  # May be None for first connection, provided for reconnects
-            )
-            self.registered_client_id = client_info.client_id
-            logger.info(f"Web client auto-registered with ID: {self.registered_client_id}")
+        Consolidates the common pattern used by most command handlers:
+        - Emit the main event
+        - Broadcast a generic response message
+        - Extract result from response
+        
+        Args:
+            event_type: EventType to emit
+            event_payload: Payload for the event
+            response_type: Message type for response (e.g., 'next_track_response')
+            response_message: Message dict payload for response
             
-            # Ensure client has a device mapping (forced default if not already set)
-            # Recovery case: mapping should already exist from previous session
-            # First connection: assign default device (kitchen)
-            existing_device = client_registry.get_client_active_instance(self.registered_client_id)
-            if existing_device:
-                logger.info(f"Client device mapping recovered: {existing_device.device_name}")
-                self._assigned_device = existing_device
-            else:
-                # First connection: assign default device from config (or living_room as fallback)
-                config = get_service("config")
-                # Get default device from config: DEFAULT_CHROMECAST_DEVICE="Living Room" → normalize to "living_room"
-                default_device_from_config = getattr(config, "DEFAULT_CHROMECAST_DEVICE", "Living Room")
-                default_device_name = default_device_from_config.lower().replace(" ", "_")
-                try:
-                    default_device = client_registry.get_or_create_player_instance(default_device_name)
-                    client_registry.set_client_active_instance(self.registered_client_id, default_device)
-                    logger.info(f"Assigned default device '{default_device_name}' to new client {self.registered_client_id}")
-                    self._assigned_device = default_device
-                except Exception as e:
-                    logger.error(f"Failed to assign default device '{default_device_name}': {e}")
-                    self._assigned_device = None
-            
-            # Store the assigned client_id (may differ if generated new)
-            # This will be sent to browser in initial state message
-            self._assigned_client_id = client_info.client_id
-            
-        except Exception as e:
-            logger.error(f"Error auto-registering web client: {e}")
-            self._assigned_client_id = None
-            self._assigned_device = None
+        Returns:
+            The result from the event emission
+        """
+        from app.core import event_bus, EventType, Event
+        
+        # Emit the main event
+        result = await event_bus.aemit(Event(
+            type=event_type,
+            payload=event_payload
+        ))
+        
+        # Extract result message
+        result_msg = result[0] if isinstance(result, list) and result else result
+        
+        # # Broadcast response
+        # await event_bus.aemit(Event(
+        #     type=EventType.BROADCAST_GENERIC_MESSAGE,
+        #     payload={
+        #         "message_type": response_type,
+        #         "message_payload": {**response_message, "message": str(result_msg)} if isinstance(response_message, dict) else {"status": "success", "message": str(result_msg)}
+        #     }
+        # ))
+
+        await self.send_message({
+            "type": response_type,
+            "payload": {"status": "success", "message": str(result_msg)}
+        })
+        
+        await event_bus.aemit(Event(
+            type=EventType.TRACK_CHANGED,
+            payload={}
+        ))
+
+        return result
     
     async def send_ping(self):
         """Send a single heartbeat ping."""
@@ -156,16 +156,18 @@ class WebSocketConnection:
         self.heartbeat_task = asyncio.create_task(send_heartbeat())
     
     async def handle_register_client(self, payload):
-        """Process client registration request.
+        """Process client registration request with session recovery support.
         
         Args:
-            payload: Message payload with client_type, client_name, capabilities
+            payload: Message payload with client_type, client_name, capabilities, device_id, client_id
         """
         try:
             client_registry = get_service("client_registry")
             client_type = payload.get("client_type")
             client_name = payload.get("client_name")
             capabilities = payload.get("capabilities", [])
+            device_id = payload.get("device_id")  # Device ID for hardware clients (ESP32, etc.)
+            stored_client_id = payload.get("client_id")  # Client ID from previous session (browser recovery)
             
             if not client_type or not client_name:
                 logger.warning("Registration missing client_type or client_name")
@@ -178,25 +180,66 @@ class WebSocketConnection:
             # Create send callback for this connection
             send_callback = self.send_message
             
+            # Register client - registry handles session recovery automatically
+            # Pass stored_client_id so registry can look it up in _disconnected_sessions and recover within timeout
             client_info = client_registry.register(
                 client_type=client_type,
                 user_name=client_name,
                 capabilities=capabilities,
                 client_ip=self.client_ip,
                 websocket=self.websocket,
-                send_callback=send_callback
+                send_callback=send_callback,
+                client_id=stored_client_id,
+                device_id=device_id
             )
             self.registered_client_id = client_info.client_id
             self.client_id = client_info.client_id
+            logger.info(f"Client {client_name} (Type: {client_type}, ID: {self.client_id}) registered")
 
+            # If client specifies device_id, assign it to that device immediately
+            if device_id:
+                try:
+                    device_id_normalized = device_id.lower()
+                    player_instance = client_registry.get_or_create_player_instance(device_id_normalized)
+                    client_registry.set_client_active_instance(self.client_id, player_instance)
+                    logger.info(f"Client {client_name} (ID: {self.client_id}) assigned to device: {device_id_normalized}")
+                except KeyError:
+                    logger.warning(f"Device '{device_id}' not configured for client {self.client_id}")
+            else:
+                # No device specified - assign default device for web clients (only if not recovered)
+                if client_type == "web" and stored_client_id is None:
+                    # New web client, not a recovery
+                    try:
+                        config = get_service("config")
+                        default_device_from_config = getattr(config, "DEFAULT_CHROMECAST_DEVICE", "Living Room")
+                        default_device_name = default_device_from_config.lower().replace(" ", "_")
+                        default_device = client_registry.get_or_create_player_instance(default_device_name)
+                        client_registry.set_client_active_instance(self.client_id, default_device)
+                        logger.info(f"Assigned default device '{default_device_name}' to web client {self.client_id}")
+                    except Exception as e:
+                        logger.warning(f"Could not assign default device to web client: {e}")
+                elif client_type == "web" and stored_client_id:
+                    # Recovery case - device mapping should already exist from previous session
+                    device_id = client_registry.get_by_id(self.client_id)
+                    logger.info(f"Web client session recovered - device context preserved")
+            
             await self.websocket.send_json({
                 "type": "register_response",
                 "payload": {
                     "status": "success",
-                    "client_id": client_info.client_id,
+                    "client_id": self.client_id,
+                    "device_id": device_id,
                     "message": f"Registered as {client_name}"
                 }
             })
+
+            from app.core import event_bus, EventType, Event
+            result = await event_bus.aemit(Event(
+                type=EventType.TRACK_CHANGED,
+                payload={}
+            ))
+
+
         except Exception as e:
             logger.error(f"Error registering client: {e}")
             await self.websocket.send_json({
@@ -206,8 +249,7 @@ class WebSocketConnection:
     
 
     async def handle_nfc_encoding_started(self, payload):
-        """Process NFC encoding start message.
-        """
+        """Process NFC encoding start message."""
         try:
             await self.send_message({
                 "type": "nfc_encoding_started",
@@ -219,13 +261,6 @@ class WebSocketConnection:
                     }
                 }
             })
-            #from app.core import event_bus, EventType, Event
-            #result = event_bus.emit(Event(
-            #    type=EventType.BROADCAST_GENERIC_MESSAGE,
-            #    payload=payload
-            #))
-            #logger.info(f"Sent nfc_encoding_started. response={result}")
-            
         except Exception as e:
             logger.error(f"Error handling nfc_encoding_started: {e}")
 
@@ -241,9 +276,8 @@ class WebSocketConnection:
             error_message = payload.get("error_message")
             
             nfc_state = get_service("nfc_encoding_state")
-            result = nfc_state.set_result(status=status, uid=uid, error_message=error_message)
+            nfc_state.set_result(status=status, uid=uid, error_message=error_message)
             
-            logger.info("About to send nfc_encoding_completed")
             await self.send_message({
                 "type": "nfc_encoding_completed",
                 "payload": {
@@ -256,21 +290,6 @@ class WebSocketConnection:
                     }
                 }
             })
-
-
-            # from app.core import event_bus, EventType, Event
-            # result = event_bus.emit(Event(
-            #     type=EventType.BROADCAST_GENERIC_MESSAGE,
-            #     payload={
-            #         "message_type": "nfc_encoding_completed",
-            #         "message_payload": {
-            #             "status": status,
-            #             "uid": uid,
-            #             "nfc_write_state": "completed",
-            #             "error_message": error_message
-            #         }
-            #     }
-            # ))
             logger.info(f"NFC encoding completion received: status={status}, uid={uid}")
         except Exception as e:
             logger.error(f"Error handling nfc_encoding_completed: {e}")
@@ -292,23 +311,14 @@ class WebSocketConnection:
     async def handle_play_pause(self, payload):
         """Handle play/pause toggle command."""
         try:
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.PLAY_PAUSE,
-                payload={"client_id": self.registered_client_id or self.client_id}
-            ))          
-            
-            result_msg = result[0] if isinstance(result, list) and result else result
-            
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "play_pause_response",
-                    "message_payload": {"status": "success", "message": str(result_msg)}
-                }
-            ))
-
-            logger.info(f"Play/pause toggled: {result}")
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.PLAY_PAUSE,
+                {"client_id": self.client_id},
+                "play_pause_response",
+                {"status": "success"}
+            )
+            logger.info(f"Play/pause toggled")
         except Exception as e:
             logger.error(f"Error handling play_pause: {e}")
             await self.send_message({
@@ -359,7 +369,7 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.PLAY_TRACK,
-                payload={"track_index": track_index, "client_id": self.registered_client_id or self.client_id}
+                payload={"track_index": track_index, "client_id": self.client_id or self.client_id}
             ))
 
             result = await event_bus.aemit(Event(
@@ -398,7 +408,7 @@ class WebSocketConnection:
                 payload={
                     "album_id": album_id,
                     "start_track_index": start_track_index,
-                    "client_id": self.registered_client_id or self.client_id
+                    "client_id": self.client_id
                 }
             ))
 
@@ -432,89 +442,98 @@ class WebSocketConnection:
             payload: {"device_id": "kitchen"} or {"device_id": "bedroom"}
                     Device names are case-insensitive.
         """
-        try:
-            device_id = payload.get("device_id")
+        
+        client_registry = get_service("client_registry")
+        client_registry.switch_device(
+            device_id=payload.get("device_id"),
+            client_id=self.client_id
+        )
+
+        from app.core import event_bus, EventType, Event
+
+        result = await event_bus.aemit(Event(
+            type=EventType.TRACK_CHANGED,
+            payload={}
+        ))
+
+        # try:
+        #     device_id = payload.get("device_id")
             
-            if not device_id:
-                raise ValueError("Missing device_id in payload")
+        #     if not device_id:
+        #         raise ValueError("Missing device_id in payload")
             
-            # Normalize device_id to lowercase (case-insensitive)
-            device_id = device_id.lower()
+        #     # Normalize device_id to lowercase (case-insensitive)
+        #     device_id = device_id.lower()
             
-            client_registry = get_service("client_registry")
+        #     client_registry = get_service("client_registry")
             
-            # Get the MediaPlayerService instance for this device
-            # Raises KeyError if device not configured
-            try:
-                player_instance = client_registry.get_or_create_player_instance(device_id)
-            except KeyError as e:
-                # List available devices for error message
-                available = client_registry.get_configured_devices()
-                raise ValueError(
-                    f"Device '{device_id}' not configured. "
-                    f"Available devices: {', '.join(available) if available else 'None'}"
-                )
+        #     # Get the MediaPlayerService instance for this device
+        #     # Raises KeyError if device not configured
+        #     try:
+        #         player_instance = client_registry.get_or_create_player_instance(device_id)
+        #     except KeyError as e:
+        #         # List available devices for error message
+        #         available = client_registry.get_configured_devices()
+        #         raise ValueError(
+        #             f"Device '{device_id}' not configured. "
+        #             f"Available devices: {', '.join(available) if available else 'None'}"
+        #         )
             
-            # Map this client to the new device instance
-            client_id = self.registered_client_id or self.client_id
-            client_registry.set_client_active_instance(client_id, player_instance)
+        #     # Map this client to the new device instance
+        #     client_id = self.registered_client_id or self.client_id
+        #     client_registry.set_client_active_instance(client_id, player_instance)
             
-            # Get current state of the new device
-            device_state = player_instance.get_context()
+        #     # Get current state of the new device
+        #     device_state = player_instance.get_context()
             
-            # Send success response with new device state
-            await self.send_message({
-                "type": "switch_device_response",
-                "payload": {
-                    "status": "success",
-                    "message": f"Switched to device '{device_id}'",
-                    "device_id": device_id,
-                    "current_state": device_state
-                }
-            })
+        #     # Send success response with new device state
+        #     await self.send_message({
+        #         "type": "switch_device_response",
+        #         "payload": {
+        #             "status": "success",
+        #             "message": f"Switched to device '{device_id}'",
+        #             "device_id": device_id,
+        #             "current_state": device_state
+        #         }
+        #     })
+
+
+        #     logger.info(
+        #         f"Client {client_id} switched to device '{device_id}' | "
+        #         f"Active clients on {device_id}: "
+        #         f"{client_registry.get_instance_active_clients(device_id)}"
+        #     )
             
-            logger.info(
-                f"Client {client_id} switched to device '{device_id}' | "
-                f"Active clients on {device_id}: "
-                f"{client_registry.get_instance_active_clients(device_id)}"
-            )
-            
-        except ValueError as e:
-            await self.send_message({
-                "type": "switch_device_response",
-                "payload": {
-                    "status": "error",
-                    "message": str(e)
-                }
-            })
-            logger.warning(f"Device switch failed: {e}")
-        except Exception as e:
-            await self.send_message({
-                "type": "switch_device_response",
-                "payload": {
-                    "status": "error",
-                    "message": f"Unexpected error: {str(e)}"
-                }
-            })
-            logger.error(f"Error handling switch_device: {e}", exc_info=True)
+        # except ValueError as e:
+        #     await self.send_message({
+        #         "type": "switch_device_response",
+        #         "payload": {
+        #             "status": "error",
+        #             "message": str(e)
+        #         }
+        #     })
+        #     logger.warning(f"Device switch failed: {e}")
+        # except Exception as e:
+        #     await self.send_message({
+        #         "type": "switch_device_response",
+        #         "payload": {
+        #             "status": "error",
+        #             "message": f"Unexpected error: {str(e)}"
+        #         }
+        #     })
+        #     logger.error(f"Error handling switch_device: {e}", exc_info=True)
+
     async def handle_next_track(self, payload):
         """Handle next track command."""
         try:
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.NEXT_TRACK,
-                payload={"force": True, "client_id": self.registered_client_id or self.client_id}
-            ))
-
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "next_track_response",
-                    "message_payload": {"status": "success", "message": str(result[0])}
-                }
-            ))            
-
-            logger.info(f"Next track: {result}")
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.NEXT_TRACK,
+                {"force": True, "client_id": self.client_id},
+                "next_track_response",
+                {"status": "success"}
+            )
+            logger.info(f"Next track handled")
         except Exception as e:
             logger.error(f"Error handling next_track: {e}")
             await self.send_message({
@@ -525,21 +544,14 @@ class WebSocketConnection:
     async def handle_previous_track(self, payload):
         """Handle previous track command."""
         try:
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.PREVIOUS_TRACK,
-                payload={"client_id": self.registered_client_id or self.client_id}
-            ))
-            
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "previous_track_response",
-                    "message_payload": {"status": "success", "message": str(result[0])}
-                }
-            ))            
-
-            logger.info(f"Previous track: {result}")
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.PREVIOUS_TRACK,
+                {"client_id": self.client_id},
+                "previous_track_response",
+                {"status": "success"}
+            )
+            logger.info(f"Previous track handled")
         except Exception as e:
             logger.error(f"Error handling previous_track: {e}")
             await self.send_message({
@@ -550,21 +562,14 @@ class WebSocketConnection:
     async def handle_stop(self, payload):
         """Handle stop command."""
         try:
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.STOP,
-                payload={"client_id": self.registered_client_id or self.client_id}
-            ))
-
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "stop_response",
-                    "message_payload": {"status": "success", "message": str(result[0])}
-                }
-            ))             
-
-            logger.info(f"Stop: {result}")
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.STOP,
+                {"client_id": self.client_id},
+                "stop_response",
+                {"status": "success"}
+            )
+            logger.info(f"Stop handled")
         except Exception as e:
             logger.error(f"Error handling stop: {e}")
             await self.send_message({
@@ -575,21 +580,14 @@ class WebSocketConnection:
     async def handle_volume_up(self, payload):
         """Handle volume up command."""
         try:
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.VOLUME_UP,
-                payload={"client_id": self.registered_client_id or self.client_id}
-            ))
-
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "volume_up_response",
-                    "message_payload": {"status": "success", "message": str(result[0])}
-                }
-            ))  
-
-            logger.info(f"Volume up: {result}")
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.VOLUME_UP,
+                {"client_id": self.client_id},
+                "volume_up_response",
+                {"status": "success"}
+            )
+            logger.info(f"Volume up handled")
         except Exception as e:
             logger.error(f"Error handling volume up: {e}")
             await self.send_message({
@@ -600,20 +598,14 @@ class WebSocketConnection:
     async def handle_volume_down(self, payload):
         """Handle volume down command."""
         try:
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.VOLUME_DOWN,
-                payload={"client_id": self.registered_client_id or self.client_id}
-            ))
-            
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "volume_down_response",
-                    "message_payload": {"status": "success", "message": str(result[0])}
-                }
-            ))             
-            
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.VOLUME_DOWN,
+                {"client_id": self.client_id},
+                "volume_down_response",
+                {"status": "success"}
+            )
+            logger.info(f"Volume down handled")
         except Exception as e:
             logger.error(f"Error handling volume down: {e}")
             await self.send_message({
@@ -625,21 +617,13 @@ class WebSocketConnection:
         """Handle volume set command."""
         try:
             volume = payload.get("value")
-            
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.SET_VOLUME,
-                payload={"volume": volume, "client_id": self.registered_client_id or self.client_id}
-            ))
-            
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "volume_response",
-                    "message_payload": {"status": "success", "message": str(result[0])}
-                }
-            ))  
-
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.SET_VOLUME,
+                {"volume": volume, "client_id": self.client_id},
+                "volume_response",
+                {"status": "success"}
+            )
             logger.info(f"Volume set to {volume}")
         except Exception as e:
             logger.error(f"Error handling volume: {e}")
@@ -651,21 +635,14 @@ class WebSocketConnection:
     async def handle_toggle_repeat(self, payload):
         """Handle toggle repeat command."""
         try:
-            from app.core import event_bus, EventType, Event
-            result = await event_bus.aemit(Event(
-                type=EventType.TOGGLE_REPEAT,
-                payload={"client_id": self.registered_client_id or self.client_id}
-            ))
-            
-            result = await event_bus.aemit(Event(
-                type=EventType.BROADCAST_GENERIC_MESSAGE,
-                payload={
-                    "message_type": "toggle_repeat_response",
-                    "message_payload": {"status": "success", "message": str(result)}
-                }
-            ))              
-
-            logger.info(f"Toggle repeat: {result}")
+            from app.core import event_bus, EventType
+            result = await self._emit_and_broadcast_response(
+                EventType.TOGGLE_REPEAT,
+                {"client_id": self.client_id},
+                "toggle_repeat_response",
+                {"status": "success"}
+            )
+            logger.info(f"Toggle repeat handled")
         except Exception as e:
             logger.error(f"Error handling toggle repeat: {e}")
             await self.send_message({
@@ -680,20 +657,17 @@ class WebSocketConnection:
             from app.core import event_bus, EventType, Event
             result = await event_bus.aemit(Event(
                 type=EventType.VOLUME_MUTE,
-                payload={"client_id": self.registered_client_id or self.client_id}
+                payload={"client_id": self.client_id}
             ))
-            
             is_muted = result[0]['muted'] if result and 'muted' in result[0] else None
-            
-            result = await event_bus.aemit(Event(
+            await event_bus.aemit(Event(
                 type=EventType.BROADCAST_GENERIC_MESSAGE,
                 payload={
                     "message_type": "volume_mute_response",
                     "message_payload": {"status": "success", "is_muted": is_muted}
                 }
-            ))              
-            
-            logger.info(f"Volume mute: {result}")
+            ))
+            logger.info(f"Volume mute handled")
         except Exception as e:
             logger.error(f"Error handling volume mute: {e}")
             await self.send_message({
@@ -851,33 +825,18 @@ class WebSocketConnection:
         
         # THIRD: Unregister client from registry
         # This will stop event_bus from sending messages to this client
-        if self.registered_client_id:
+        if self.client_id:
             try:
                 client_registry = get_service("client_registry")
-                client_registry.unregister(self.registered_client_id)
+                client_registry.unregister(self.client_id)
             except Exception as e:
                 logger.error(f"Error unregistering client: {e}")
     
     async def handle(self):
         """Main connection handler loop."""
         try:
-            # Send initial state on connection
-            try:
-                # Get state from the client's assigned device (not default)
-                if hasattr(self, '_assigned_device') and self._assigned_device:
-                    payload = self._assigned_device.get_context()
-                else:
-                    # Fallback to get_data_fn if device not available
-                    payload = self.get_data_fn()
-                
-                message = {
-                    "type": "current_track",
-                    "payload": payload,
-                    "client_id": self._assigned_client_id  # Include assigned client_id for browser to store
-                }
-                await self.send_message(message)
-            except Exception as e:
-                logger.error(f"Error sending initial state: {e}")
+            # Initial state is sent by event dispatcher after registration is complete
+            # (via register_response message and subsequent track_changed events)
 
             # Keep connection alive - messages will be delivered by event dispatcher
             # Monitor receive_task for disconnection

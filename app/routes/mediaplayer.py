@@ -393,6 +393,7 @@ async def list_instances():
             context = instance.get_context()
             result["instances"].append({
                 "device_name": instance.device_name,
+                "mediaplayer_instance_name": context.get("mediaplayer_instance_name"),
                 "backend_type": type(instance.playback_backend).__name__,
                 "active_clients": list(instance.active_clients),
                 "status": context.get("status"),

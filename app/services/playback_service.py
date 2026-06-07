@@ -32,45 +32,11 @@ class PlaybackService:
         self._setup_event_subscriptions()
         
         logger.info("PlaybackService initialized with dependency injection.")
-        
-    def _get_player_instance_for_event(self, event):
-        """
-        Determine which MediaPlayerService instance should handle an event.
-        
-        Looks for client_id or device_name in the event payload, then uses ClientRegistry
-        to find the right instance. Falls back to self.player if not found.
-        """
-        from app.core.service_container import get_service
-        
-        payload = event.payload if hasattr(event, 'payload') else {}
-        client_id = payload.get('client_id')
-        device_name = payload.get('device_name')
-        
-        client_registry = get_service("client_registry")
-        
-        # Try to find instance by client_id first (higher priority - explicit client control)
-        if client_id:
-            instance = client_registry.get_client_active_instance(client_id)
-            if instance:
-                logger.debug(f"Routed event to device '{instance.device_name}' via client_id {client_id}")
-                return instance
-        
-        # Try to find instance by device_name (e.g., from backend events like TRACK_FINISHED)
-        if device_name:
-            instances = client_registry.list_player_instances()
-            for inst in instances:
-                if inst.device_name == device_name:
-                    logger.debug(f"Routed event to device '{device_name}' via device_name in payload")
-                    return inst
-        
-        # Fall back to default player
-        logger.debug("No client_id or device_name in event, using default player")
-        return self.player
     
     def _setup_event_subscriptions(self):
         """Setup all event subscriptions using injected event_bus"""
         self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
-        self.event_bus.subscribe(EventType.PLAY_ALBUM, self.load_album)
+        self.event_bus.subscribe(EventType.PLAY_ALBUM, self._handle_play_album)
         self.event_bus.subscribe(EventType.ENCODE_CARD, self._encode_card)
         
         # Use wrapper handlers for playback control events to route to correct device
@@ -132,24 +98,63 @@ class PlaybackService:
         player = self._get_player_instance_for_event(event)
         return await player.handle_volume_mute(event) 
 
+    async def _handle_play_album(self, event):
+        player = self._get_player_instance_for_event(event)
+        return await self.load_from_album_id(event.payload.get("album_id"), player_instance=player, start_track_index=event.payload.get("start_track_index", 0))
+         
+
+    def _get_player_instance_for_event(self, event):
+        """
+        Determine which MediaPlayerService instance should handle an event.
+        
+        Looks for client_id or device_name in the event payload, then uses ClientRegistry
+        to find the right instance. Falls back to self.player if not found.
+        """
+        from app.core.service_container import get_service
+        
+        payload = event.payload if hasattr(event, 'payload') else {}
+        client_id = payload.get('client_id')
+        device_name = payload.get('device_name')
+        
+        client_registry = get_service("client_registry")
+        
+        # Try to find instance by client_id first (higher priority - explicit client control)
+        if client_id:
+            instance = client_registry.get_client_active_instance(client_id)
+            if instance:
+                logger.debug(f"Routed event to device '{instance.device_name}' via client_id {client_id}")
+                return instance
+        
+        # Try to find instance by device_name (e.g., from backend events like TRACK_FINISHED)
+        if device_name:
+            instances = client_registry.list_player_instances()
+            for inst in instances:
+                if inst.device_name == device_name:
+                    logger.debug(f"Routed event to device '{device_name}' via device_name in payload")
+                    return inst
+        
+        # Fall back to default player
+        logger.debug("No client_id or device_name in event, using default player")
+        return self.player
+
 
     def get_stream_url_for_track(self, track: Dict) -> Optional[str]:
         return self.subsonic_service.get_stream_url(track)
 
-    def get_cover_url_for_track(self, album_id: str) -> Optional[str]:
-        """
-        Cover URL resolver for the current track.
-        Returns the cover URL or None if not available.
-        """
+    # def get_cover_url_for_track(self, album_id: str) -> Optional[str]:
+    #     """
+    #     Cover URL resolver for the current track.
+    #     Returns the cover URL or None if not available.
+    #     """
 
-        if album_id:
-            url = self.subsonic_service.get_cover_static_url(album_id, size=512, absolute=False)
-            if url:
-                return url
-            # Fallback to proxy if static cover is not available
-            return self.subsonic_service.get_cover_proxy_url(album_id)
-        else:
-            return None
+    #     if album_id:
+    #         url = self.subsonic_service.get_cover_static_url(album_id, size=512, absolute=False)
+    #         if url:
+    #             return url
+    #         # Fallback to proxy if static cover is not available
+    #         return self.subsonic_service.get_cover_proxy_url(album_id)
+    #     else:
+    #         return None
 
     async def load_from_album_id(self, album_id, player_instance=None, start_track_index=0):
         """
@@ -257,52 +262,54 @@ class PlaybackService:
             await self.load_from_album_id(album_id, player_instance=player_instance)
         return True
 
-    async def load_album(self, event: Event) -> bool:
-        """Load and start playback from an album via PLAY_ALBUM event.
+    # async def load_album(self, event: Event) -> bool:
+    #     """Load and start playback from an album via PLAY_ALBUM event.
         
-        Args:
-            event: Event with payload containing:
-                - album_id: The album ID to play
-                - start_track_index: Optional track index to start from (default 0)
-                - client_id: Optional client ID to determine which instance to use
-                - target_device: Optional explicit device to load into
+    #     Args:
+    #         event: Event with payload containing:
+    #             - album_id: The album ID to play
+    #             - start_track_index: Optional track index to start from (default 0)
+    #             - client_id: Optional client ID to determine which instance to use
+    #             - target_device: Optional explicit device to load into
         
-        Returns:
-            True if successful, False otherwise
-        """
-        from app.core.service_container import get_service
+    #     Returns:
+    #         True if successful, False otherwise
+    #     """
+    #     from app.core.service_container import get_service
+    #     logger.info(f"Received PLAY_ALBUM event with payload: {event.payload}")
+
+    #     album_id = event.payload.get('album_id')
+    #     start_track_index = event.payload.get('start_track_index', 0)
+    #     client_id = event.payload.get('client_id')
+    #     target_device = event.payload.get('target_device')
         
-        album_id = event.payload.get('album_id')
-        start_track_index = event.payload.get('start_track_index', 0)
-        client_id = event.payload.get('client_id')
-        target_device = event.payload.get('target_device')
+
+    #     if not album_id:
+    #         logger.error("PLAY_ALBUM event received without album_id in payload")
+    #         return False
         
-        if not album_id:
-            logger.error("PLAY_ALBUM event received without album_id in payload")
-            return False
+    #     # Determine which instance to use via ClientRegistry
+    #     client_registry = get_service("client_registry")
+    #     player_instance = None
         
-        # Determine which instance to use via ClientRegistry
-        client_registry = get_service("client_registry")
-        player_instance = None
+    #     if target_device:
+    #         # Explicit device requested
+    #         try:
+    #             player_instance = client_registry.get_or_create_player_instance(target_device)
+    #         except KeyError as e:
+    #             logger.error(f"Invalid target_device: {e}")
+    #             return False
+    #     elif client_id:
+    #         # Use client's active instance
+    #         player_instance = client_registry.get_client_active_instance(client_id)
         
-        if target_device:
-            # Explicit device requested
-            try:
-                player_instance = client_registry.get_or_create_player_instance(target_device)
-            except KeyError as e:
-                logger.error(f"Invalid target_device: {e}")
-                return False
-        elif client_id:
-            # Use client's active instance
-            player_instance = client_registry.get_client_active_instance(client_id)
-        
-        # Fall back to default instance if none determined
-        if player_instance is None:
-            instances = client_registry.list_player_instances()
-            player_instance = instances[0] if instances else self.player
+    #     # Fall back to default instance if none determined
+    #     if player_instance is None:
+    #         instances = client_registry.list_player_instances()
+    #         player_instance = instances[0] if instances else self.player
             
-        logger.info(f"Loading album via PLAY_ALBUM event: album_id={album_id}, start_track_index={start_track_index}, client_id={client_id}, target_device={target_device} into {player_instance.device_name}")
-        return await self.load_from_album_id(album_id, player_instance=player_instance, start_track_index=start_track_index)
+    #     logger.info(f"Loading album via PLAY_ALBUM event: album_id={album_id}, start_track_index={start_track_index}, client_id={client_id}, target_device={target_device} into {player_instance.device_name}")
+    #     return await self.load_from_album_id(album_id, player_instance=player_instance, start_track_index=start_track_index)
 
     def _encode_card(self, event: Event) -> bool:
         """Start an NFC encoding session for the given album_id."""

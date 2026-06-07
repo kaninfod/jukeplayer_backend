@@ -1,10 +1,9 @@
 
-from importlib.metadata import metadata
+from email import message
 import time
 import logging
 from typing import List, Dict, Optional
-from app.playback_backends.factory import get_playback_backend, get_playback_backend_by_name
-#from app.playback_backends.factory import get_playback_backend_by_name
+from app.playback_backends.factory import get_playback_backend
 from app.core import EventType, Event
 from app.core import PlayerStatus
 from app.services.media_player_service.playlist_manager import PlaylistManager
@@ -27,6 +26,7 @@ class MediaPlayerService:
         self.status = PlayerStatus.STOP
         self.active_clients = set()  # Multiple clients can control same instance
         self.device_name = device_name  # LOCKED at instantiation
+        self.mediaplayer_instance_name = device_name.replace("_", " ").title() if device_name else "Default Device"
         self.event_bus = event_bus
         
         
@@ -84,46 +84,52 @@ class MediaPlayerService:
     async def handle_volume_up(self, event=None):
         step = 5
         new_volume = min(100, self.volume_manager.volume + step)
-        await self.set_volume(new_volume)
-        return True
+        vol = await self.set_volume(new_volume)
+        return {"message": "Volume increased", "volume": vol}
 
     async def handle_volume_down(self, event=None):
         step = 5
         new_volume = max(0, self.volume_manager.volume - step)
-        await self.set_volume(new_volume)
-        return True
+        vol = await self.set_volume(new_volume)
+        return {"message": "Volume decreased", "volume": vol}
 
     async def handle_volume_mute(self, event=None):
         """Toggle mute on the active playback backend."""    
         await self.volume_manager.toggle_mute()
-        self.event_bus.emit(Event(
-            type=EventType.VOLUME_CHANGED,
-            payload=self.get_context()
-        ))
-        if self.status == PlayerStatus.PLAY:
-            self.track_timer.pause()
-            self.status = PlayerStatus.PAUSE
-            await self.playback_backend.pause()
-        elif self.status == PlayerStatus.PAUSE:
-            self.track_timer.resume()
-            self.status = PlayerStatus.PLAY
-            await self.playback_backend.resume()
-
+        # self.event_bus.emit(Event(
+        #     type=EventType.VOLUME_CHANGED,
+        #     payload=self.get_context()
+        # ))
+        # await self._toggle_pause_resume()
         self.emit_update()
-        return True
+        return True    
+
+
+
+    # async def play_pause(self, event=None):
+    #     """Toggle pause/resume timer based on current status."""
+    #     if self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
+    #         await self.play_current_track()
+    #     else:
+    #         await self._toggle_pause_resume()
+
+    #     self.emit_update()
+    #     return True
 
     async def stop(self, event=None):
         await self.playback_backend.stop()
         self.status = PlayerStatus.STOP
-        self.playlist_manager.current_index = 0  # Reset to start of playlist
+        
+        if self.playlist_manager.count() > 0:
+            self.playlist_manager.current_index = 0
         self.track_timer.reset()
 
         self.playlist = []  
         self.emit_update()                
-        return True    
+        return True
 
     async def play_pause(self, event=None):
-        """Toggle pause/resume timer based on current status."""
+        # Toggle pause/resume timer based on current status
         if self.status == PlayerStatus.PLAY:
             self.track_timer.pause()
             self.status = PlayerStatus.PAUSE
@@ -138,7 +144,7 @@ class MediaPlayerService:
 
         self.emit_update()
         return True
-
+    
     async def play_track(self, event=None):
         """Play a specific track by index from the event payload."""
         if event is None or not hasattr(event, "payload"):
@@ -225,6 +231,18 @@ class MediaPlayerService:
             logger.error(f"_scrobble_track_now_playing: Error scrobbling track '{track_title}': {e}")
             # Non-critical error - don't let scrobbling failures affect playback
     
+    async def _toggle_pause_resume(self):
+        """Toggle between play and pause states."""
+        if self.status == PlayerStatus.PLAY:
+            self.track_timer.pause()
+            self.status = PlayerStatus.PAUSE
+            await self.playback_backend.pause()
+        elif self.status == PlayerStatus.PAUSE:
+            self.track_timer.resume()
+            self.status = PlayerStatus.PLAY
+            stat = await self.playback_backend.resume()
+            logger.info(f"Resuming playback: {stat}")
+    
     def emit_update(self):
         """Emit TRACK_CHANGED event with current context."""
         self.event_bus.emit(Event(
@@ -232,6 +250,39 @@ class MediaPlayerService:
             payload=self.get_context()
         ))
     
+    def _build_track_dict(self, track, full: bool = False):
+        """Build track dictionary with optional full or minimal fields."""
+        if not track:
+            return {
+                "artist": None,
+                "title": None,
+                "album": None,
+                "track_id": None,
+                "track_number": None,
+                "cover_url": None,
+                **({
+                    "duration": None,
+                    "year": None,
+                } if full else {})
+            }
+        
+        track_dict = {
+            "artist": track.artist,
+            "title": track.title,
+            "album": track.album,
+            "track_id": track.track_id,
+            "track_number": track.track_number,
+            "cover_url": track.cover_url,
+        }
+        
+        if full:
+            track_dict.update({
+                "duration": track.duration,
+                "year": track.year,
+            })
+        
+        return track_dict
+
     def get_context(self, minimal: bool = False):
         """
         Return the current playback context.
@@ -241,30 +292,14 @@ class MediaPlayerService:
 
         if minimal:
             return {
-                "current_track": {
-                    "artist": track.artist if track else None,
-                    "title": track.title if track else None,
-                    "album": track.album if track else None,
-                    "track_id": track.track_id if track else None,
-                    "track_number": track.track_number if track else None,
-                    "cover_url": track.cover_url if track else None,
-                },
+                "current_track": self._build_track_dict(track, full=False),
                 "status": self.status.value,
                 "current_index": self.playlist_manager.current_index,
                 "volume": self.volume_manager.volume,
             }
         else:
             context = {
-                "current_track": {
-                    "artist": track.artist if track else None,
-                    "title": track.title if track else None,
-                    "duration": track.duration if track else None,
-                    "album": track.album if track else None,
-                    "year": track.year if track else None,
-                    "track_id":  track.track_id if track else None,
-                    "track_number":  track.track_number if track else None,
-                    "cover_url": track.cover_url if track else None
-                },
+                "current_track": self._build_track_dict(track, full=True),
                 "status": self.status.value,
                 "current_index": self.playlist_manager.current_index,
                 "repeat_album": self.playlist_manager._repeat_album,
@@ -272,14 +307,13 @@ class MediaPlayerService:
                 "volume": self.volume_manager.volume,
                 "elapsed_time": self.track_timer.get_elapsed(),
                 "output_device": self.playback_backend.device_name,
+                "mediaplayer_instance_name": self.mediaplayer_instance_name,
                 "active_client": getattr(self, 'active_client', None),
                 "playback_backend": type(self.playback_backend).__name__
             }
             return context
     
-    def _emit_event(self, event_type, data=None):
-        # Use injected event_bus instead of importing
-        self.event_bus.emit(Event(type=event_type, payload=data))
+
 
     async def cleanup(self):
         logger.info("MediaPlayerService cleanup called")

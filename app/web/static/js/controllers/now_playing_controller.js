@@ -19,16 +19,22 @@ export default class extends Controller {
         // Listen once and stay awake forever
         window.addEventListener("app:screen-changed", (event) => {
             if (event.detail.isPlayer) {
-                this.update();
+                // this.update();
+                this.handleExternalUpdate(event);
             }
         });
     }
 
     // This replaces your updateKioskVolume(data) function
     update() {
-        const data = window.appState.lastTrackData;
+        if (window.appState.lastTrackData) {
+            console.log("Updating Now Playing with track data:", window.appState.lastTrackData);
+        } else {
+            console.log("No track data available to update Now Playing.");
+            return
+        }
+        const data = window.appState.lastTrackData;        
         const hasTrack = !!data.artist;
-        
         console.log(`Has track: ${hasTrack}, Artist: ${data.artist}, Title: ${data.title}, Album: ${data.album}, Tracknum: ${data.track_number}, Cover URL: ${data.cover_url}`);
         
         if (hasTrack) {
@@ -128,7 +134,7 @@ export default class extends Controller {
 
     updateDevice() {
         if (this.hasCurrentdeviceTarget) {
-            this.currentdeviceTarget.textContent = window.appState.deviceName;
+            this.currentdeviceTarget.textContent = window.appState.mediaplayerInstanceName;
         } else {
             console.log("Device UI span not found on this page.");
         }
