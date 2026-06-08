@@ -84,7 +84,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./jukebox.db}
       - HTTP_REQUEST_TIMEOUT=${HTTP_REQUEST_TIMEOUT:-10}
       - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-}
-
+      - PLAYBACK_DEVICES=${PLAYBACK_DEVICES:-}
 
     # ports:
     #   - "8001:8001"
