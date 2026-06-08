@@ -27,7 +27,8 @@ class NfcEncodingStateService:
     def __init__(self):
         self.active = False
         self.album_id = None
-        self.client_id = None
+        self.writing_client = None
+        self.initiating_client = None
         self.client_name = None
         self.album_name = None
         self.rfid = None
@@ -38,11 +39,10 @@ class NfcEncodingStateService:
         self._completion_event = asyncio.Event()
         self._completion_result = None
 
-    async def start(self, album_id: str, client_id: str , client_name: str, album_name: str, rfid: str = "") -> dict:
+    async def start(self, album_id: str, client_id: str , client_name: str, initiating_client_id: str, album_name: str, rfid: str = "") -> dict:
         """Start an NFC encoding session for the given album and optional client."""
         self.active = True
         self.album_id = album_id
-        self.client_id = client_id
         self.client_name = client_name
         self.album_name = album_name
         self.rfid = rfid
@@ -58,18 +58,19 @@ class NfcEncodingStateService:
             self._completion_event = None
         self._completion_result = None
 
-        logger.info(f"NFC encoding session started for album_id={album_id}, album_name={album_name}, client_id={client_id}, client_name={client_name}, rfid={rfid}")
+        logger.info(f"NFC encoding session started for album_id={album_id}, album_name={album_name}, writing_client_id={client_id}, client_name={client_name}, initiating_client_id={initiating_client_id}, rfid={rfid}")
 
-        if client_id:
+        if client_id and initiating_client_id:
             try:
                 client_registry = get_service("client_registry")
-                client_info = client_registry.get_by_id(client_id)
+                self.writing_client = client_registry.get_by_id(client_id)
+                self.initiating_client = client_registry.get_by_id(initiating_client_id) if initiating_client_id else None
                 
-                if not client_info:
+                if not self.writing_client:
                     self.stop()
                     raise HTTPException(status_code=404, detail=f"Client {client_id} not found")
                 
-                if not client_info.websocket:
+                if not self.writing_client.websocket:
                     self.stop()
                     raise HTTPException(status_code=400, detail=f"Client {client_id} has no active WebSocket")
                 
@@ -84,8 +85,8 @@ class NfcEncodingStateService:
                 }
                 
                 try:
-                    await client_info.websocket.send_json(command)
-                    logger.info(f"Sent nfc_encode_start command to client {client_id} for album {album_id}")
+                    await self.writing_client.websocket.send_json(command)
+                    logger.info(f"Sent nfc_encode_start command to client {self.writing_client.client_id} for album {album_id}")
                 except Exception as e:
                     self.stop()
                     raise HTTPException(status_code=500, detail=f"Failed to send command to client: {e}")
@@ -96,7 +97,7 @@ class NfcEncodingStateService:
                 return {
                     "status": "encoding_in_progress",
                     "album_id": album_id,
-                    "client_id": client_id,
+                    "client_id": self.writing_client.client_id,
                     "message": "Encoding command sent to client, waiting for response. Poll /api/nfc-encoding/status to check completion."
                 }
             
@@ -119,19 +120,37 @@ class NfcEncodingStateService:
 
         logger.info(f"NFC encoding session started for album_id={album_id}, client_id={client_id}")
 
-    def stop(self) -> bool:
-        """Stop the current NFC encoding session."""
-        self.active = False
-        self.album_id = None
-        self.client_id = None
-        self.last_uid = None
-        self.success = False
-        self.error_message = None
-        self.status = None
-        logger.info("NFC encoding session stopped")
+    async def write_in_progress(self) -> bool:
+        """Indicate that encoding is in progress (after start, before completion)."""
+
+        
+        if not self.initiating_client:
+            self.stop()
+            raise HTTPException(status_code=404, detail=f"Initiating client not found")
+        
+        if not self.initiating_client.websocket:
+            self.stop()
+            raise HTTPException(status_code=400, detail=f"Initiating client has no active WebSocket")
+        
+        # Send the encoding command to the client
+
+        command = {
+            "type": "nfc_encoding_started",
+            "payload": {
+                "nfc_write_state": "started"
+                }
+        }
+        
+        try:
+            await self.initiating_client.websocket.send_json(command)
+            logger.info(f"Sent nfc_encoding_started command to initiating client {self.initiating_client.client_id} ")
+        except Exception as e:
+            self.stop()
+            raise HTTPException(status_code=500, detail=f"Failed to send command to initiating client: {e}")
+
         return True
         
-    def set_result(self, status: str, uid: str = None, error_message: str = None) -> dict:
+    async def set_result(self, status: str, uid: str = None, error_message: str = None) -> dict:
         """Set the result from a client's write_data response.
         
         Args:
@@ -145,12 +164,37 @@ class NfcEncodingStateService:
         self.success = (status == "success")
         self.active = False
         
-        logger.info(f"NFC encoding result received - status={status}, uid={uid}")
+        logger.info(f"NFC encoding result received - status={status}, uid={uid}, initiating_client_id={self.initiating_client.client_id}")
         
         # Signal any waiting tasks
         if self._completion_event:
             self._completion_event.set()
+                
+        if not self.initiating_client:
+            self.stop()
+            raise HTTPException(status_code=404, detail=f"Initiating client not found")
         
+        if not self.initiating_client.websocket:
+            self.stop()
+            raise HTTPException(status_code=400, detail=f"Initiating client has no active WebSocket")
+        
+        # Send the encoding command to the client
+        command = {
+            "type": "nfc_encoding_completed",
+            "payload": {
+                "status": status,
+                "uid": uid,
+                "nfc_write_state": "completed",
+                "error_message": error_message}
+        }
+        
+        try:
+            await self.initiating_client.websocket.send_json(command)
+            logger.info(f"Sent nfc_encoding_completed command to initiating client {self.initiating_client.client_id} ")
+        except Exception as e:
+            self.stop()
+            raise HTTPException(status_code=500, detail=f"Failed to send command to client: {e}")
+
         self._completion_result = {
             "status": status,
             "uid": uid,
@@ -159,6 +203,20 @@ class NfcEncodingStateService:
 
         return self._completion_result
 
+    def stop(self) -> bool:
+        """Stop the current NFC encoding session."""
+        self.active = False
+        self.album_id = None
+        self.client_id = None
+        self.writing_client = None
+        self.initiating_client = None
+        self.last_uid = None
+        self.success = False
+        self.error_message = None
+        self.status = None
+        logger.info("NFC encoding session stopped")
+        return True
+    
     async def wait_for_completion(self, timeout: float = 30) -> dict:
         """Wait for NFC encoding to complete (client sends response).
         

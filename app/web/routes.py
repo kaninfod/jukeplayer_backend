@@ -247,24 +247,24 @@ async def kiosk_library_play_album(request: Request, album_id: str):
 async def kiosk_nfc_client_select(
     request: Request,
     album_id: str = Query(...),
-    album_name: str = Query(...),
+    album_name: str = Query(...)
+    # initiating_client_id: str = Query(...),
 ):
     try:
         client_registry = get_service("client_registry")
         clients = client_registry.get_by_capability("nfc_reader")
         logger.info(f"Found {len(clients)} clients with NFC capability for album_id {album_id}: {[getattr(c, 'client_id', '?') for c in clients]}")
-        
     except Exception as e:
         logger.error(f"Failed to get clients: {e}")
         
     
-    
+    logger.info(f"Rendering NFC client select for album_id {album_id}")
     context = {
         "request": request,
         "config": config,
         "album_id": album_id,
         "album_name": album_name,
-        "clients": clients
+        "clients": clients,
     }
     if _is_htmx_request(request):
         return templates.TemplateResponse(request=request, name="components/kiosk/nfc_encoding/_nfc_client_select.html", context=context)
@@ -279,6 +279,7 @@ async def kiosk_nfc_partial(
     album_name: str = Query(...),
     client_id: str = Query(None),
     client_name: str = Query(None),
+    initiating_client_id: str = Query(...),
 
 ):
     context = {
@@ -287,10 +288,11 @@ async def kiosk_nfc_partial(
         "album_name": album_name,
         "client_id": client_id,
         "client_name": client_name,
+        "initiating_client_id": initiating_client_id
     }
 
     nfc_state = get_service("nfc_encoding_state")
-    await nfc_state.start(album_id=album_id, album_name=album_name, client_id=client_id, client_name=client_name)
+    await nfc_state.start(album_id=album_id, album_name=album_name, client_id=client_id, client_name=client_name, initiating_client_id=initiating_client_id)
 
     if _is_htmx_request(request):
         logger.info(f"Rendering NFC encoding partial for context {album_id} / {album_name} / client {client_id} / {client_name}")

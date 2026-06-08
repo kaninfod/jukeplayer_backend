@@ -251,16 +251,19 @@ class WebSocketConnection:
     async def handle_nfc_encoding_started(self, payload):
         """Process NFC encoding start message."""
         try:
-            await self.send_message({
-                "type": "nfc_encoding_started",
-                "payload": {
-                    "message_type": "nfc_encoding_started",
-                    "message_payload": {
-                        "status": "started",
-                        "nfc_write_state": "started",
-                    }
-                }
-            })
+            nfc_state = get_service("nfc_encoding_state")
+            await nfc_state.write_in_progress()
+            
+            # await self.send_message({
+            #     "type": "nfc_encoding_started",
+            #     "payload": {
+            #         "message_type": "nfc_encoding_started",
+            #         "message_payload": {
+            #             "status": "started",
+            #             "nfc_write_state": "started",
+            #         }
+            #     }
+            # })
         except Exception as e:
             logger.error(f"Error handling nfc_encoding_started: {e}")
 
@@ -276,21 +279,8 @@ class WebSocketConnection:
             error_message = payload.get("error_message")
             
             nfc_state = get_service("nfc_encoding_state")
-            nfc_state.set_result(status=status, uid=uid, error_message=error_message)
-            
-            await self.send_message({
-                "type": "nfc_encoding_completed",
-                "payload": {
-                    "message_type": "nfc_encoding_completed",
-                    "message_payload": {
-                        "status": status,
-                        "uid": uid,
-                        "nfc_write_state": "completed",
-                        "error_message": error_message
-                    }
-                }
-            })
-            logger.info(f"NFC encoding completion received: status={status}, uid={uid}")
+            await nfc_state.set_result(status=status, uid=uid, error_message=error_message)
+
         except Exception as e:
             logger.error(f"Error handling nfc_encoding_completed: {e}")
 

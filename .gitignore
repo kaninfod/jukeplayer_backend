@@ -54,3 +54,6 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Static files
+static_files/

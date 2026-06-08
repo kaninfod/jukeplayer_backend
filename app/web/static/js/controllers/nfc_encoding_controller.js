@@ -6,7 +6,7 @@ export default class extends Controller {
     static values = {
             id: String,
             name: String,
-            clientId: String  // CamelCase here maps to client-id in HTML
+            clientId: String
         }
 
     connect() {
@@ -16,8 +16,6 @@ export default class extends Controller {
         console.log("Album ID:", this.idValue);
         console.log("Album Name:", this.nameValue);
         console.log("Client ID:", this.clientIdValue);
-        //this.startEncoding()
-
     }
 
 
@@ -33,18 +31,7 @@ export default class extends Controller {
         if (!response.ok) throw new Error(response.statusText);
         return response.json();
     }
-
-    async startEncoding() {
-        try {
-            const data = await this.post('/api/nfc-encoding/start', {
-                album_id: this.idValue,
-                client_id: this.clientIdValue
-            });
-            this.showState('encoding');
-        } catch (e) {
-            this.showState('failure');
-        }
-    }
+    
 
     handleCancelClick() {
 

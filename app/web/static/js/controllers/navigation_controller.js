@@ -3,6 +3,9 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     static targets = ["content"]
+    static values = {
+        url: String
+    }
 
     connect() {
         console.log("Navigation Controller connected to the DOM");
@@ -50,11 +53,6 @@ export default class extends Controller {
             return;
         }
 
-
-
-
-
-
         // 3. The Fetch Logic
         try {
             const response = await fetch(url, {
@@ -82,6 +80,39 @@ export default class extends Controller {
                 // Optional: helper to make if/else logic easier in other controllers
                 isPlayer: url.includes("/kiosk/player") 
             }
+        }));
+    }
+
+
+    async injectClientId(event) {
+        if (event && typeof event.preventDefault === "function") {
+            event.preventDefault();
+        }
+
+        console.log("Start Encoding button clicked...but in the navigation controller. This is intentional to inject the client ID before loading the screen.");
+        
+        
+        const urlValue = event.currentTarget.getAttribute("data-navigation-url-value");
+        
+        // 2. This will now successfully read the attribute
+        
+        if (!urlValue) {
+            console.error("NFC Encoding failed: No URL value found on the element.");
+            return;
+        }
+
+        let targetUrl = new URL(urlValue, window.location.origin);
+        
+        const clientSideId = localStorage.getItem("clientId");
+        if (clientSideId) {
+            targetUrl.searchParams.append("initiating_client_id", clientSideId);
+        }
+        
+        const finalUrl = targetUrl.pathname + targetUrl.search;
+        console.log("Navigating to URL:", finalUrl);
+
+        window.dispatchEvent(new CustomEvent("nav:go", {
+            detail: finalUrl
         }));
     }
 }
