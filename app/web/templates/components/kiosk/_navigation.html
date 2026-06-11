@@ -12,7 +12,10 @@
         <i class="mdi mdi-folder-music"></i>
     </button>
 
-    <button class="kiosk-nav-btn btn" href="/kiosk/playlist" data-action="click->navigation#load" title="Current Playlist">
+    <button class="kiosk-nav-btn btn"  title="Current Playlist"
+        data-navigation-url-value="/kiosk/playlist"
+        data-action="click->navigation#injectClientId"
+        >
         <i class="mdi mdi-playlist-music"></i>
     </button>
 

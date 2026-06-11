@@ -62,10 +62,14 @@ class NfcEncodingStateService:
 
         if client_id and initiating_client_id:
             try:
-                client_registry = get_service("client_registry")
-                self.writing_client = client_registry.get_by_id(client_id)
-                self.initiating_client = client_registry.get_by_id(initiating_client_id) if initiating_client_id else None
+                # client_registry = get_service("client_registry")
+                # self.writing_client = client_registry.get_by_id(client_id)
+                # self.initiating_client = client_registry.get_by_id(initiating_client_id) if initiating_client_id else None
                 
+                control_clients_service = get_service("control_clients_service")
+                self.writing_client = control_clients_service.get_client(client_id)
+                self.initiating_client = control_clients_service.get_client(initiating_client_id)
+
                 if not self.writing_client:
                     self.stop()
                     raise HTTPException(status_code=404, detail=f"Client {client_id} not found")

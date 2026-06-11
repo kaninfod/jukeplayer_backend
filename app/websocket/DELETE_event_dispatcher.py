@@ -54,10 +54,10 @@ class WebSocketEventDispatcher:
             return
         
         # Create and register handlers for each event type
-        event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed)
-        event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
-        event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
-        event_bus.subscribe(EventType.BROADCAST_GENERIC_MESSAGE, self.handle_generic_message)
+        # event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed)
+        #event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
+        #event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
+        #event_bus.subscribe(EventType.BROADCAST_GENERIC_MESSAGE, self.handle_generic_message)
         
 
         self._dispatch_handlers_registered = True
@@ -211,7 +211,7 @@ def setup_websocket_dispatcher(track_fetcher: callable, volume_fetcher: callable
     if event_loop:
         dispatcher.set_event_loop(event_loop)
     
-    dispatcher.register_topic_fetcher(EventType.TRACK_CHANGED, track_fetcher)
-    dispatcher.register_topic_fetcher(EventType.VOLUME_CHANGED, volume_fetcher)
+    # dispatcher.register_topic_fetcher(EventType.TRACK_CHANGED, track_fetcher)
+    # dispatcher.register_topic_fetcher(EventType.VOLUME_CHANGED, volume_fetcher)
     dispatcher.setup_dispatch_handlers()
     logger.info("WebSocket dispatcher initialized")

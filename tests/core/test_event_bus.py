@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from app.services.media_player_service.media_player_service import MediaPlayerService
+from jukeplayer_backend.app.services.media_player_service.DELETE_media_player_service import MediaPlayerService
 from app.core import EventType
 from app.core.event_bus import EventBus, Event
 

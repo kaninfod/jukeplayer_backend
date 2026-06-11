@@ -125,17 +125,20 @@ async def startup_event():
     playback_service = global_container.get('playback_service')
     
     # Step 3: Setup WebSocket event dispatcher with the current event loop
-    from app.websocket.event_dispatcher import setup_websocket_dispatcher
-    from app.routes.mediaplayer import _get_data_for_current_track
-    import asyncio
-    current_loop = asyncio.get_running_loop()
+    # from app.websocket.event_dispatcher import setup_websocket_dispatcher
+    # from app.routes.mediaplayer import _get_data_for_current_track
+    # import asyncio
+    # current_loop = asyncio.get_running_loop()
     # Use the full data fetcher for now (can extend to support minimal in future)
-    media_player_service = global_container.get('media_player_service')
-    setup_websocket_dispatcher(
-        track_fetcher=media_player_service.get_context,
-        volume_fetcher=lambda: media_player_service.volume_manager.volume,
-        event_loop=current_loop
-    )
+    # media_player_service = global_container.get('media_player_service')
+    # setup_websocket_dispatcher(
+    #     track_fetcher=media_player_service.get_context,
+    #     volume_fetcher=lambda: media_player_service.volume_manager.volume,
+    #     event_loop=current_loop
+    # )
+
+    speaker_broker_service = global_container.get('speaker_broker_service')
+    speaker_broker_service.speakers.initialize_speakers(config.PLAYBACK_DEVICES)
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")

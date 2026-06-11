@@ -36,6 +36,11 @@ class EventType(Enum):
     SWITCH_DEVICE = "switch_device"
 
     BROADCAST_GENERIC_MESSAGE = "broadcast_generic_message"
+
+    REGISTER_CONTROL_CLIENT = "register_control_client"
+    UNREGISTER_CONTROL_CLIENT = "unregister_control_client"
+    ASSIGN_SPEAKER = "assign_speaker"
+
     
 class EventFactory:
     @staticmethod

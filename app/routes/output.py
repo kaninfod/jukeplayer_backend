@@ -1,5 +1,6 @@
 
 from typing import Optional
+from urllib import request
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -132,3 +133,26 @@ async def output_switch(request: OutputSwitchRequest):
 
     result.setdefault("previous_backend", previous_backend)
     return result
+
+
+@router.get("/speakers")
+async def list_speakers():
+    from app.core.service_container import get_service
+
+    ss = get_service("speakers_service")
+    return {
+        "status": "ok",
+        "devices": ss.to_dict()
+    }
+
+
+@router.get("/control_clients")
+async def list_control_clients():
+    from app.core.service_container import get_service
+
+    ccs = get_service("control_clients_service")
+    return {
+        "status": "ok",
+        "devices": ccs.to_dict()
+    }
+

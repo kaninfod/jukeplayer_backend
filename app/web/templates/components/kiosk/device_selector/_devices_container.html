@@ -10,14 +10,15 @@
     
     <div id="device-grid" class="flex-grow-1 overflow-auto">
         
-        {% if not status_data %}
+        {% if not speakers %}
           <div class="text-center text-muted py-5">
               <i class="mdi mdi-speaker-off" style="font-size: 48px;"></i>
               <p class="mt-3">No output devices found</p>
           </div>
           {% else %}
           <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 m-0">
-              {% for instance in status_data.instances %}
+              {% for name, details in speakers.items() %}
+              
                 <div class="col">
                   {% include 'components/kiosk/device_selector/_device.html' %}
                 </div>

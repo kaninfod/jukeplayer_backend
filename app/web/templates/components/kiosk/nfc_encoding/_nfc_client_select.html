@@ -21,7 +21,7 @@
         <!-- Clients will be loaded here -->
         <div class="text-center text-muted" style="margin-top: 40px;">
            
-            {% for client in clients %}
+            {% for client_id, client in clients.items() %}
                 {% include 'components/kiosk/nfc_encoding/_nfc_client.html' %}
             {% endfor %}
         </div>

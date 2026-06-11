@@ -105,7 +105,7 @@ export default class extends Controller {
         
         const clientSideId = localStorage.getItem("clientId");
         if (clientSideId) {
-            targetUrl.searchParams.append("initiating_client_id", clientSideId);
+            targetUrl.searchParams.append("injected_client_id", clientSideId);
         }
         
         const finalUrl = targetUrl.pathname + targetUrl.search;

@@ -144,7 +144,7 @@ class MediaPlayerService:
         elif self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
             await self.play_current_track()
 
-        self.emit_update()
+        # self.emit_update()
         return True
 
     async def stop(self, event=None):
@@ -156,7 +156,7 @@ class MediaPlayerService:
         self.track_timer.reset()
 
         self.playlist = []  
-        self.emit_update()                
+        # self.emit_update()                
         return True
 
     async def play_track(self, event=None):
@@ -209,7 +209,7 @@ class MediaPlayerService:
 
                 self.status = PlayerStatus.STOP
                 self.track_timer.reset()
-                self.emit_update()
+                # self.emit_update()
                 return
 
             self.track_timer.reset()
@@ -220,7 +220,7 @@ class MediaPlayerService:
             if track_id:
                 self._scrobble_track_now_playing(track_id, track.title)
             
-            self.emit_update()
+            # self.emit_update()
             logger.info(f"Playing track {self.playlist_manager.current_index+1}/{self.playlist_manager.count()}: {track.title}")
         else:
             logger.error("No stream_url for current track.")
@@ -245,12 +245,12 @@ class MediaPlayerService:
             logger.error(f"_scrobble_track_now_playing: Error scrobbling track '{track_title}': {e}")
             # Non-critical error - don't let scrobbling failures affect playback
     
-    def emit_update(self):
-        """Emit TRACK_CHANGED event with current context."""
-        self.event_bus.emit(Event(
-            type=EventType.TRACK_CHANGED,
-            payload=self.get_context()
-        ))
+    # def emit_update(self):
+    #     """Emit TRACK_CHANGED event with current context."""
+    #     self.event_bus.emit(Event(
+    #         type=EventType.TRACK_CHANGED,
+    #         payload=self.get_context()
+    #     ))
     
     def get_context(self, minimal: bool = False):
         """

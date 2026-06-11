@@ -399,7 +399,7 @@ class ClientRegistry:
                 count += 1
         return count
     
-    # ===== Player Instance Management (Phase 1+) =====
+    # ===== Player Instance Management =====
     
     def initialize_player_instances(self, device_config: Dict[str, str]):
         """

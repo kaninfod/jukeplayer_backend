@@ -116,15 +116,17 @@ async def kiosk_player_partial(request: Request):
 
 @router.get("/kiosk/devices", response_class=HTMLResponse)
 async def kiosk_devices_partial(request: Request):
-    from app.routes.mediaplayer import list_instances
-    
-    instances = await list_instances()
+    from app.core.service_container import get_service
     context = {
         "request": request,
         "config": config,
-        "status_data": instances,
     }
-    logger.info(f"Rendering devices partial with {len(instances)} instances")
+    
+    speakers_service = get_service("speakers_service")
+    context["speakers"] = speakers_service.to_dict()
+    logger.info(f"Rendering devices partial with speakers: {list(context['speakers'].keys())}")
+
+
     if _is_htmx_request(request):
         return templates.TemplateResponse(request=request, name="components/kiosk/device_selector/_devices_container.html", context=context)
     context["kiosk_mode"] = True
@@ -132,15 +134,18 @@ async def kiosk_devices_partial(request: Request):
 
 
 @router.get("/kiosk/playlist", response_class=HTMLResponse)
-async def kiosk_playlist_partial(request: Request):
-    playback_service = get_service("playback_service")
-    player = playback_service.player
-    playlist_context = player.get_context() if player else {}
+async def kiosk_playlist_partial(request: Request, injected_client_id: str = Query(...)):
+    speaker_broker_service = get_service("speaker_broker_service")
+    speaker = speaker_broker_service.get_speaker_for_client(injected_client_id)
+
+    player = speaker.mediaplayer if speaker else None
+    playlist = player.playlist_manager.to_dict()
+    current_track_index = player.playlist_manager.current_index if player and player.playlist_manager else None
     context = {
         "request": request,
         "config": config,
-        "playlist": playlist_context.get("playlist", []),
-        "current_track": playlist_context.get("current_track"),
+        "playlist": playlist,
+        "current_track": current_track_index,
     }
 
     if _is_htmx_request(request):
@@ -164,16 +169,16 @@ async def kiosk_system_partial(request: Request):
 @router.get("/kiosk/clients", response_class=HTMLResponse)
 async def kiosk_clients_partial(request: Request):
     import json
-    client_registry = get_service("client_registry")
-    clients = client_registry.get_all()  # Ensure we have the latest clients for logging
-    
+    from app.core.service_container import get_service
+    control_clients_service = get_service("control_clients_service")
+    control_clients = control_clients_service.to_dict()
     
     if _is_htmx_request(request):
         
-        return templates.TemplateResponse(request=request, name="components/kiosk/clients/_clients_container.html", context={"request": request, "clients": clients},
+        return templates.TemplateResponse(request=request, name="components/kiosk/clients/_clients_container.html", context={"request": request, "clients": control_clients},
         )
     
-    return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "kiosk_mode": True, "clients": clients})
+    return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "kiosk_mode": True, "clients": control_clients})
     
 
 @router.get("/kiosk/library", response_class=HTMLResponse)
@@ -248,11 +253,12 @@ async def kiosk_nfc_client_select(
     request: Request,
     album_id: str = Query(...),
     album_name: str = Query(...)
-    # initiating_client_id: str = Query(...),
 ):
     try:
-        client_registry = get_service("client_registry")
-        clients = client_registry.get_by_capability("nfc_reader")
+        # client_registry = get_service("client_registry")
+        # clients = client_registry.get_by_capability("nfc_reader")
+        control_clients_service = get_service("control_clients_service")
+        clients = control_clients_service.get_all_clients(capability="nfc_reader")
         logger.info(f"Found {len(clients)} clients with NFC capability for album_id {album_id}: {[getattr(c, 'client_id', '?') for c in clients]}")
     except Exception as e:
         logger.error(f"Failed to get clients: {e}")
@@ -279,8 +285,7 @@ async def kiosk_nfc_partial(
     album_name: str = Query(...),
     client_id: str = Query(None),
     client_name: str = Query(None),
-    initiating_client_id: str = Query(...),
-
+    injected_client_id: str = Query(...)
 ):
     context = {
         "request": request,
@@ -288,11 +293,11 @@ async def kiosk_nfc_partial(
         "album_name": album_name,
         "client_id": client_id,
         "client_name": client_name,
-        "initiating_client_id": initiating_client_id
+        "initiating_client_id": injected_client_id
     }
 
     nfc_state = get_service("nfc_encoding_state")
-    await nfc_state.start(album_id=album_id, album_name=album_name, client_id=client_id, client_name=client_name, initiating_client_id=initiating_client_id)
+    await nfc_state.start(album_id=album_id, album_name=album_name, client_id=client_id, client_name=client_name, initiating_client_id=injected_client_id)
 
     if _is_htmx_request(request):
         logger.info(f"Rendering NFC encoding partial for context {album_id} / {album_name} / client {client_id} / {client_name}")

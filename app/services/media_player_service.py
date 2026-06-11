@@ -24,8 +24,8 @@ class MediaPlayerService:
         """
         self.playlist_manager = PlaylistManager("new_playlist")
         self.status = PlayerStatus.STOP
-        self.active_clients = set()  # Multiple clients can control same instance
-        self.device_name = device_name  # LOCKED at instantiation
+        self.active_clients = set() 
+        self.device_name = device_name 
         self.mediaplayer_instance_name = device_name.replace("_", " ").title() if device_name else "Default Device"
         self.event_bus = event_bus
         
@@ -63,13 +63,13 @@ class MediaPlayerService:
             await self.play_current_track()
             return True
 
-    async def _on_volume_event(self, event):
+    async def set_volume(self, event):
         """The 'Adapter': Extracts data from the event bus."""
         volume = event.payload.get("volume")
         if volume is not None:
-            await self.set_volume(volume)
+            await self._set_volume(volume)
 
-    async def set_volume(self, volume=None):
+    async def _set_volume(self, volume=None):
         """Set volume (0-100) and sync with playback backend."""
 
         volume = await self.volume_manager.set_volume(volume)
@@ -84,37 +84,19 @@ class MediaPlayerService:
     async def handle_volume_up(self, event=None):
         step = 5
         new_volume = min(100, self.volume_manager.volume + step)
-        vol = await self.set_volume(new_volume)
+        vol = await self._set_volume(new_volume)
         return {"message": "Volume increased", "volume": vol}
 
     async def handle_volume_down(self, event=None):
         step = 5
         new_volume = max(0, self.volume_manager.volume - step)
-        vol = await self.set_volume(new_volume)
+        vol = await self._set_volume(new_volume)
         return {"message": "Volume decreased", "volume": vol}
 
     async def handle_volume_mute(self, event=None):
         """Toggle mute on the active playback backend."""    
         await self.volume_manager.toggle_mute()
-        # self.event_bus.emit(Event(
-        #     type=EventType.VOLUME_CHANGED,
-        #     payload=self.get_context()
-        # ))
-        # await self._toggle_pause_resume()
-        self.emit_update()
         return True    
-
-
-
-    # async def play_pause(self, event=None):
-    #     """Toggle pause/resume timer based on current status."""
-    #     if self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
-    #         await self.play_current_track()
-    #     else:
-    #         await self._toggle_pause_resume()
-
-    #     self.emit_update()
-    #     return True
 
     async def stop(self, event=None):
         await self.playback_backend.stop()
@@ -124,8 +106,7 @@ class MediaPlayerService:
             self.playlist_manager.current_index = 0
         self.track_timer.reset()
 
-        self.playlist = []  
-        self.emit_update()                
+        self.playlist = []                
         return True
 
     async def play_pause(self, event=None):
@@ -142,16 +123,19 @@ class MediaPlayerService:
         elif self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
             await self.play_current_track()
 
-        self.emit_update()
         return True
     
-    async def play_track(self, event=None):
+    async def play_track(self, track_index=None, event=None):
         """Play a specific track by index from the event payload."""
-        if event is None or not hasattr(event, "payload"):
-            logger.error("play_track called without valid event payload.")
+        if event and  hasattr(event, "payload"):
+            track_index = event.payload.get("track_index")
+        elif track_index:
+            track_index = track_index
+        else:
+            logger.error("play_track: No track_index provided in event payload or as argument.")
             return False
         
-        track_index = event.payload.get("track_index")
+    
         if track_index is None or not isinstance(track_index, int):
             logger.error(f"play_track: Invalid track_index in payload: {track_index}")
             return False
@@ -195,7 +179,6 @@ class MediaPlayerService:
 
                 self.status = PlayerStatus.STOP
                 self.track_timer.reset()
-                self.emit_update()
                 return
 
             self.track_timer.reset()
@@ -206,7 +189,6 @@ class MediaPlayerService:
             if track_id:
                 self._scrobble_track_now_playing(track_id, track.title)
             
-            self.emit_update()
             logger.info(f"Playing track {self.playlist_manager.current_index+1}/{self.playlist_manager.count()}: {track.title}")
         else:
             logger.error("No stream_url for current track.")
@@ -242,13 +224,6 @@ class MediaPlayerService:
             self.status = PlayerStatus.PLAY
             stat = await self.playback_backend.resume()
             logger.info(f"Resuming playback: {stat}")
-    
-    def emit_update(self):
-        """Emit TRACK_CHANGED event with current context."""
-        self.event_bus.emit(Event(
-            type=EventType.TRACK_CHANGED,
-            payload=self.get_context()
-        ))
     
     def _build_track_dict(self, track, full: bool = False):
         """Build track dictionary with optional full or minimal fields."""
@@ -289,7 +264,7 @@ class MediaPlayerService:
         If minimal is True, only include minimal fields for current_track, status, current_index, and volume.
         """
         track = self.playlist_manager.current_track or None
-
+        logger.debug(f"get_context called with minimal={minimal}. Current track: {track.title if track else 'None'}, status: {self.status}, volume: {self.volume_manager.volume}")
         if minimal:
             return {
                 "current_track": self._build_track_dict(track, full=False),
@@ -304,6 +279,7 @@ class MediaPlayerService:
                 "current_index": self.playlist_manager.current_index,
                 "repeat_album": self.playlist_manager._repeat_album,
                 "playlist": self.playlist_manager.to_dict() if self.playlist_manager else None,
+                "playlist_count": self.playlist_manager.count() if self.playlist_manager else 0,
                 "volume": self.volume_manager.volume,
                 "elapsed_time": self.track_timer.get_elapsed(),
                 "output_device": self.playback_backend.device_name,
