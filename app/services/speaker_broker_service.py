@@ -188,7 +188,11 @@ class SpeakerBrokerService:
         await self._execute_media_action(event, "handle_volume_down", broadcaster=self.broadcast_volume_to_clients)
 
     async def handle_set_volume(self, event: Event):
-        await self._execute_media_action(event, "set_volume", broadcaster=self.broadcast_volume_to_clients)                
+        async def set_volume_action(mediaplayer):
+            result = await mediaplayer.set_volume(event)
+            logger.info(f"[SpeakerBrokerService] Set volume to: {event.payload.get('volume')}")
+        
+        await self._execute_media_action(event, "set_volume", custom_action=set_volume_action)               
 
     async def handle_volume_mute(self, event: Event):
         await self._execute_media_action(event, "handle_volume_mute")    
@@ -197,8 +201,6 @@ class SpeakerBrokerService:
         await self._execute_media_action(event, "toggle_repeat")                        
 
     async def handle_play_track(self, event: Event):
-
-
         async def play_track_action(mediaplayer):
             result = await mediaplayer.play_track(track_index=event.payload.get("track_index"))
             logger.info(f"[SpeakerBrokerService] Loaded track_index: {event.payload.get('track_index')}")
