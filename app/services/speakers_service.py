@@ -16,10 +16,20 @@ class Speaker:
     def to_dict(self):
         if self.mediaplayer:
             context = self.mediaplayer.get_context()
+
+        # clients = {}
+        # if len(self.clients) > 0:
+        #     from app.core.service_container import get_service
+        #     control_clients_service = get_service("control_clients_service")
+        #     for client_id in self.clients:
+        #         control_client = control_clients_service.get_client(client_id).to_dict()
+        #         clients[client_id] = control_client
+                           
         return {
             "speaker_name": self.speaker_name,
             "speaker_id": self.speaker_id,
             "backend": self.backend,
+            #"clients": clients if self.clients else {},
             "clients": list(self.clients),
             "mediaplayer": {
                 "status": context.get("status"),
@@ -50,9 +60,14 @@ class SpeakersService:
                 logger.info(f"[SpeakersService]  Created MediaPlayerService for device: {device_name}")
 
 
-    
-    def get_speaker(self, speaker_id: str) -> Optional[Speaker]:
-        return self._speakers.get(speaker_id)
+    def get_speaker(self, speaker_id: str = None, speaker_name: str = None) -> Optional[Speaker]:
+        if speaker_name:
+            return self._speakers.get(speaker_name)
+        if speaker_id:
+            for speaker in self._speakers.values():
+                if speaker.speaker_id == speaker_id:
+                    return speaker
+        return None
     
     def get_all_speakers(self) -> Dict[str, Speaker]:
         return self._speakers

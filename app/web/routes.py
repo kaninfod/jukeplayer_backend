@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Request, Query, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -9,6 +11,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="app/web/templates")
+
+
+def format_iso_string(date_str: str, fmt: str = "%Y-%m-%d %H:%M") -> str:
+    if not date_str:
+        return ""
+    try:
+        return datetime.fromisoformat(date_str).strftime(fmt)
+    except (ValueError, TypeError):
+        # Fallback if the string isn't valid ISO format
+        return date_str
+
+# 3. Register the filter into the Jinja2 Environment
+templates.env.filters["datetimeformat"] = format_iso_string
 
 GROUP_RANGES = {
     'A-D': ['A', 'E'],
@@ -170,15 +185,25 @@ async def kiosk_system_partial(request: Request):
 async def kiosk_clients_partial(request: Request):
     import json
     from app.core.service_container import get_service
-    control_clients_service = get_service("control_clients_service")
-    control_clients = control_clients_service.to_dict()
+
+    ccs = get_service("control_clients_service")
+    ss = get_service("speakers_service")
+    client_info = ccs.to_dict()
+    for client_id, client_data in client_info.items():
+        speaker_name = client_data.get("speaker_name")
+        speaker_info = ss.get_speaker(speaker_name=speaker_name).to_dict() if speaker_name else None
+        client_data["speaker_info"] = speaker_info
+        client_info[client_id] = client_data
+
+    # control_clients_service = get_service("control_clients_service")
+    # control_clients = control_clients_service.to_dict()
     
     if _is_htmx_request(request):
         
-        return templates.TemplateResponse(request=request, name="components/kiosk/clients/_clients_container.html", context={"request": request, "clients": control_clients},
+        return templates.TemplateResponse(request=request, name="components/kiosk/clients/_clients_container.html", context={"request": request, "clients": client_info},
         )
     
-    return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "kiosk_mode": True, "clients": control_clients})
+    return templates.TemplateResponse(request=request, name="pages/kiosk/clients.html", context={"request": request, "kiosk_mode": True, "clients": client_info})
     
 
 @router.get("/kiosk/library", response_class=HTMLResponse)

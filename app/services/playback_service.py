@@ -109,10 +109,6 @@ class PlaybackService:
         client_id = event.payload.get('client_id')
         logger.info(f"RFID Card scanned with RFID: {rfid} and album_id: {album_id} and client_id: {client_id}")
         
-        # Determine which instance to use via ClientRegistry
-        # client_registry = get_service("client_registry")
-        # player_instance = None
-        
         if client_id:
             player_instance = client_registry.get_client_active_instance(client_id)
         

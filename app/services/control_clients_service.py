@@ -26,6 +26,13 @@ class ControlClient:
 
 
     def to_dict(self):
+        #from app.core.service_container import get_service
+        #speakers_service = get_service("speakers_service")
+        #speaker = speakers_service.get_speaker(speaker_name=self.speaker_name)
+        #if speaker:
+            #speaker_info = speaker.to_dict()
+        #else:
+            #speaker_info = None
         return {
             "client_id": self.client_id,
             "client_type": self.client_type,
@@ -34,6 +41,7 @@ class ControlClient:
             "connected_at": self.connected_at.isoformat(),
             "client_ip": self.client_ip,
             "speaker_name": self.speaker_name,
+            #"speaker_info": speaker_info,
             "ws_active": self.ws_active
         }
 

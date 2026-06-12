@@ -138,11 +138,24 @@ async def output_switch(request: OutputSwitchRequest):
 @router.get("/speakers")
 async def list_speakers():
     from app.core.service_container import get_service
-
+            
+    ccs = get_service("control_clients_service")
     ss = get_service("speakers_service")
+    speakers_info = ss.to_dict()
+
+    for speaker_name, speaker_data in speakers_info.items():
+        clients = speaker_data.get("clients", {})
+        if len(clients) > 0:
+            clients_info = {}
+            for client_id in clients:
+                control_client = ccs.get_client(client_id).to_dict()
+                clients_info[client_id] = control_client
+            speaker_data["clients"] = clients_info
+            speakers_info[speaker_name] = speaker_data
+    
     return {
         "status": "ok",
-        "devices": ss.to_dict()
+        "devices": speakers_info
     }
 
 
@@ -151,8 +164,16 @@ async def list_control_clients():
     from app.core.service_container import get_service
 
     ccs = get_service("control_clients_service")
+    ss = get_service("speakers_service")
+    client_info = ccs.to_dict()
+    for client_id, client_data in client_info.items():
+        speaker_name = client_data.get("speaker_name")
+        speaker_info = ss.get_speaker(speaker_name=speaker_name).to_dict() if speaker_name else None
+        client_data["speaker_info"] = speaker_info
+        client_info[client_id] = client_data
+
     return {
         "status": "ok",
-        "devices": ccs.to_dict()
+        "devices": client_info
     }
 

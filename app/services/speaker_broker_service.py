@@ -75,7 +75,7 @@ class SpeakerBrokerService:
         return result
 
     def _assign_client_to_speaker(self, client_id, speaker_name):
-        speaker = self.speakers.get_speaker(speaker_name)
+        speaker = self.speakers.get_speaker(speaker_name=speaker_name)
         if speaker:
             speaker.clients.add(client_id)
             return speaker
@@ -87,7 +87,7 @@ class SpeakerBrokerService:
             return None
         
         speaker_name = client.speaker_name
-        speaker = self.speakers.get_speaker(speaker_name)
+        speaker = self.speakers.get_speaker(speaker_name=speaker_name)
         if not speaker:
             return None
         
@@ -212,7 +212,7 @@ class SpeakerBrokerService:
         if not client_id:
             if "device_name" in payload:
                 device_name = payload.get("device_name")
-                speaker = self.speakers.get_speaker(device_name)
+                speaker = self.speakers.get_speaker(speaker_name=device_name)
                 logger.info(f"[SpeakerBrokerService] Handling {event.type} event for speaker: {speaker.speaker_name}")
         else:
             speaker = self.get_speaker_for_client(client_id)
