@@ -145,19 +145,21 @@ class WebSocketConnection:
                 type=EventType.REGISTER_CONTROL_CLIENT,
                 payload=payload
             ))
-            
-            logger.info(f"Client {client_name} (Type: {client_type}, ID: {self.client_id}) registered")
+            logger.info(f"Client {result[0].client_id} registered")
+            logger.info(f"Client {client_name} (Type: {client_type}, ID: {result[0].client_id}) registered")
             
             await self.websocket.send_json({
                 "type": "register_response",
                 "payload": {
                     "status": "success",
-                    "client_id": self.client_id,
+                    "client_id": result[0].client_id,
                     "device_id": device_id,
                     "message": f"Registered as {client_name}"
                 }
             })
-
+            if result[0].client_id != self.client_id:
+                logger.warning(f"Client ID mismatch: expected {self.client_id}, got {result[0].client_id}")
+                self.client_id = result[0].client_id
         except Exception as e:
             logger.error(f"Error registering client: {e}")
             await self.websocket.send_json({

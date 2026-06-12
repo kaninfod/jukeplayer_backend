@@ -103,12 +103,12 @@ class ControlClientsService:
                     payload={"client_id": client_id, "speaker_name": speaker_name}
                 ))
 
-
-            
+            return control_client    
+        
         except Exception as e:
             logger.warning(f"Error: {client_id}: {e}")
         
-        return control_client
+        
     
     def unregister(self, client_id: str):
         try:

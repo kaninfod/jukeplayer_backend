@@ -38,7 +38,7 @@ class SpeakerBrokerService:
         client_id = payload.get("client_id")
         logger.info(f"[SpeakerBrokerService] Handling REGISTER_CONTROL_CLIENT event for client_id: {client_id}")
 
-        await self.control_clients.register(payload)
+        return await self.control_clients.register(payload)
 
     async def handle_unregister_control_client(self, event: Event):
         payload = event.payload
@@ -208,7 +208,7 @@ class SpeakerBrokerService:
     async def _execute_media_action(self, event: Event, action_name: str, custom_action=None, broadcaster=None):
         payload = event.payload
         client_id = payload.get("client_id")
-        
+        logger.info(f"[SpeakerBrokerService] Executing media action: {action_name} for client_id: {client_id} with payload: {payload}")
         if not client_id:
             if "device_name" in payload:
                 device_name = payload.get("device_name")
