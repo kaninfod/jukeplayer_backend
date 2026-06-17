@@ -297,6 +297,7 @@ class WebSocketConnection:
     async def _handle_player_action(self, event_type, payload):
         try:
             from app.core import event_bus, EventType, Event
+            
             payload["client_id"] = self.client_id
             result = await event_bus.aemit(Event(
                 event_type,
@@ -352,8 +353,6 @@ class WebSocketConnection:
                         await self.handle_volume(payload)
                     elif msg_type == "toggle_repeat":
                         await self.handle_toggle_repeat(payload)
-                    # elif msg_type == "status":
-                    #     await self.handle_status(payload)
                     elif msg_type == "switch_device":
                         await self.handle_switch_device(payload)                        
                     else:

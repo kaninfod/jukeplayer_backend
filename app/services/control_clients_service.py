@@ -26,13 +26,7 @@ class ControlClient:
 
 
     def to_dict(self):
-        #from app.core.service_container import get_service
-        #speakers_service = get_service("speakers_service")
-        #speaker = speakers_service.get_speaker(speaker_name=self.speaker_name)
-        #if speaker:
-            #speaker_info = speaker.to_dict()
-        #else:
-            #speaker_info = None
+
         return {
             "client_id": self.client_id,
             "client_type": self.client_type,
@@ -132,6 +126,9 @@ class ControlClientsService:
             logger.error(f"[ControlClientsService]  Error setting client {client_id} active status: {e}")
 
     def get_client(self, client_id: str) -> Optional[ControlClient]:
+        if client_id not in self._clients:
+            logger.warning(f"[ControlClientsService]  Attempted to get non-existent client ID: {client_id}")
+            return None
         return self._clients.get(client_id)
     
     def get_all_clients(self, capability: str = "") -> Dict[str, ControlClient]:

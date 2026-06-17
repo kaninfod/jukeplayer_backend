@@ -57,8 +57,8 @@ export default class extends Controller {
                 "client_type": "web",
                 "client_name": "web_client",
                 "capabilities": ["websocket_status"],
-                "device_id": storedDeviceId || null,  // Web clients don't specify device_id - backend assigns default
-                "client_id": storedClientId  // Send stored ID to enable session recovery
+                "device_id": storedDeviceId || null,  
+                "client_id": storedClientId || null
             }
         };
         

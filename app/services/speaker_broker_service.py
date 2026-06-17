@@ -46,7 +46,7 @@ class SpeakerBrokerService:
         logger.info(f"[SpeakerBrokerService] Handling UNREGISTER_CONTROL_CLIENT event for client_id: {client_id}")
         if not client_id:
             return
-        
+        self._remove_client_from_speakers(client_id)
         self.control_clients.unregister(client_id)
 
     async def handle_assign_speaker(self, event: Event):
@@ -135,7 +135,7 @@ class SpeakerBrokerService:
         payload = event.payload
         album_id = payload.get("album_id")
         start_track_index = payload.get("start_track_index", 0)
-        client_id = payload.get("client_id") # Needed only for the local logger string below
+        client_id = payload.get("client_id")
 
         async def play_album_action(mediaplayer):
             result = await playback_service.load_from_album_id(

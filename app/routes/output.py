@@ -148,6 +148,7 @@ async def list_speakers():
         if len(clients) > 0:
             clients_info = {}
             for client_id in clients:
+                logger.debug(f"Fetching info for client ID: {client_id}")
                 control_client = ccs.get_client(client_id).to_dict()
                 clients_info[client_id] = control_client
             speaker_data["clients"] = clients_info
