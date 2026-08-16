@@ -1,3 +1,5 @@
+from io import BytesIO
+
 import requests
 from typing import List, Dict, Any, Optional
 import logging
@@ -231,6 +233,118 @@ class SubsonicService:
             return rel
         base = getattr(self.config, "PUBLIC_BASE_URL", "").rstrip("/")
         return f"{base}{rel}" if base else rel
+
+
+    def get_cover_rgb565(self, album_id: str, size: int = 180) -> Optional[bytes]:
+        """
+        Return a size x size RGB565 raw image for the ILI9488 display.
+        Device expects framebuf.RGB565: two bytes per pixel, little-endian.
+        """
+        from PIL import Image
+        import os
+
+        self.ensure_cover(album_id, size)
+
+        paths = self._cover_paths(album_id, size)
+        img_path = None
+        for candidate in ("webp", "jpg"):
+            p = paths.get(candidate)
+            if p and os.path.exists(p):
+                img_path = p
+                break
+
+        if not img_path:
+            self._ensure_default_placeholder(size)
+            paths = self._default_cover_paths(size)
+            for candidate in ("webp", "jpg"):
+                p = paths.get(candidate)
+                if p and os.path.exists(p):
+                    img_path = p
+                    break
+
+        if not img_path:
+            logger.error(f"[COVER] no image file found for {album_id}")
+            return None
+
+        try:
+            img = Image.open(img_path).convert("RGB").resize((size, size), Image.Resampling.LANCZOS)
+        except Exception:
+            logger.exception(f"[COVER] failed to open {img_path}")
+            return None
+
+        packed = bytearray()
+        for r, g, b in img.getdata():
+            rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+            packed.append(rgb565 & 0xFF)       # low byte first (little-endian)
+            packed.append((rgb565 >> 8) & 0xFF) # high byte second
+
+        return bytes(packed)
+
+    # def get_cover_4bit(self, album_id: str, size: int = 180) -> Optional[bytes]:
+    #     """
+    #     Return a size x size 4-bit indexed raw image aligned with the ILI9488 LUT.
+    #     Device expects GS4_HMSB: two 4-bit pixels packed per byte, high nibble first.
+    #     """
+    #     from io import BytesIO
+    #     from PIL import Image
+    #     import os
+
+    #     # Make sure the full-color cover exists
+    #     self.ensure_cover(album_id, size)
+
+    #     paths = self._cover_paths(album_id, size)
+    #     ext = None
+    #     img_path = None
+    #     for candidate in ("webp", "jpg"):
+    #         p = paths.get(candidate)
+    #         if p and os.path.exists(p):
+    #             ext = candidate
+    #             img_path = p
+    #             break
+
+    #     if not img_path:
+    #         self._ensure_default_placeholder(size)
+    #         paths = self._default_cover_paths(size)
+    #         for candidate in ("webp", "jpg"):
+    #             p = paths.get(candidate)
+    #             if p and os.path.exists(p):
+    #                 ext = candidate
+    #                 img_path = p
+    #                 break
+
+    #     if not img_path:
+    #         logger.error(f"[COVER] no image file found for {album_id}")
+    #         return None
+
+    #     try:
+    #         img = Image.open(img_path).convert("RGB").resize((size, size), Image.Resampling.LANCZOS)
+    #     except Exception:
+    #         logger.exception(f"[COVER] failed to open {img_path}")
+    #         return None
+
+
+    #     # Start from an adaptive 16-color palette of the image
+    #     adaptive = img.quantize(colors=16, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    #     # Get the 16 RGB colors
+    #     palette = adaptive.getpalette()[:48]
+    #     # Convert to list of RGB tuples
+    #     palette_16 = [tuple(palette[i:i+3]) for i in range(0, 48, 3)]
+
+    #     pal_img = Image.new("P", (1, 1))
+    #     flat_palette = [c for rgb in palette_16 for c in rgb] + [0] * (768 - len(palette_16) * 3)
+    #     pal_img.putpalette(flat_palette)
+    #     quantized = img.quantize(palette=pal_img, dither=Image.Dither.FLOYDSTEINBERG)
+
+
+    #     raw = quantized.tobytes()
+    #     packed = bytearray()
+    #     for i in range(0, len(raw), 2):
+    #         high = raw[i] & 0x0F
+    #         low = raw[i + 1] & 0x0F
+    #         packed.append((high << 4) | low)
+
+    #     return bytes(packed)
+
 
     @lru_cache(maxsize=128)
     def search_song(self, query: str) -> Dict[str, Any]:

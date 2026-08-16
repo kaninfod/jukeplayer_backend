@@ -248,13 +248,15 @@ class MediaPlayerService:
             "track_id": track.track_id,
             "track_number": track.track_number,
             "cover_url": track.cover_url,
+            "year": track.year,
+            "duration": track.duration,
         }
         
-        if full:
-            track_dict.update({
-                "duration": track.duration,
-                "year": track.year,
-            })
+        # if full:
+        #     track_dict.update({
+        #         "duration": track.duration,
+        #         "year": track.year,
+        #     })
         
         return track_dict
 
@@ -270,12 +272,16 @@ class MediaPlayerService:
                 "current_track": self._build_track_dict(track, full=False),
                 "status": self.status.value,
                 "current_index": self.playlist_manager.current_index,
+                "playlist_count": self.playlist_manager.count() if self.playlist_manager else 0,
                 "volume": self.volume_manager.volume,
+                "repeat_album": self.playlist_manager._repeat_album,
+                "muted": self.volume_manager.is_muted,
             }
         else:
             context = {
                 "current_track": self._build_track_dict(track, full=True),
                 "status": self.status.value,
+                "muted": self.volume_manager.is_muted,
                 "current_index": self.playlist_manager.current_index,
                 "repeat_album": self.playlist_manager._repeat_album,
                 "playlist": self.playlist_manager.to_dict() if self.playlist_manager else None,
@@ -287,6 +293,7 @@ class MediaPlayerService:
                 "active_client": getattr(self, 'active_client', None),
                 "playback_backend": type(self.playback_backend).__name__
             }
+
             return context
     
 
