@@ -107,8 +107,7 @@ export default class extends Controller {
             window.appState.mediaplayerInstanceName = msg.payload.mediaplayer_instance_name;
             window.appState.playerStatus = msg.payload.status;
             window.appState.repeatState = msg.payload.repeat_album;
-            window.appState.isMuted = msg.payload.is_muted;
-
+            window.appState.isMuted = msg.payload.muted;
             
             localStorage.setItem('deviceId', window.appState.deviceName);
             

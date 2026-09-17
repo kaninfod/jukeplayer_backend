@@ -57,27 +57,6 @@ def create_subsonic_service(container):
     config = container.get('config')
     return SubsonicService(config)
 
-# def create_media_player_service(container):
-#     """
-#     Phase 1: Get default player instance from ClientRegistry.
-#     For backward compatibility, returns the first player instance (or default device).
-#     """
-#     from app.config import config
-    
-#     # client_registry = container.get('client_registry')
-#     # instances = client_registry.list_player_instances()
-    
-#     if instances:
-#         # Return the first instance (for backward compatibility)
-#         return instances[0]
-#     else:
-#         # Fallback: create a default instance if registry is empty
-#         logger.warning("No player instances in registry, creating default instance")
-#         from app.services import MediaPlayerService
-#         from app.playback_backends.factory import get_playback_backend
-#         event_bus = container.get('event_bus')
-#         return MediaPlayerService(event_bus, playback_backend=get_playback_backend())
-
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService
     return PlaybackService(
@@ -86,24 +65,6 @@ def create_playback_service(container):
         subsonic_service=container.get('subsonic_service'),
         event_bus=container.get('event_bus')
     )
-
-# def create_client_registry(container):
-#     from app.services.client_registry import ClientRegistry
-#     from app.config import config
-    
-#     registry = ClientRegistry()
-    
-#     # Initialize player instances from configured devices
-#     # Uses PLAYBACK_DEVICES env var format: device_name=backend_type,device_name=backend_type,...
-#     device_config = config.PLAYBACK_DEVICES
-    
-#     if device_config:
-#         registry.initialize_player_instances(device_config)
-#         logger.info(f"ClientRegistry initialized with devices: {list(device_config.keys())} and backends: {list(device_config.values())}")
-#     else:
-#         logger.warning("No devices configured in PLAYBACK_DEVICES")
-    
-#     return registry
 
 def create_speaker_broker_service(container):
     from app.services.speaker_broker_service import SpeakerBrokerService
@@ -124,13 +85,8 @@ def create_speakers_service(container):
     
     from app.config import config
     from app.services.speakers_service import SpeakersService
-    # logger.info("Initializing SpeakersService with device configuration")
-    # device_config = config.PLAYBACK_DEVICES
 
     speakers_service = SpeakersService()
-    # if device_config:
-    #     speakers_service.initialize_speakers(device_config)
-    #     logger.info(f"o-o-o-o-o SpeakersService initialized with devices: {list(device_config.keys())} and backends: {list(device_config.values())}")
     return speakers_service  
 
 
@@ -155,10 +111,6 @@ def setup_service_container():
     # Register media player service as singleton (gets default instance from registry)
     # container.register_singleton('media_player_service', create_media_player_service)
     container.register_singleton('playback_service', create_playback_service)
-
-    # logger.info("Forcing eager initialization of SpeakersService...")
-    # _ = container.get('speakers_service')
-    # __ = container.get('speaker_broker_service')
 
     return container
 

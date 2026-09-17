@@ -25,8 +25,91 @@ export default class extends Controller {
         });
     }
 
-    // This replaces your updateKioskVolume(data) function
     update() {
+        const data = window.appState.lastTrackData;
+        if (!data) {
+            console.log("No track data available to update Now Playing.");
+            return;
+        }
+
+        console.log("Updating Now Playing with track data:", data);
+
+        const hasTrack = !!data.artist;
+        console.log(
+            `Has track: ${hasTrack}, Artist: ${data.artist}, Title: ${data.title}, ` +
+            `Album: ${data.album}, Tracknum: ${data.track_number}, Cover URL: ${data.cover_url}`
+        );
+
+        this.renderState(hasTrack);
+
+        if (hasTrack) {
+            this.updateTrackInfo(data);
+            this.updateCover(data.cover_url);
+        }
+
+        this.updatePlayerControls();
+    }
+
+    renderState(hasTrack) {
+        if (this.hasTrackinfoTarget) {
+            this.trackinfoTarget.classList.toggle("d-none", !hasTrack);
+        }
+        if (this.hasCoverTarget) {
+            this.coverTarget.classList.toggle("d-none", !hasTrack);
+        }
+        if (this.hasNotrackinfoTarget) {
+            this.notrackinfoTarget.classList.toggle("d-none", hasTrack);
+        }
+        if (this.hasNocoverTarget) {
+            this.nocoverTarget.classList.toggle("d-none", hasTrack);
+        }
+    }
+
+    updateTrackInfo(data) {
+        if (this.hasArtistTarget) {
+            this.artistTarget.textContent = data.artist;
+        }
+        if (this.hasTitleTarget) {
+            this.titleTarget.textContent = data.title;
+        }
+        if (this.hasAlbumTarget) {
+            this.albumTarget.textContent = data.album;
+        }
+        if (this.hasTracknumTarget && window.appState.playlist) {
+            this.tracknumTarget.textContent =
+                `Track ${data.track_number} of ${window.appState.playlist.length}`;
+        }
+    }
+
+    updateCover(coverUrl) {
+        if (!this.hasCoverimgTarget) return;
+
+        if (coverUrl) {
+            const url = coverUrl.startsWith('/')
+                ? `${window.location.origin}${coverUrl}?size=512`
+                : coverUrl;
+            this.coverimgTarget.src = url;
+        } else {
+            console.log("UPDATE: No cover_url, showing placeholder");
+            this.coverimgTarget.src = '';
+        }
+    }
+
+    updatePlayerControls() {
+        const { playerStatus, repeatState, volume, deviceName } = window.appState;
+        console.log(
+            `Playback status: ${playerStatus}, Repeat: ${repeatState}, ` +
+            `Volume: ${volume}, Output Device: ${deviceName}`
+        );
+
+        this.updateRepeatState();
+        this.updatePlayerstatus();
+        this.updateVolume();
+        this.updateDevice();
+        this.updateMuteState();
+    }
+
+    update_old() {
         if (window.appState.lastTrackData) {
             console.log("Updating Now Playing with track data:", window.appState.lastTrackData);
         } else {
@@ -78,7 +161,6 @@ export default class extends Controller {
                     if (coverUrl.startsWith('/')) {
                         coverUrl = window.location.origin + coverUrl + '?size=512';
                     }
-                    // console.log(`[${timestamp}] UPDATE: Loading album art from: ${coverUrl}`);
                     this.coverimgTarget.src = coverUrl;
                 } else {
                     console.log(`UPDATE: No cover_url, showing placeholder`);
@@ -104,12 +186,18 @@ export default class extends Controller {
         
         console.log(`Playback status: ${window.appState.playerStatus}, hastarget: ${this.hasPlaystatusTarget}, Repeat: ${window.appState.repeatState}, Volume: ${window.appState.volume}, Output Device: ${window.appState.deviceName}`);
 
-
-        this.updateRepeatState();
-        this.updatePlayerstatus();
-        this.updateVolume();
-        this.updateDevice();
-        this.updateMuteState();
+        
+        try {
+            this.updateRepeatState();
+            this.updatePlayerstatus();
+            this.updateVolume();
+            this.updateDevice();
+            this.updateMuteState();
+        } catch (e) {
+            console.error("STOPPED before mute:", e);
+        }
+        
+        
     }
 
 
@@ -168,7 +256,6 @@ export default class extends Controller {
     }
 
     updateMuteState() {
-        
         const state = window.appState.isMuted;
         if (this.hasMutestateTarget) {
             const muteStr = state ? 'mdi mdi-volume-off' : 'mdi mdi-volume-high';
