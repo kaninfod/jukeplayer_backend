@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, Request, Query, HTTPException
@@ -179,6 +180,42 @@ async def kiosk_system_partial(request: Request):
         )
     return templates.TemplateResponse(request=request, name="pages/kiosk/system.html", context={"request": request, "config": config, "kiosk_mode": True},
     )
+
+
+@router.get("/kiosk/configure/{client_id}", response_class=HTMLResponse)
+async def kiosk_configure(request: Request, client_id: str):
+    from app.core.service_container import get_service
+    ccs = get_service("control_clients_service")
+    client = ccs.get_client(client_id)
+    if not client:
+        return HTMLResponse("Client not found", status_code=404)
+    config = client.config or {}
+    config_json = json.dumps(config, indent=2)
+    if _is_htmx_request(request):
+        return templates.TemplateResponse(request=request,
+            name="components/kiosk/configure/_config_editor.html",
+            context={"request": request, "client_id": client_id, "config_json": config_json,
+                     "config": config, "client_name": client.user_name})
+    return templates.TemplateResponse(request=request,
+        name="pages/kiosk/configure.html",
+        context={"request": request, "client_id": client_id, "config_json": config_json,
+                 "config": config, "client_name": client.user_name, "kiosk_mode": True})
+
+
+@router.post("/kiosk/configure/{client_id}/apply")
+async def kiosk_configure_apply(request: Request, client_id: str):
+    from app.core.service_container import get_service
+    import asyncio
+    ccs = get_service("control_clients_service")
+    client = ccs.get_client(client_id)
+    if not client or not client.send_callback:
+        return HTMLResponse("Client not found or not connected", status_code=404)
+    body = await request.json()
+    await client.send_callback({"type": "config_set", "payload": {"config": body}})
+    await asyncio.sleep(0.5)
+    if request.query_params.get("reboot"):
+        await client.send_callback({"type": "device_reset", "payload": {}})
+    return HTMLResponse("Config sent" + (" — device rebooting" if request.query_params.get("reboot") else ""))
 
 
 @router.get("/kiosk/clients", response_class=HTMLResponse)

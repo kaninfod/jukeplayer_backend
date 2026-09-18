@@ -46,6 +46,15 @@ class SpeakerBrokerService:
         logger.info(f"[SpeakerBrokerService] Handling UNREGISTER_CONTROL_CLIENT event for client_id: {client_id}")
         if not client_id:
             return
+
+        # A late cleanup from a superseded connection must not delete a live
+        # re-registration (web clients reuse their client_id across reconnects).
+        websocket = payload.get("websocket")
+        client = self.control_clients._clients.get(client_id)
+        if client and websocket is not None and client.websocket is not websocket:
+            logger.info(f"[SpeakerBrokerService] Ignoring stale unregister for client_id: {client_id} — id re-registered on a newer connection")
+            return
+
         self._remove_client_from_speakers(client_id)
         self.control_clients.unregister(client_id)
 
@@ -58,6 +67,9 @@ class SpeakerBrokerService:
             return
         
         self._remove_client_from_speakers(client_id)
+        if client_id not in self.control_clients._clients:
+            logger.warning(f"[SpeakerBrokerService] ASSIGN_SPEAKER for unknown client_id: {client_id} — ignoring")
+            return
         speaker = self._assign_client_to_speaker(client_id, speaker_name)
         logger.info(f"[SpeakerBrokerService] Assigned client_id: {client_id} to speaker_name: {speaker_name} with result: {speaker is not False}")
         if speaker:
@@ -98,11 +110,14 @@ class SpeakerBrokerService:
             logger.warning(f"[SpeakerBrokerService]  No speaker provided for broadcasting message")
             return
         logger.info(f"[SpeakerBrokerService] Broadcasting message to speaker: {speaker.speaker_name} with clients: {speaker.clients}")
-        for client_id in speaker.clients:
+        for client_id in list(speaker.clients):
             client = self.control_clients._clients.get(client_id)
+            if not client:
+                logger.warning(f"[SpeakerBrokerService] Purging unknown client_id: {client_id} from speaker {speaker.speaker_name}")
+                speaker.clients.discard(client_id)
+                continue
             result_payload = self._get_mediaplayer_context_for_client(client)
-            if client:
-                await client.send_callback({"type": "current_track", "payload": result_payload})
+            await client.send_callback({"type": "current_track", "payload": result_payload})
 
     async def broadcast_volume_to_clients(self, speaker: Speaker):
         if not speaker:

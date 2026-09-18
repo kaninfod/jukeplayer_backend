@@ -137,7 +137,8 @@ class WebSocketConnection:
                 "websocket": self.websocket,
                 "send_callback": send_callback,
                 "client_id": self.client_id,
-                "device_name": device_id
+                "device_name": device_id,
+                "config": payload.get("config")
             }
 
             from app.core import event_bus, EventType, Event
@@ -292,7 +293,34 @@ class WebSocketConnection:
 
     async def handle_volume_mute(self, payload):
         from app.core import EventType
-        await self._handle_player_action(EventType.VOLUME_MUTE, payload)          
+        await self._handle_player_action(EventType.VOLUME_MUTE, payload)
+
+    async def handle_device_reset(self, payload):
+        """Handle a device_reset command: forward a device_reset message to the
+        target client identified by payload["client_id"] and report the outcome
+        back to the sender."""
+        try:
+            target_id = payload.get("client_id")
+            client = get_service("control_clients_service").get_client(target_id)
+            if client and client.send_callback:
+                await client.send_callback({"type": "device_reset", "payload": {}})
+                logger.info(f"device_reset forwarded to client {target_id}")
+                await self.send_message({
+                    "type": "device_reset_response",
+                    "payload": {"status": "ok", "client_id": target_id}
+                })
+            else:
+                logger.warning(f"device_reset target not found or not connected: {target_id}")
+                await self.send_message({
+                    "type": "device_reset_response",
+                    "payload": {"status": "error", "message": "Client not found or not connected", "client_id": target_id}
+                })
+        except Exception as e:
+            logger.error(f"Error handling device_reset: {e}")
+            await self.send_message({
+                "type": "device_reset_response",
+                "payload": {"status": "error", "message": str(e), "client_id": payload.get("client_id")}
+            })
 
     async def _handle_player_action(self, event_type, payload):
         try:
@@ -354,7 +382,9 @@ class WebSocketConnection:
                     elif msg_type == "toggle_repeat":
                         await self.handle_toggle_repeat(payload)
                     elif msg_type == "switch_device":
-                        await self.handle_switch_device(payload)                        
+                        await self.handle_switch_device(payload)
+                    elif msg_type == "device_reset":
+                        await self.handle_device_reset(payload)
                     else:
                         logger.debug(f"Received unhandled message type: {msg_type}")
                 
@@ -420,13 +450,15 @@ class WebSocketConnection:
                 pass
         
         # THIRD: Unregister client from registry
-        # This will stop event_bus from sending messages to this client
+        # This will stop event_bus from sending messages to this client.
+        # The websocket is included so the broker can ignore a late cleanup
+        # from a superseded connection (clients may re-register the same id).
         if self.client_id:
             try:
                 from app.core import event_bus, EventType, Event
                 result = await event_bus.aemit(Event(
                     type=EventType.UNREGISTER_CONTROL_CLIENT,
-                    payload={"client_id": self.client_id}
+                    payload={"client_id": self.client_id, "websocket": self.websocket}
                 ))
 
             except Exception as e:

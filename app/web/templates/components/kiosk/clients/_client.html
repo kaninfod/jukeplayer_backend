@@ -20,15 +20,29 @@
             {{ details.client_id|e }}
         </small>
 
-        <div class="mt-3">
-            <span class="badge rounded-pill bg-success px-3">
-                 {% if details.ws_active %}
-                <i class="mdi mdi-check-circle me-1"></i> Active
-            {% endif %}
-             {% if not details.ws_active %}
-                <i class="mdi mdi-close-circle me-1"></i> Inactive
-            {% endif %}
+        <div class="mt-auto pt-3 d-flex justify-content-center align-items-center gap-2">
+            {% if details.ws_active %}
+            <span class="kiosk-round-btn status-active" title="Connected">
+                <i class="mdi mdi-check"></i>
             </span>
+            {% else %}
+            <span class="kiosk-round-btn status-inactive" title="Disconnected">
+                <i class="mdi mdi-close-circle"></i>
+            </span>
+            {% endif %}
+            {% if details.client_type == 'esp32' and details.ws_active %}
+            <a href="/kiosk/configure/{{ details.client_id|e }}"
+               class="kiosk-round-btn configure" title="Configure">
+                <i class="mdi mdi-cog"></i>
+            </a>
+            <button type="button" class="kiosk-round-btn reboot" title="Reboot"
+                    data-controller="clientactions"
+                    data-action="clientactions#reboot device-reset-response@window->clientactions#handleResponse"
+                    data-clientactions-client-id-param="{{ details.client_id|e }}"
+                    data-clientactions-client-name-param="{{ details.user_name|e }}">
+                <i class="mdi mdi-restart"></i>
+            </button>
+            {% endif %}
         </div>
     </div>
 </div>

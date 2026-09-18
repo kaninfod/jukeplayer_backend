@@ -127,6 +127,11 @@ export default class extends Controller {
             this.broadcast("switch-device-response", { response: msg.payload });
         }
 
+        if (msg.type === 'device_reset_response') {
+            console.log("Handling device reset response:", msg.payload);
+            this.broadcast("device-reset-response", { response: msg.payload });
+        }
+
         if (msg.type === 'nfc_encoding_started') {
             this.broadcast("nfc-encoding-started", { response: msg.payload });
         }

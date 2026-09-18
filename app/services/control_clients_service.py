@@ -10,7 +10,7 @@ class ControlClient:
     def __init__(self, client_id: str, client_type: str, user_name: str, 
                 capabilities: List[str], connected_at: datetime, client_ip: Optional[str] = None, 
                 websocket=None, send_callback: Optional[Callable] = None, session_token: Optional[str] = None,
-                speaker_name: Optional[str] = None):
+                speaker_name: Optional[str] = None, config: Optional[dict] = None):
         
         self.client_id = client_id
         self.client_type = client_type
@@ -22,6 +22,7 @@ class ControlClient:
         self.send_callback = send_callback
         self.session_token = session_token
         self.speaker_name = speaker_name
+        self.config = config
         self.ws_active = True 
 
 
@@ -35,7 +36,7 @@ class ControlClient:
             "connected_at": self.connected_at.isoformat(),
             "client_ip": self.client_ip,
             "speaker_name": self.speaker_name,
-            #"speaker_info": speaker_info,
+            "config": self.config,
             "ws_active": self.ws_active
         }
 
@@ -55,6 +56,7 @@ class ControlClientsService:
         websocket = payload.get("websocket")
         send_callback = payload.get("send_callback")
         speaker_name = payload.get("device_name")
+        config = payload.get("config")
         
         try:
             control_client = self._clients.get(client_id) if client_id else None
@@ -68,6 +70,7 @@ class ControlClientsService:
                 control_client.websocket = websocket
                 control_client.send_callback = send_callback
                 control_client.speaker_name = speaker_name
+                control_client.config = config
                 control_client.ws_active = True
             
             else:
@@ -82,7 +85,8 @@ class ControlClientsService:
                     websocket=websocket,
                     send_callback=send_callback,
                     session_token=None,
-                    speaker_name=speaker_name
+                    speaker_name=speaker_name,
+                    config=config
                 )
             
                 self._clients[control_client.client_id] = control_client

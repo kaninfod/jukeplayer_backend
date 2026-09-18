@@ -1,0 +1,308 @@
+{% extends "layouts/kiosk_base.html" %}
+
+{% block title %}Jukeplayer — Configure {{ client_name }}{% endblock %}
+
+{% block kiosk_content %}
+<div class="kiosk-component-container h-100 d-flex flex-column p-4">
+    <div class="mb-3 flex-shrink-0">
+        <h3 class="kiosk-artist mb-1">
+            <i class="mdi mdi-cog"></i> Configure {{ client_name }}
+        </h3>
+        <small class="text-muted">{{ client_id }}</small>
+    </div>
+
+    <ul class="nav nav-tabs flex-shrink-0" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-general" type="button" role="tab">General</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-network" type="button" role="tab">Network</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-logging" type="button" role="tab">Logging</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hardware" type="button" role="tab">Hardware</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-raw" type="button" role="tab">Raw JSON</button></li>
+    </ul>
+
+    <div class="tab-content flex-grow-1 overflow-auto pt-3">
+
+        <!-- GENERAL -->
+        <div class="tab-pane fade show active" id="tab-general" role="tabpanel">
+            <h6 class="text-muted mt-1">Client</h6>
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label small text-muted">Client type</label>
+                    <input readonly class="form-control form-control-sm bg-body-tertiary" data-config-path="client.type" value="{{ config.client.type | default('esp32') }}"></div>
+                <div class="col-md-4"><label class="form-label small text-muted">Client name</label>
+                    <input class="form-control form-control-sm" data-config-path="client.name" value="{{ config.client.name | default('') }}"></div>
+            </div>
+            <h6 class="text-muted mt-4">Connected speaker</h6>
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label small text-muted">Speaker ID</label>
+                    <input class="form-control form-control-sm" data-config-path="client.device_id" value="{{ config.client.device_id | default('') }}"></div>
+            </div>
+            <h6 class="text-muted mt-4">Backend</h6>
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label small text-muted">Backend IP</label>
+                    <input class="form-control form-control-sm" data-config-path="backend.ip" value="{{ config.backend.ip | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Port</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="backend.port" data-numeric="1" value="{{ config.backend.port | default(8001) }}"></div>
+                <div class="col-md-3"><label class="form-label small text-muted">Timeout (ms)</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="server.timeout_ms" data-numeric="1" value="{{ config.server.timeout_ms | default(5000) }}"></div>
+            </div>
+            <div class="mt-3">
+                <label class="form-label small text-muted">Capabilities</label>
+                <div>{% for cap in config.capabilities | default([]) %}<span class="badge bg-info text-dark me-1">{{ cap }}</span>{% endfor %}</div>
+            </div>
+        </div>
+
+        <!-- NETWORK -->
+        <div class="tab-pane fade" id="tab-network" role="tabpanel">
+            <h6 class="text-muted mt-1">WiFi</h6>
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label small text-muted">SSID</label>
+                    <input class="form-control form-control-sm" data-config-path="wifi.ssid" value="{{ config.wifi.ssid | default('') }}"></div>
+                <div class="col-md-4"><label class="form-label small text-muted">Password</label>
+                    <input type="password" class="form-control form-control-sm" data-config-path="wifi.password" value="{{ config.wifi.password | default('') }}"></div>
+            </div>
+            <h6 class="text-muted mt-4">MQTT</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="mqtt-enabled" data-config-path="mqtt.enabled" {% if config.mqtt.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="mqtt-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3"><label class="form-label small text-muted">Broker</label>
+                    <input class="form-control form-control-sm" data-config-path="mqtt.broker" value="{{ config.mqtt.broker | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Port</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="mqtt.port" data-numeric="1" value="{{ config.mqtt.port | default(1883) }}"></div>
+                <div class="col-md-3"><label class="form-label small text-muted">User</label>
+                    <input class="form-control form-control-sm" data-config-path="mqtt.user" value="{{ config.mqtt.user | default('') }}"></div>
+                <div class="col-md-3"><label class="form-label small text-muted">Password</label>
+                    <input type="password" class="form-control form-control-sm" data-config-path="mqtt.password" value="{{ config.mqtt.password | default('') }}"></div>
+            </div>
+            <h6 class="text-muted mt-4">WebREPL</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="webrepl-enabled" data-config-path="webrepl.enabled" {% if config.webrepl.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="webrepl-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3"><label class="form-label small text-muted">Password</label>
+                    <input type="password" class="form-control form-control-sm" data-config-path="webrepl.password" value="{{ config.webrepl.password | default('') }}"></div>
+            </div>
+        </div>
+
+        <!-- LOGGING -->
+        <div class="tab-pane fade" id="tab-logging" role="tabpanel">
+            <h6 class="text-muted mt-1">General</h6>
+            <div class="row g-3">
+                <div class="col-md-3"><label class="form-label small text-muted">Level</label>
+                    <select class="form-select form-select-sm" data-config-path="logging.level">
+                        {% for lv in ['DEBUG', 'INFO', 'WARN', 'ERROR'] %}
+                        <option {% if config.logging.level | default('DEBUG') == lv %}selected{% endif %}>{{ lv }}</option>
+                        {% endfor %}
+                    </select></div>
+                <div class="col-md-3"><label class="form-label small text-muted">UTC offset (s)</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="logging.utc_offset_s" data-numeric="1" value="{{ config.logging.utc_offset_s | default(0) }}"></div>
+            </div>
+            <h6 class="text-muted mt-4">Console</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="log-console" data-config-path="logging.console.enabled" {% if config.logging.console.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="log-console">Enabled</label>
+            </div>
+
+            <h6 class="text-muted mt-4">Syslog</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="log-syslog" data-config-path="logging.syslog.enabled" {% if config.logging.syslog.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="log-syslog">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3"><label class="form-label small text-muted">Host</label>
+                    <input class="form-control form-control-sm" data-config-path="logging.syslog.host" value="{{ config.logging.syslog.host | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Port</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="logging.syslog.port" data-numeric="1" value="{{ config.logging.syslog.port | default(514) }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Facility</label>
+                    <input class="form-control form-control-sm" data-config-path="logging.syslog.facility" value="{{ config.logging.syslog.facility | default('local0') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Boot buffer</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="logging.syslog.boot_buffer_lines" data-numeric="1" value="{{ config.logging.syslog.boot_buffer_lines | default(200) }}"></div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3"><label class="form-label small text-muted">Hostname (RFC host field)</label>
+                    <input class="form-control form-control-sm" data-config-path="logging.syslog.hostname" value="{{ config.logging.syslog.hostname | default('') }}"></div>
+                <div class="col-md-3"><label class="form-label small text-muted">Tag (app field)</label>
+                    <input class="form-control form-control-sm" data-config-path="logging.syslog.tag" value="{{ config.logging.syslog.tag | default('') }}"></div>
+            </div>
+
+            <h6 class="text-muted mt-4">File</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="log-file" data-config-path="logging.file.enabled" {% if config.logging.file.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="log-file">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3"><label class="form-label small text-muted">Path</label>
+                    <input class="form-control form-control-sm" data-config-path="logging.file.path" value="{{ config.logging.file.path | default('jukeplayer.log') }}"></div>
+            </div>
+        </div>
+
+        <!-- HARDWARE -->
+        <div class="tab-pane fade" id="tab-hardware" role="tabpanel">
+            <h6 class="text-muted mt-1">SPI bus</h6>
+            <div class="row g-3">
+                <div class="col-md-2"><label class="form-label small text-muted">Unit</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.spi.spi_unit" data-numeric="1" value="{{ config.hardware.spi.spi_unit | default(1) }}"></div>
+                <div class="col-md-3"><label class="form-label small text-muted">Display baudrate</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.spi.display_baudrate" data-numeric="1" value="{{ config.hardware.spi.display_baudrate | default(16000000) }}"></div>
+                <div class="col-md-3"><label class="form-label small text-muted">NFC baudrate</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.spi.nfc_baudrate" data-numeric="1" value="{{ config.hardware.spi.nfc_baudrate | default(4000000) }}"></div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-2"><label class="form-label small text-muted">SCK</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.spi.sck" data-numeric="1" value="{{ config.hardware.spi.sck | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">MOSI</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.spi.mosi" data-numeric="1" value="{{ config.hardware.spi.mosi | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">MISO</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.spi.miso" data-numeric="1" value="{{ config.hardware.spi.miso | default('') }}"></div>
+            </div>
+
+            <h6 class="text-muted mt-4">Display</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="tft-enabled" data-config-path="hardware.tft.enabled" {% if config.hardware.tft.enabled | default(true) %}checked{% endif %}>
+                <label class="form-check-label small" for="tft-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-3"><label class="form-label small text-muted">Driver</label>
+                    <select class="form-select form-select-sm" data-config-path="hardware.tft.driver">
+                        {% for d in ['st7735r', 'ili9488'] %}
+                        <option {% if config.hardware.tft.driver | default('') == d %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Width</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.tft.width" data-numeric="1" value="{{ config.hardware.tft.width | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Height</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.tft.height" data-numeric="1" value="{{ config.hardware.tft.height | default('') }}"></div>
+                <div class="col-md-3 form-check form-switch mt-4 ms-2">
+                    <input class="form-check-input" type="checkbox" role="switch" id="tft-rot180" data-config-path="hardware.tft.rotate_180" {% if config.hardware.tft.rotate_180 | default(false) %}checked{% endif %}>
+                    <label class="form-check-label small" for="tft-rot180">Rotate 180°</label>
+                </div>
+            </div>
+
+            <h6 class="text-muted mt-4">NFC reader</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="nfc-enabled" data-config-path="hardware.nfc_reader.enabled" {% if config.hardware.nfc_reader.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="nfc-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-2"><label class="form-label small text-muted">CS</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.nfc_reader.cs" data-numeric="1" value="{{ config.hardware.nfc_reader.cs | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">IRQ</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.nfc_reader.irq" data-numeric="1" value="{{ config.hardware.nfc_reader.irq | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Reset</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.nfc_reader.reset" data-numeric="1" value="{{ config.hardware.nfc_reader.reset | default('') }}"></div>
+            </div>
+
+            <h6 class="text-muted mt-4">Encoder</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="enc-enabled" data-config-path="hardware.encoder.enabled" {% if config.hardware.encoder.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="enc-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-2"><label class="form-label small text-muted">CLK</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.encoder.clk" data-numeric="1" value="{{ config.hardware.encoder.clk | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">DT</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.encoder.dt" data-numeric="1" value="{{ config.hardware.encoder.dt | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">SW</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.encoder.sw" data-numeric="1" value="{{ config.hardware.encoder.sw | default('') }}"></div>
+            </div>
+
+            <h6 class="text-muted mt-4">Buttons</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="btn-enabled" data-config-path="hardware.buttons.enabled" {% if config.hardware.buttons.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="btn-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-2"><label class="form-label small text-muted">Debounce (ms)</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.buttons.debounce_ms" data-numeric="1" value="{{ config.hardware.buttons.debounce_ms | default(100) }}"></div>
+            </div>
+
+            <h6 class="text-muted mt-4">LEDs</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="led-enabled" data-config-path="hardware.leds.enabled" {% if config.hardware.leds.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="led-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-2"><label class="form-label small text-muted">Red</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.leds.pins.red" data-numeric="1" value="{{ config.hardware.leds.pins.red | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Green</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.leds.pins.green" data-numeric="1" value="{{ config.hardware.leds.pins.green | default('') }}"></div>
+                <div class="col-md-2"><label class="form-label small text-muted">Blue</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.leds.pins.blue" data-numeric="1" value="{{ config.hardware.leds.pins.blue | default('') }}"></div>
+            </div>
+
+            <h6 class="text-muted mt-4">Watchdog</h6>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="wdt-enabled" data-config-path="hardware.watchdog.enabled" {% if config.hardware.watchdog.enabled | default(false) %}checked{% endif %}>
+                <label class="form-check-label small" for="wdt-enabled">Enabled</label>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-2"><label class="form-label small text-muted">Timeout (s)</label>
+                    <input type="number" class="form-control form-control-sm" data-config-path="hardware.watchdog.timeout_s" data-numeric="1" value="{{ config.hardware.watchdog.timeout_s | default(8) }}"></div>
+            </div>
+        </div>
+
+        <!-- RAW JSON -->
+        <div class="tab-pane fade" id="tab-raw" role="tabpanel">
+            <small class="text-muted d-block mb-2">Live preview of what will be sent — hand-edit here for keys not covered by the tabs. Structured edits overwrite this buffer.</small>
+            <textarea id="config_json" class="form-control font-monospace"
+                      style="min-height: 420px; font-family: monospace; font-size: 0.85rem;"
+                      rows="30" spellcheck="false">{{ config_json }}</textarea>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 mt-3 flex-shrink-0">
+        <button type="button" class="btn btn-primary" onclick="applyConfig('{{ client_id }}')">
+            <i class="mdi mdi-content-save me-1"></i> Apply config
+        </button>
+        <button type="button" class="btn btn-danger"
+                onclick="if (confirm('Reboot the device after applying?')) applyConfig('{{ client_id }}', true)">
+            <i class="mdi mdi-restart me-1"></i> Apply + Reboot
+        </button>
+        <a href="/kiosk/clients" class="btn btn-outline-secondary ms-auto">← Back to clients</a>
+    </div>
+</div>
+
+<script>
+// ---- structured-field → JSON merge (the raw textarea stays the source of truth)
+function setPath(obj, path, value) {
+    const keys = path.split('.');
+    let cur = obj;
+    for (let i = 0; i < keys.length - 1; i++) {
+        if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+        cur = cur[keys[i]];
+    }
+    cur[keys[keys.length - 1]] = value;
+}
+
+function syncFromFields() {
+    let cfg;
+    try { cfg = JSON.parse(document.getElementById('config_json').value); }
+    catch (e) { alert('Current JSON is invalid — fix it in the Raw tab before editing fields: ' + e); return; }
+    document.querySelectorAll('[data-config-path]').forEach(el => {
+        let v = el.type === 'checkbox' ? el.checked : el.value;
+        if (el.dataset.numeric && v !== '' && !isNaN(v)) v = Number(v);
+        setPath(cfg, el.dataset.configPath, v);
+    });
+    document.getElementById('config_json').value = JSON.stringify(cfg, null, 2);
+}
+
+document.querySelectorAll('[data-config-path]').forEach(el => {
+    el.addEventListener('input', syncFromFields);
+    el.addEventListener('change', syncFromFields);
+});
+
+// ---- apply (unchanged plumbing: POST the raw textarea)
+async function applyConfig(clientId, reboot = false) {
+    const config = document.getElementById('config_json').value;
+    try { JSON.parse(config); } catch (e) { alert('Invalid JSON: ' + e); return; }
+    const resp = await fetch(`/kiosk/configure/${clientId}/apply${reboot ? '?reboot=true' : ''}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: config
+    });
+    if (!resp.ok) { alert('Apply failed: ' + await resp.text()); return; }
+    window.location.href = '/kiosk/clients';
+}
+</script>
+{% endblock %}
