@@ -32,7 +32,8 @@
             {% endif %}
             {% if details.client_type == 'esp32' and details.ws_active %}
             <a href="/kiosk/configure/{{ details.client_id|e }}"
-               class="kiosk-round-btn configure" title="Configure">
+               class="kiosk-round-btn configure" title="Configure"
+               data-action="click->navigation#load">
                 <i class="mdi mdi-cog"></i>
             </a>
             <button type="button" class="kiosk-round-btn reboot" title="Reboot"

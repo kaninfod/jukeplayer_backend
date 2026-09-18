@@ -7,6 +7,7 @@ import NavigationController from "./controllers/navigation_controller.js"
 import DeviceController from "./controllers/device_controller.js"
 import NfcEncodingController from "./controllers/nfc_encoding_controller.js"
 import ClientActionsController from "./controllers/client_actions_controller.js"
+import ConfigureController from "./controllers/configure_controller.js"
 
 const application = Application.start()
 
@@ -22,5 +23,6 @@ application.register("navigation", NavigationController)
 application.register("device", DeviceController)
 application.register("nfcencoding", NfcEncodingController)
 application.register("clientactions", ClientActionsController)
+application.register("configure", ConfigureController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

@@ -26,6 +26,21 @@ def format_iso_string(date_str: str, fmt: str = "%Y-%m-%d %H:%M") -> str:
 # 3. Register the filter into the Jinja2 Environment
 templates.env.filters["datetimeformat"] = format_iso_string
 
+
+def config_get(config, dotted_path: str, fallback=""):
+    """Resolve a dotted path in a client config dict; missing keys or
+    intermediates return the fallback instead of raising (configs may be
+    partial)."""
+    value = config
+    for key in dotted_path.split("."):
+        if isinstance(value, dict) and key in value:
+            value = value[key]
+        else:
+            return fallback
+    return value
+
+templates.env.filters["config_get"] = config_get
+
 GROUP_RANGES = {
     'A-D': ['A', 'E'],
     'E-H': ['E', 'I'],
@@ -193,7 +208,7 @@ async def kiosk_configure(request: Request, client_id: str):
     config_json = json.dumps(config, indent=2)
     if _is_htmx_request(request):
         return templates.TemplateResponse(request=request,
-            name="components/kiosk/configure/_config_editor.html",
+            name="components/kiosk/configure/_configure.html",
             context={"request": request, "client_id": client_id, "config_json": config_json,
                      "config": config, "client_name": client.user_name})
     return templates.TemplateResponse(request=request,

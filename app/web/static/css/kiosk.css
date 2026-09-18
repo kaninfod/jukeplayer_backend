@@ -626,6 +626,16 @@ span.kiosk-round-btn {
 }
 
 /* ============================================
+   CONFIGURE PAGE
+   ============================================ */
+
+.kiosk-config-raw {
+    min-height: 420px;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+/* ============================================
    TOAST NOTIFICATIONS
    ============================================ */
 
