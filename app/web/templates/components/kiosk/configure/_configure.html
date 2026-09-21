@@ -133,6 +133,7 @@
                 {{ field('hardware.tft.width', 'Width', config | config_get('hardware.tft.width'), 'col-md-2', 'number') }}
                 {{ field('hardware.tft.height', 'Height', config | config_get('hardware.tft.height'), 'col-md-2', 'number') }}
                 {{ field('hardware.tft.refresh_split', 'Refresh split', config | config_get('hardware.tft.refresh_split', 4), 'col-md-2', 'number') }}
+                {{ field('hardware.tft.backlight_idle_s', 'Backlight idle (s)', config | config_get('hardware.tft.backlight_idle_s', 0), 'col-md-2', 'number') }}
                 <div class="col-md-3 form-check form-switch mt-4 ms-2">
                     <input class="form-check-input" type="checkbox" role="switch" id="f-hardware-tft-rot180" data-config-path="hardware.tft.rotate_180" {% if config | config_get('hardware.tft.rotate_180', false) %}checked{% endif %}>
                     <label class="form-check-label small" for="f-hardware-tft-rot180">Rotate 180°</label>
