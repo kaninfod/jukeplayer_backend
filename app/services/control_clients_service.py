@@ -10,7 +10,8 @@ class ControlClient:
     def __init__(self, client_id: str, client_type: str, user_name: str, 
                 capabilities: List[str], connected_at: datetime, client_ip: Optional[str] = None, 
                 websocket=None, send_callback: Optional[Callable] = None, session_token: Optional[str] = None,
-                speaker_name: Optional[str] = None, config: Optional[dict] = None):
+                speaker_name: Optional[str] = None, config: Optional[dict] = None,
+                tft_refresh_splits: Optional[list] = None):
         
         self.client_id = client_id
         self.client_type = client_type
@@ -23,6 +24,7 @@ class ControlClient:
         self.session_token = session_token
         self.speaker_name = speaker_name
         self.config = config
+        self.tft_refresh_splits = tft_refresh_splits or []
         self.ws_active = True 
 
 
@@ -37,6 +39,7 @@ class ControlClient:
             "client_ip": self.client_ip,
             "speaker_name": self.speaker_name,
             "config": self.config,
+            "tft_refresh_splits": self.tft_refresh_splits,
             "ws_active": self.ws_active
         }
 
@@ -57,6 +60,7 @@ class ControlClientsService:
         send_callback = payload.get("send_callback")
         speaker_name = payload.get("device_name")
         config = payload.get("config")
+        tft_refresh_splits = payload.get("tft_refresh_splits") or []
         
         try:
             control_client = self._clients.get(client_id) if client_id else None
@@ -71,6 +75,7 @@ class ControlClientsService:
                 control_client.send_callback = send_callback
                 control_client.speaker_name = speaker_name
                 control_client.config = config
+                control_client.tft_refresh_splits = tft_refresh_splits
                 control_client.ws_active = True
             
             else:
@@ -86,7 +91,8 @@ class ControlClientsService:
                     send_callback=send_callback,
                     session_token=None,
                     speaker_name=speaker_name,
-                    config=config
+                    config=config,
+                    tft_refresh_splits=tft_refresh_splits
                 )
             
                 self._clients[control_client.client_id] = control_client

@@ -138,7 +138,8 @@ class WebSocketConnection:
                 "send_callback": send_callback,
                 "client_id": self.client_id,
                 "device_name": device_id,
-                "config": payload.get("config")
+                "config": payload.get("config"),
+                "tft_refresh_splits": payload.get("tft_refresh_splits") or []
             }
 
             from app.core import event_bus, EventType, Event

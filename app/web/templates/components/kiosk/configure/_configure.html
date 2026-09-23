@@ -12,10 +12,10 @@
 </div>
 {%- endmacro %}
 
-{% macro select(path, label, options, selected, col='col-md-3') -%}
+{% macro select(path, label, options, selected, col='col-md-3', numeric=False) -%}
 <div class="{{ col }}">
     <label class="form-label small text-muted" for="f-{{ path | replace('.', '-') }}">{{ label }}</label>
-    <select id="f-{{ path | replace('.', '-') }}" class="form-select form-select-sm" data-config-path="{{ path }}">
+    <select id="f-{{ path | replace('.', '-') }}" class="form-select form-select-sm" data-config-path="{{ path }}"{% if numeric %} data-numeric="1"{% endif %}>
         {% for option in options %}<option {% if option == selected %}selected{% endif %}>{{ option }}</option>{% endfor %}
     </select>
 </div>
@@ -117,8 +117,6 @@
             <h6 class="text-muted mt-1">SPI bus</h6>
             <div class="row g-3">
                 {{ field('hardware.spi.spi_unit', 'Unit', config | config_get('hardware.spi.spi_unit', 1), 'col-md-2', 'number') }}
-                {{ field('hardware.spi.display_baudrate', 'Display baudrate', config | config_get('hardware.spi.display_baudrate', 16000000), 'col-md-3', 'number') }}
-                {{ field('hardware.spi.nfc_baudrate', 'NFC baudrate', config | config_get('hardware.spi.nfc_baudrate', 4000000), 'col-md-3', 'number') }}
             </div>
             <div class="row g-3 mt-1">
                 {{ field('hardware.spi.sck', 'SCK', config | config_get('hardware.spi.sck'), 'col-md-2', 'number') }}
@@ -132,7 +130,12 @@
                 {{ select('hardware.tft.driver', 'Driver', ['st7735r', 'ili9488'], config | config_get('hardware.tft.driver')) }}
                 {{ field('hardware.tft.width', 'Width', config | config_get('hardware.tft.width'), 'col-md-2', 'number') }}
                 {{ field('hardware.tft.height', 'Height', config | config_get('hardware.tft.height'), 'col-md-2', 'number') }}
+                {{ field('hardware.tft.baudrate', 'Baudrate', config | config_get('hardware.tft.baudrate', 16000000), 'col-md-2', 'number') }}
+                {% if refresh_splits %}
+                {{ select('hardware.tft.refresh_split', 'Refresh split', refresh_splits, config | config_get('hardware.tft.refresh_split', 4), 'col-md-2', numeric=True) }}
+                {% else %}
                 {{ field('hardware.tft.refresh_split', 'Refresh split', config | config_get('hardware.tft.refresh_split', 4), 'col-md-2', 'number') }}
+                {% endif %}
                 {{ field('hardware.tft.backlight_idle_s', 'Backlight idle (s)', config | config_get('hardware.tft.backlight_idle_s', 0), 'col-md-2', 'number') }}
                 <div class="col-md-3 form-check form-switch mt-4 ms-2">
                     <input class="form-check-input" type="checkbox" role="switch" id="f-hardware-tft-rot180" data-config-path="hardware.tft.rotate_180" {% if config | config_get('hardware.tft.rotate_180', false) %}checked{% endif %}>
@@ -144,6 +147,7 @@
             {{ switch('hardware.nfc_reader.enabled', 'Enabled', config | config_get('hardware.nfc_reader.enabled', false)) }}
             <div class="row g-3 mt-1">
                 {{ field('hardware.nfc_reader.cs', 'CS', config | config_get('hardware.nfc_reader.cs'), 'col-md-2', 'number') }}
+                {{ field('hardware.nfc_reader.baudrate', 'Baudrate', config | config_get('hardware.nfc_reader.baudrate', 4000000), 'col-md-2', 'number') }}
                 {{ field('hardware.nfc_reader.irq', 'IRQ', config | config_get('hardware.nfc_reader.irq'), 'col-md-2', 'number') }}
                 {{ field('hardware.nfc_reader.reset', 'Reset', config | config_get('hardware.nfc_reader.reset'), 'col-md-2', 'number') }}
             </div>
@@ -160,14 +164,6 @@
             {{ switch('hardware.buttons.enabled', 'Enabled', config | config_get('hardware.buttons.enabled', false)) }}
             <div class="row g-3 mt-1">
                 {{ field('hardware.buttons.debounce_ms', 'Debounce (ms)', config | config_get('hardware.buttons.debounce_ms', 100), 'col-md-2', 'number') }}
-            </div>
-
-            <h6 class="text-muted mt-4">LEDs</h6>
-            {{ switch('hardware.leds.enabled', 'Enabled', config | config_get('hardware.leds.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('hardware.leds.pins.red', 'Red', config | config_get('hardware.leds.pins.red'), 'col-md-2', 'number') }}
-                {{ field('hardware.leds.pins.green', 'Green', config | config_get('hardware.leds.pins.green'), 'col-md-2', 'number') }}
-                {{ field('hardware.leds.pins.blue', 'Blue', config | config_get('hardware.leds.pins.blue'), 'col-md-2', 'number') }}
             </div>
 
             <h6 class="text-muted mt-4">Watchdog</h6>

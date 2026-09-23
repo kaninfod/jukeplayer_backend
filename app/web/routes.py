@@ -210,11 +210,13 @@ async def kiosk_configure(request: Request, client_id: str):
         return templates.TemplateResponse(request=request,
             name="components/kiosk/configure/_configure.html",
             context={"request": request, "client_id": client_id, "config_json": config_json,
-                     "config": config, "client_name": client.user_name})
+                     "config": config, "client_name": client.user_name,
+                     "refresh_splits": client.tft_refresh_splits or []})
     return templates.TemplateResponse(request=request,
         name="pages/kiosk/configure.html",
         context={"request": request, "client_id": client_id, "config_json": config_json,
-                 "config": config, "client_name": client.user_name, "kiosk_mode": True})
+                 "config": config, "client_name": client.user_name,
+                 "refresh_splits": client.tft_refresh_splits or [], "kiosk_mode": True})
 
 
 @router.post("/kiosk/configure/{client_id}/apply")
