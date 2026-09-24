@@ -103,6 +103,7 @@ class ConfigStoreService:
                         "backend": str(entry["backend"]).strip().lower(),
                         "options": entry.get("options") if isinstance(entry.get("options"), dict) else {},
                         "is_default": bool(entry.get("is_default")),
+                        "display_name": str(entry.get("display_name") or "").strip(),
                     })
         data["speakers"] = speakers
 
@@ -162,6 +163,7 @@ class ConfigStoreService:
                 "backend": str(entry.get("backend", "chromecast")).strip().lower(),
                 "options": entry.get("options") if isinstance(entry.get("options"), dict) else {},
                 "is_default": bool(entry.get("is_default")),
+                "display_name": str(entry.get("display_name") or "").strip(),
             })
         self._data["speakers"] = cleaned
         self.save()
@@ -170,9 +172,11 @@ class ConfigStoreService:
     # --- speaker list management (Phase B: live speaker manager) -----------------
     def add_speaker(self, name: str, backend: str = "chromecast",
                     options: Optional[Dict[str, Any]] = None,
-                    is_default: bool = False) -> List[Dict[str, Any]]:
+                    is_default: bool = False,
+                    display_name: str = "") -> List[Dict[str, Any]]:
         """Add one speaker to the store. Raises ValueError on empty/duplicate
-        names; an added default clears the previous one (single default)."""
+        names; an added default clears the previous one (single default).
+        display_name is an optional free-text label shown in the UI."""
         clean = str(name or "").strip().lower()
         if not clean:
             raise ValueError("Speaker name is required")
@@ -187,6 +191,7 @@ class ConfigStoreService:
             "backend": (backend or "chromecast").strip().lower(),
             "options": dict(options or {}),
             "is_default": bool(is_default),
+            "display_name": str(display_name or "").strip(),
         })
         self._data["speakers"] = speakers
         self.save()
@@ -219,6 +224,19 @@ class ConfigStoreService:
         self._data["speakers"] = speakers
         self.save()
         return speakers
+
+    def set_speaker_display_name(self, name: str, display_name: str) -> List[Dict[str, Any]]:
+        """Set (or clear, with an empty value) a speaker's UI display label.
+        The technical name stays the matching key; display_name is cosmetic."""
+        clean = str(name or "").strip().lower()
+        speakers = list(self.section("speakers"))
+        for s in speakers:
+            if s["name"] == clean:
+                s["display_name"] = str(display_name or "").strip()
+                self._data["speakers"] = speakers
+                self.save()
+                return speakers
+        raise ValueError(f"Speaker '{clean}' is not configured")
 
 
 class ConfigService:

@@ -111,6 +111,7 @@ async def add_speaker(payload: Dict[str, Any] = Body(...)):
             backend=str((payload or {}).get("backend", "chromecast")),
             options=(payload or {}).get("options"),
             is_default=bool((payload or {}).get("is_default")),
+            display_name=(payload or {}).get("display_name"),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -142,6 +143,17 @@ async def set_default_speaker(name: str):
     manager = _speaker_manager()
     try:
         result = manager.set_default(name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "saved", "applies": "live", **result}
+
+
+@router.put("/speakers/{name}/display")
+async def set_speaker_display_name(name: str, payload: Dict[str, Any] = Body(...)):
+    """Set the UI display label for a speaker (empty string clears it)."""
+    manager = _speaker_manager()
+    try:
+        result = manager.set_display_name(name, str((payload or {}).get("display_name", "")))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return {"status": "saved", "applies": "live", **result}

@@ -184,9 +184,26 @@ async def kiosk_speakers_add(request: Request):
             name=str(form.get("name") or ""),
             backend=str(form.get("backend") or "chromecast"),
             is_default=form.get("is_default") == "on",
+            display_name=str(form.get("display_name") or ""),
         )
         return _render_speakers_card(request, **_speakers_card_context(
-            message=f"Added {entry['name']}"))
+            message=f"Added {entry.get('display_name') or entry['name']}"))
+    except ValueError as e:
+        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+
+
+@router.post("/kiosk/config/speakers/{name}/display")
+async def kiosk_speakers_display(name: str, request: Request):
+    """htmx sends the hx-prompt value as the HX-Prompt header; a form field
+    works as fallback."""
+    form = await request.form()
+    display = request.headers.get("HX-Prompt") or str(form.get("display_name") or "")
+    manager = get_service("speaker_manager")
+    try:
+        result = manager.set_display_name(name, display)
+        label = result["display_name"] or name
+        return _render_speakers_card(request, **_speakers_card_context(
+            message=f"Display name for {name}: {label}"))
     except ValueError as e:
         return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
 

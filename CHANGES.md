@@ -10,7 +10,7 @@ to "New findings (running list)" at the bottom.
 |---|---|---|
 | 0 | Dedicated RPi deployment (scripts, systemd, ops guide) | ✅ committed — RPi setup in progress by user |
 | A | JSON config store + effective-config view + /kiosk/system card | ✅ committed (dcafd79), 57/57 tests |
-| B | Live speaker manager (CC discovery picker, add/remove) | ✅ Code done, 74/74 tests — pending test-env run |
+| B | Live speaker manager (CC discovery picker, add/remove) | ✅ verified on RPi 2026-09-24 — scan, add (tv_lounge), store persistence, live apply; 74/74 tests |
 | C | Audio/BT card (pair/connect from the web UI) | ⬜ |
 | D | Docs + final env trim | ⬜ |
 | — | USB-DAC output (MPV audio_device per speaker) | 🔒 backburner — schema slot reserved in Phase B |
@@ -173,8 +173,6 @@ in `services/__init__.py` that loaded the file as `_media_player_service_module`
 - `README.md`: rewritten to match reality — current env vars, run commands, architecture (speaker broker), live endpoints, client list (web/ESP32/HA only), log setup. Removed stale references (`.env.example` path, album database, `/api/display/brightness`, Pi client).
 - Suite: 46 passing; app imports clean (47 routes).
 
-## Final state notes
-
 ## Phase B — Live speaker manager (2026-09-24)
 
 Speakers are now fully UI-managed and apply **live** — no restart for
@@ -233,6 +231,44 @@ Notes: scan results collapse after an add (re-scan to pick more — v1
 simplicity); MPV speakers are added manually (no discovery); the
 `options.audio_device` schema slot stays reserved for the USB-DAC backburner.
 
+## Phase B.1 — Friendly display names (2026-09-24)
+
+User request on the RPi: `living_room` should display as e.g. "Living Room
+Speaker" — a per-speaker, user-configurable label. The technical name stays
+the matching key everywhere (store, discovery matching, API paths); only
+cosmetic presentation changes.
+
+- Store schema: optional `display_name` on every speaker entry (stripped
+  free text; empty = show technical name). New
+  `set_speaker_display_name(name, value)`; `add_speaker` accepts it;
+  `load()`/`set_speakers` preserve it.
+- `Speaker` registry objects carry `display_name` (set at build, updated on
+  rename) and expose it via `to_dict()`; the device-selector card shows
+  `display_name` (technical name underneath when set);
+  `get_available_output_devices()` gained a `display` key (additive for HA).
+- `SpeakerManagerService.set_display_name()` updates store + live registry;
+  `add_speaker()` takes the label — **scan-added speakers get their friendly
+  name (e.g. "TV lounge") as display name automatically**.
+- API: `PUT /api/config/speakers/{name}/display`; `POST /api/config/speakers`
+  accepts `display_name`.
+- Speakers card: display label first, technical name in muted parens when
+  set; pencil button edits via htmx `hx-prompt` (empty prompt clears →
+  technical name); manual add form has an optional Display name field;
+  confirm-dialogs now use the display label.
+- **Tests added:** 3 manager tests (persist+register, set/clear incl. live
+  attr, unknown rejected) + 2 route tests (API set/clear/404; card shows
+  display name + edits via the HX-Prompt header). **Suite: 79 passing.**
+
+## RPi verification — Phase B (2026-09-24, user)
+
+- `scripts/upgrade_rpi.sh` delivered Phase B (earlier password/paste trouble
+  was from running things from `~` instead of the repo dir — no harm done).
+- Config page shows the speakers card; scan found the real network: the 3
+  configured speakers badged "added", plus unconfigured "TV lounge" and cast
+  group "Home group".
+- Added `tv_lounge` from the picker: card updated live, store persisted
+  (`data/config.json` shows the entry with `is_default: false`).
+
 ## Final state notes
 
 - Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.
@@ -264,3 +300,4 @@ simplicity); MPV speakers are added manually (no discovery); the
 5. ~~NOTIFICATION events go nowhere~~ — **resolved**: events removed entirely (Batch 3.5).
 6. ~~NFC-encode flow never persists an rfid→album mapping~~ — **moot**: DB removed (Batch 3.5); cards are self-describing.
 7. Startup eagerly connects to all Chromecasts + spawns MPV just to sync default volume 50 (`VolumeManager.__init__` → `sync_volume_from_backend`) — slow startup + log noise; candidate deferral in Batch 6.
+8. **Cast groups don't match by name** (found on RPi 2026-09-24): discovery surfaces cast GROUPS (e.g. "Home group"), but the connect path normalizes the store name `home_group` → `"Home Group"` while the device reports `"Home group"` — and the match is an exact string compare, so playback to such a speaker fails with "Device 'Home Group' not found on network". Exact-title-case names (Living Room, Bedroom, …) match fine. Fix plan: make the target match case/whitespace-insensitive (and consider storing the cast UUID in speaker options at add time for robust matching). Until then, adding a group works as a config entry but playback to it will not connect.

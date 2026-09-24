@@ -20,13 +20,21 @@
         {% if speakers %}
         <ul class="list-group list-group-flush mb-2">
             {% for s in speakers %}
+            {% set label = s.display_name or s.name %}
             <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">
                 <span>
-                    <i class="mdi mdi-speaker"></i> {{ s.name }}
+                    <i class="mdi mdi-speaker"></i> {{ label }}
+                    {% if s.display_name %}<small class="text-muted ms-1">({{ s.name }})</small>{% endif %}
                     <span class="badge text-bg-secondary ms-1">{{ s.backend }}</span>
                     {% if s.is_default %}<span class="badge text-bg-primary ms-1">default</span>{% endif %}
                 </span>
                 <span class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary" title="Edit display name"
+                            hx-prompt="Display name for {{ s.name }} (empty = show technical name)"
+                            hx-post="/kiosk/config/speakers/{{ s.name }}/display"
+                            hx-target="#speakers-card" hx-swap="outerHTML">
+                        <i class="mdi mdi-pencil"></i>
+                    </button>
                     {% if not s.is_default %}
                     <button type="button" class="btn btn-outline-secondary" title="Make default"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/default"
@@ -36,7 +44,7 @@
                     {% endif %}
                     <button type="button" class="btn btn-outline-danger" title="Remove speaker"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/remove"
-                            hx-confirm="Remove speaker '{{ s.name }}'? Its attached clients move to the default speaker."
+                            hx-confirm="Remove speaker '{{ label }}'? Its attached clients move to the default speaker."
                             hx-target="#speakers-card" hx-swap="outerHTML">
                         <i class="mdi mdi-delete"></i>
                     </button>
@@ -61,7 +69,7 @@
                 {% if not d.configured %}
                 <button type="button" class="btn btn-sm btn-outline-primary"
                         hx-post="/kiosk/config/speakers/add"
-                        hx-vals='{"name": "{{ d.name }}", "backend": "chromecast"}'
+                        hx-vals='{"name": "{{ d.name }}", "backend": "chromecast", "display_name": "{{ d.name }}"}'
                         hx-target="#speakers-card" hx-swap="outerHTML">
                     <i class="mdi mdi-plus"></i> Add
                 </button>
@@ -80,18 +88,21 @@
                 <input type="text" name="name" class="form-control form-control-sm" placeholder="Name (e.g. living_room)" required>
             </div>
             <div class="col-sm-3">
+                <input type="text" name="display_name" class="form-control form-control-sm" placeholder="Display name (optional)">
+            </div>
+            <div class="col-sm-2">
                 <select name="backend" class="form-select form-select-sm">
                     <option value="chromecast">Chromecast</option>
                     <option value="mpv">MPV (local device)</option>
                 </select>
             </div>
-            <div class="col-sm-2">
+            <div class="col-sm-1">
                 <div class="form-check">
-                    <input type="checkbox" name="is_default" value="on" class="form-check-input" id="spk-default-check">
-                    <label class="form-check-label small text-muted" for="spk-default-check">Default</label>
+                    <input type="checkbox" name="is_default" value="on" class="form-check-input" id="spk-default-check" title="Set as default">
+                    <label class="form-check-label small text-muted" for="spk-default-check">Def.</label>
                 </div>
             </div>
-            <div class="col-sm-3">
+            <div class="col-sm-2">
                 <button type="submit" class="btn btn-sm btn-primary w-100"><i class="mdi mdi-plus"></i> Add manually</button>
             </div>
         </form>

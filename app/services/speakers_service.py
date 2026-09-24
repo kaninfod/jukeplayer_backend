@@ -6,11 +6,13 @@ import uuid
 
 logger = logging.getLogger(__name__)
 class Speaker:
-    def __init__(self, speaker_id: str, name: str, backend: str, mediaplayer: object):
+    def __init__(self, speaker_id: str, name: str, backend: str, mediaplayer: object,
+                 display_name: str = ""):
         self.speaker_name = name
         self.speaker_id = speaker_id
         self.mediaplayer = mediaplayer
         self.backend = backend
+        self.display_name = str(display_name or "").strip()
         self.clients = set()
 
     def to_dict(self):
@@ -20,6 +22,7 @@ class Speaker:
 
         return {
             "speaker_name": self.speaker_name,
+            "display_name": self.display_name,
             "speaker_id": self.speaker_id,
             "backend": self.backend,
             "clients": list(self.clients),
@@ -66,7 +69,8 @@ class SpeakersService:
             device_name=device_name
         )
         logger.info(f"[SpeakersService]  Created MediaPlayerService for device: {device_name}")
-        return Speaker(str(uuid.uuid4()), device_name, backend_name, mediaplayer)
+        return Speaker(str(uuid.uuid4()), device_name, backend_name, mediaplayer,
+                       display_name=str(entry.get("display_name") or ""))
 
     def add_speaker(self, entry: dict) -> Speaker:
         """Live speaker add (Phase B): construct and register without a restart.

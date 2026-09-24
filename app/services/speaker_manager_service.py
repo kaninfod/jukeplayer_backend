@@ -60,10 +60,11 @@ class SpeakerManagerService:
     # --- mutations (persist, then apply live) --------------------------------------
     def add_speaker(self, name: str, backend: str = "chromecast",
                     options: Optional[Dict[str, Any]] = None,
-                    is_default: bool = False) -> Dict[str, Any]:
+                    is_default: bool = False,
+                    display_name: Optional[str] = None) -> Dict[str, Any]:
         """Add a speaker: construct it live, then persist to the store. If the
         store write fails, the live speaker is rolled back so the registry
-        always matches the store."""
+        always matches the store. display_name is the optional UI label."""
         store_name = normalize_speaker_name(name)
         if not store_name:
             raise ValueError("Speaker name is required")
@@ -73,12 +74,15 @@ class SpeakerManagerService:
         if store_name in {s["name"] for s in self.configured()}:
             raise ValueError(f"Speaker '{store_name}' is already configured")
 
+        display = str(display_name or "").strip()
         entry = {"name": store_name, "backend": backend_clean,
-                 "options": dict(options or {}), "is_default": bool(is_default)}
+                 "options": dict(options or {}), "is_default": bool(is_default),
+                 "display_name": display}
         speaker = self.speakers.add_speaker(entry)  # raises on registry duplicates
         try:
             speakers = self.store.add_speaker(store_name, backend=backend_clean,
-                                              options=entry["options"], is_default=bool(is_default))
+                                              options=entry["options"], is_default=bool(is_default),
+                                              display_name=display)
         except Exception:
             self.speakers.remove_speaker(store_name)
             raise
@@ -125,6 +129,19 @@ class SpeakerManagerService:
         self.speakers.set_default_name(store_name)
         logger.info(f"[SpeakerManager] Default speaker set to '{store_name}'")
         return {"default": store_name, "speakers": speakers}
+
+    def set_display_name(self, name: str, display_name: str) -> Dict[str, Any]:
+        """Set a speaker's UI display label (empty string clears it, the
+        technical name stays the matching key everywhere)."""
+        store_name = normalize_speaker_name(name)
+        speakers = self.store.set_speaker_display_name(store_name, display_name)
+        entry = next((s for s in speakers if s["name"] == store_name), None)
+        display = entry["display_name"] if entry else str(display_name or "").strip()
+        live = self.speakers.get_speaker(speaker_name=store_name)
+        if live:
+            live.display_name = display
+        logger.info(f"[SpeakerManager] Display name for '{store_name}' set to '{display}'")
+        return {"name": store_name, "display_name": display, "speakers": speakers}
 
     # --- volume sync (shared with startup) -------------------------------------------
     async def sync_speaker_volume(self, speaker) -> None:

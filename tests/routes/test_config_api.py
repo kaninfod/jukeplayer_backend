@@ -188,6 +188,58 @@ async def test_speaker_discovered_endpoint(monkeypatch, tmp_path, stub_live_cons
 
 
 @pytest.mark.asyncio
+async def test_speaker_display_name_endpoint(monkeypatch, tmp_path, stub_live_construction):
+    monkeypatch.setattr("app.config.config.CONFIG_FILE", str(tmp_path / "config.json"))
+
+    await startup_event()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/api/config/speakers", json={"name": "living_room"})
+
+        resp = await client.put("/api/config/speakers/living_room/display",
+                                json={"display_name": "Living Room Speaker"})
+        assert resp.status_code == 200
+        assert resp.json()["display_name"] == "Living Room Speaker"
+
+        listing = await client.get("/api/config/speakers")
+        assert listing.json()["speakers"][0]["display_name"] == "Living Room Speaker"
+
+        # clearing keeps the entry, display falls back to the technical name
+        cleared = await client.put("/api/config/speakers/living_room/display",
+                                   json={"display_name": ""})
+        assert cleared.status_code == 200
+        assert cleared.json()["display_name"] == ""
+
+        unknown = await client.put("/api/config/speakers/ghost/display",
+                                   json={"display_name": "Nope"})
+        assert unknown.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_speakers_card_shows_display_name_and_edit_control(monkeypatch, tmp_path, stub_live_construction):
+    monkeypatch.setattr("app.config.config.CONFIG_FILE", str(tmp_path / "config.json"))
+
+    await startup_event()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/config/speakers/add",
+                          data={"name": "living_room", "display_name": "Living Room Speaker"})
+
+        card = await client.get("/kiosk/config/speakers/scan")
+        assert card.status_code == 200
+        assert "Living Room Speaker" in card.text
+        assert "(living_room)" in card.text
+        assert 'hx-prompt="Display name for living_room' in card.text
+
+        # rename via the HX-Prompt header path (what the pencil button sends)
+        renamed = await client.post("/kiosk/config/speakers/living_room/display",
+                                    headers={"HX-Prompt": "Big Room TV"})
+        assert renamed.status_code == 200
+        assert "Big Room TV" in renamed.text
+        with open(tmp_path / "config.json") as fh:
+            persisted = json.load(fh)["speakers"][0]
+        assert persisted["display_name"] == "Big Room TV"
+
+
+@pytest.mark.asyncio
 async def test_speakers_card_htmx_flow(monkeypatch, tmp_path, stub_live_construction):
     # CONFIG_FILE is a class attr resolved at import — patch it, not the env
     # (setenv here never reached the store and tests leaked into the real file)

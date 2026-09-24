@@ -48,7 +48,8 @@ def stack(tmp_path, monkeypatch):
 
     def fake_build(entry):
         return Speaker(f"id-{entry['name']}", entry["name"], entry.get("backend", "chromecast"),
-                       FakePlayer(entry["name"]))
+                       FakePlayer(entry["name"]),
+                       display_name=entry.get("display_name", ""))
 
     monkeypatch.setattr(speakers, "_build_speaker", fake_build)
     broker = SimpleNamespace(handle_speaker_removed=AsyncMock())
@@ -73,7 +74,7 @@ def test_add_persists_to_store_and_registers_live(stack):
     entry = stack.manager.add_speaker("Living Room", backend="chromecast", is_default=True)
 
     assert entry == {"name": "living_room", "backend": "chromecast",
-                     "options": {}, "is_default": True}
+                     "options": {}, "is_default": True, "display_name": ""}
     # persisted (store reloaded from disk)
     reloaded = ConfigStoreService(path=stack.store.path)
     assert reloaded.section("speakers") == [entry]
@@ -164,6 +165,38 @@ def test_set_default_unknown_rejected(stack):
     stack.manager.add_speaker("a")
     with pytest.raises(ValueError, match="not configured"):
         stack.manager.set_default("ghost")
+
+
+# --- display names ------------------------------------------------------------
+
+def test_add_with_display_name_persists_and_registers(stack):
+    entry = stack.manager.add_speaker("tv_lounge", display_name="TV Lounge Speaker")
+
+    assert entry["display_name"] == "TV Lounge Speaker"
+    reloaded = ConfigStoreService(path=stack.store.path)
+    assert reloaded.section("speakers")[0]["display_name"] == "TV Lounge Speaker"
+    live = stack.speakers.get_speaker(speaker_name="tv_lounge")
+    assert live.display_name == "TV Lounge Speaker"
+    assert live.to_dict()["display_name"] == "TV Lounge Speaker"
+
+
+def test_set_display_name_updates_store_and_live(stack):
+    stack.manager.add_speaker("living_room")
+    stack.manager.set_display_name("living_room", "Living Room Speaker")
+
+    assert stack.store.section("speakers")[0]["display_name"] == "Living Room Speaker"
+    assert stack.speakers.get_speaker(speaker_name="living_room").display_name == "Living Room Speaker"
+
+    # empty value clears it (UI falls back to the technical name)
+    stack.manager.set_display_name("living_room", "  ")
+    assert stack.store.section("speakers")[0]["display_name"] == ""
+    assert stack.speakers.get_speaker(speaker_name="living_room").display_name == ""
+
+
+def test_set_display_name_unknown_rejected(stack):
+    stack.manager.add_speaker("a")
+    with pytest.raises(ValueError, match="not configured"):
+        stack.manager.set_display_name("ghost", "Nope")
 
 
 # --- discovery ----------------------------------------------------------------

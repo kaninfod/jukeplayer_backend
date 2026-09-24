@@ -59,6 +59,7 @@ def get_available_output_devices():
                 "backend": entry.get("backend", "chromecast"),
                 "device": entry.get("options", {}).get("device_name") or entry["name"],
                 "name": entry["name"],
+                "display": entry.get("display_name") or entry["name"],
             })
     except Exception as e:
         logger.warning("Could not read speakers from config store: %s", e)
