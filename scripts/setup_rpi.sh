@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Jukeplayer backend — one-shot setup for a dedicated Raspberry Pi.
-# Target: Raspberry Pi OS Lite (Bookworm, 64-bit), run as the default user.
+# Target: Raspberry Pi OS Lite 64-bit (Bookworm/Trixie), run as the default user.
 # Idempotent: safe to re-run. App dir default: /home/<user>/jukeplayer_backend
+#
+# Audio stack (see docs/OPERATIONS.md "Bluetooth / audio"): PulseAudio +
+# pulseaudio-module-bluetooth provide the A2DP endpoints; mpv plays via
+# ao=pulse. Do NOT re-enable the pipewire user services — their bluez monitor
+# does not register A2DP endpoints on this hardware/bluez combination.
 #
 # Usage (on the Pi, from the repo checkout):
 #   bash scripts/setup_rpi.sh [APP_DIR]
@@ -36,6 +41,14 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 echo "==> Enabling bluetooth + PulseAudio audio server..."
 sudo rfkill unblock bluetooth 2>/dev/null || true
 sudo systemctl enable --now bluetooth 2>/dev/null || true
+# Headless BT behaviour: re-pair without interaction + adapter up at boot
+if grep -q "^#\?JustWorksRepairing" /etc/bluetooth/main.conf 2>/dev/null; then
+    sudo sed -i 's/^#\?JustWorksRepairing.*/JustWorksRepairing = always/' /etc/bluetooth/main.conf
+fi
+if grep -q "^#\?AutoEnable" /etc/bluetooth/main.conf 2>/dev/null; then
+    sudo sed -i 's/^#\?AutoEnable.*/AutoEnable = true/' /etc/bluetooth/main.conf
+    sudo systemctl restart bluetooth 2>/dev/null || true
+fi
 loginctl enable-linger "${APP_USER}" >/dev/null 2>&1 || \
     sudo loginctl enable-linger "${APP_USER}" || true
 # PulseAudio provides the A2DP endpoints (user-session service)
@@ -93,6 +106,9 @@ if [ "${ENV_EDITED}" = "0" ]; then
     echo "Next:"
     echo "  1. nano ${APP_DIR}/.env      (set SUBSONIC_PASS etc.)"
     echo "  2. sudo systemctl start jukeplayer"
+    echo "  3. Open http://$(hostname):8000/kiosk/config — set the Subsonic"
+    echo "     password (masked field), then connect BT speakers via the"
+    echo "     Bluetooth card (Scan → Pair → Add as speaker)."
 else
     echo "Start it with:  sudo systemctl start jukeplayer"
 fi
