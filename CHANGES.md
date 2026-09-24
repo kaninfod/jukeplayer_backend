@@ -300,6 +300,11 @@ User-tested on the Pi 3 before implementation. Findings, decisions:
   confirmed on hardware. `deploy/jukeplayer.service` already sets
   `XDG_RUNTIME_DIR=/run/user/__APP_UID__`, so mpv inside the backend reaches
   the user's pulse server.
+- **Verified sink format (2026-09-24, user-confirmed):** pulse sink
+  `bluez_sink.10_94_97_0F_CB_BF.a2dp_sink` (underscores for colons, sink
+  profile), mpv device id `pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink`.
+  The BT card's "add as speaker" flow writes exactly this id into the
+  speaker's `options.audio_device`.
 - The `pipewire-audio` meta-package was also missing from setup (now
   installed for completeness) → add it to `setup_rpi.sh` if pipewire is ever
   revisited.
