@@ -7,6 +7,20 @@ from app.config import config
 # Log file lives under logs/ (rotated). Honors LOG_FILE env var when set.
 DEFAULT_LOG_FILE = os.getenv("LOG_FILE", "logs/jukebox.log")
 
+def boot_log_level():
+    """Boot-time log level: the config store's logging.level wins, then
+    LOG_LEVEL env, then INFO. Direct file read (no services exist yet)."""
+    import json
+    store_path = os.getenv("CONFIG_FILE", os.path.join("data", "config.json"))
+    try:
+        with open(store_path, "r", encoding="utf-8") as fh:
+            level = str(json.load(fh).get("logging", {}).get("level", "")).upper()
+        if level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+            return getattr(logging, level)
+    except Exception:
+        pass
+    return getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+
 def setup_logging(log_file=None, level=logging.INFO):
     """Configure logging: RFC3164 directly to syslog (real PRI severity per
     record), plus container-local file and console handlers. The Docker

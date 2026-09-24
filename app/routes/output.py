@@ -29,13 +29,15 @@ def _backend_key(backend) -> str:
 
 @router.get("/options")
 def output_options():
+    from app.core.service_container import get_service
+    speakers = get_service("config_service").speakers()
+    default = next((s["name"] for s in speakers if s.get("is_default")), None)
     return {
         "status": "ok",
         "backends": ["mpv", "chromecast"],
-        "chromecast_devices": list(config.CHROMECAST_DEVICES),
+        "configured_speakers": [s["name"] for s in speakers],
         "defaults": {
-            "backend": config.PLAYBACK_BACKEND,
-            "chromecast_device": config.DEFAULT_CHROMECAST_DEVICE,
+            "speaker": default,
         },
     }
 

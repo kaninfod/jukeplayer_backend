@@ -40,8 +40,8 @@ async def _async_call(fn, args):
     return fn(*args)
 
 
-def test_connect_without_fallback_never_expands_device_list(monkeypatch):
-    """fallback=False (new default) must not try other rooms silently."""
+def test_connect_tries_only_the_target_device(monkeypatch):
+    """No fallback by design: connect the requested speaker or fail loudly."""
     svc = make_service("kitchen")
 
     tried = []
@@ -53,27 +53,8 @@ def test_connect_without_fallback_never_expands_device_list(monkeypatch):
     monkeypatch.setattr(cc.pychromecast, "get_chromecast_from_cast_info",
                         lambda *a, **k: connect_calls.append(1))
 
-    ok = svc.connect(device_name="kitchen", fallback=False)
+    ok = svc.connect(device_name="kitchen")
 
     assert ok is False
-    assert tried == ["Kitchen"]  # only the normalized target, no fallbacks
-    assert connect_calls == []       # never attempted a connection
-
-
-def test_connect_explicit_fallback_still_available(monkeypatch):
-    """fallback=True remains available for explicit callers (e.g. UI-driven)."""
-    svc = make_service("kitchen")
-
-    tried = []
-    monkeypatch.setattr(svc, "_discover_chromecasts",
-                        lambda timeout=None, target_name=None: tried.append(target_name) or ([], None, {}))
-
-    import app.playback_backends.chromecast as cc
-    monkeypatch.setattr(cc.pychromecast, "get_chromecast_from_cast_info",
-                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not connect")))
-
-    ok = svc.connect(device_name="kitchen", fallback=True)
-
-    assert ok is False
-    # normalized target + configured fallback devices were attempted
-    assert tried == ["Kitchen", "Bedroom", "Kitchen"]
+    assert tried == ["Kitchen"]  # only the target, never another room
+    assert connect_calls == []   # never attempted a connection

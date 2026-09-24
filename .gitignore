@@ -57,3 +57,5 @@ temp/
 
 # Static files
 static_files/
+# Runtime config store (managed from the web UI)
+data/

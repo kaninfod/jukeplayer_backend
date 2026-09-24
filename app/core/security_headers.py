@@ -45,7 +45,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 return ""
 
         try:
-            subsonic = getattr(config, "SUBSONIC_URL", None)
+            from app.core.service_container import get_service
+            try:
+                subsonic = get_service("config_service").subsonic().get("url")
+            except Exception:
+                subsonic = getattr(config, "SUBSONIC_URL", None)
             host = _extract_host(subsonic)
             if host:
                 # Allow either scheme explicitly to be safe with redirects/cert offload
@@ -57,7 +61,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Also allow the PUBLIC_BASE_URL host (used to generate absolute cover URLs for Chromecast/UI)
         try:
-            public_base = getattr(config, "PUBLIC_BASE_URL", None)
+            try:
+                public_base = get_service("config_service").server().get("public_base_url")
+            except Exception:
+                public_base = getattr(config, "PUBLIC_BASE_URL", None)
             host = _extract_host(public_base)
             if host:
                 img_sources.append(f"https://{host}")

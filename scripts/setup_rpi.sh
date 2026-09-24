@@ -54,8 +54,11 @@ python3 -m venv venv
 ./venv/bin/pip install --upgrade pip -q
 ./venv/bin/pip install -r requirements.txt
 
-# --- Runtime dirs
+# --- Runtime dirs + config store seed (speakers pre-filled; set the
+#     Subsonic password via the web UI on first run)
 mkdir -p data logs
+[ -f data/config.json ] || cp deploy/config.seed.json data/config.json
+chmod 600 data/config.json 2>/dev/null || true
 
 # --- Environment file (full config until the config store lands)
 if [ ! -f ".env" ]; then

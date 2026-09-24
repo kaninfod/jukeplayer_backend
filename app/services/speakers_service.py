@@ -1,10 +1,8 @@
 
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import uuid
-
-from app.config import config
 
 logger = logging.getLogger(__name__)
 class Speaker:
@@ -36,23 +34,33 @@ class Speaker:
 class SpeakersService:
     def __init__(self):
         self._speakers: Dict[str, Speaker] = {}
-    
-    def initialize_speakers(self, device_config: Dict[str, str]):
+        self._default_name: Optional[str] = None
+
+    def initialize_speakers(self, speakers: List[dict]):
+        """Create the speaker registry from the config store's speaker list:
+        entries are {name, backend, options, is_default}."""
         from app.services import MediaPlayerService
         from app.playback_backends.factory import get_playback_backend_by_name
         from app.core.service_container import get_service
 
-        for device_name, backend_type in device_config.items():
-            if device_name not in self._speakers:
-                backend = get_playback_backend_by_name(backend_type, device_name)
-                mediaplayer = MediaPlayerService(
-                    event_bus=get_service("event_bus"),
-                    playback_backend=backend,
-                    device_name=device_name
-                )
-                self._speakers[device_name] = Speaker(str(uuid.uuid4()), device_name, backend_type, mediaplayer)
-                logger.info(f"[SpeakersService]  Created MediaPlayerService for device: {device_name}")
-
+        for entry in speakers:
+            device_name = entry.get("name")
+            if not device_name or device_name in self._speakers:
+                continue
+            backend = get_playback_backend_by_name(
+                entry.get("backend", "chromecast"),
+                device_name=device_name,
+                options=entry.get("options") or {},
+            )
+            mediaplayer = MediaPlayerService(
+                event_bus=get_service("event_bus"),
+                playback_backend=backend,
+                device_name=device_name
+            )
+            self._speakers[device_name] = Speaker(str(uuid.uuid4()), device_name, entry.get("backend", "chromecast"), mediaplayer)
+            if entry.get("is_default") and not self._default_name:
+                self._default_name = device_name
+            logger.info(f"[SpeakersService]  Created MediaPlayerService for device: {device_name}")
 
     def get_speaker(self, speaker_id: str = None, speaker_name: str = None) -> Optional[Speaker]:
         if speaker_name:
@@ -64,14 +72,10 @@ class SpeakersService:
         return None
 
     def get_default_speaker(self) -> Optional[Speaker]:
-        """Return the default speaker (from DEFAULT_CHROMECAST_DEVICE) or the
-        first configured speaker. Speaker names are lowercase logical names
-        (e.g. 'living_room') while the config default may be 'Living Room'."""
-        if not self._speakers:
-            return None
-        default_name = (getattr(config, "DEFAULT_CHROMECAST_DEVICE", "") or "").strip().lower().replace(" ", "_")
-        if default_name and default_name in self._speakers:
-            return self._speakers[default_name]
+        """Return the speaker flagged as default in the config store, or the
+        first configured speaker. No env fallback — the store is authoritative."""
+        if self._default_name and self._default_name in self._speakers:
+            return self._speakers[self._default_name]
         return next(iter(self._speakers.values()), None)
     def get_all_speakers(self) -> Dict[str, Speaker]:
         return self._speakers

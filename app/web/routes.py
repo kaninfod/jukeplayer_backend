@@ -71,7 +71,76 @@ def _filter_artists_by_group(group_name: str, artists: list) -> list:
 def _is_htmx_request(request: Request) -> bool:
     return request.headers.get("HX-Request", "").lower() == "true"
 
-# New unified routes
+# Configuration UI (Phase A)
+
+def _config_ui_context(saved_section: str | None = None) -> dict:
+    """Template-friendly view: plain scalar values per key + flags."""
+    from app.core.service_container import get_service
+    config_service = get_service("config_service")
+
+    def scalars(section: str) -> dict:
+        return {key: entry["value"] for key, entry in config_service.effective()["sections"][section]["keys"].items()}
+
+    subsonic = scalars("subsonic")
+    return {
+        "config": {
+            "subsonic": {**subsonic, "password_set": bool(config_service.subsonic().get("password"))},
+            "logging": scalars("logging"),
+            "server": scalars("server"),
+        },
+        "speakers": config_service.speakers(),
+        "system_env": {key: entry["value"] for key, entry in config_service.effective()["sections"]["system_env"]["keys"].items()},
+        "saved_section": saved_section,
+        "applies": "live" if saved_section == "logging" else "restart" if saved_section else None,
+    }
+
+
+@router.get("/kiosk/config", response_class=HTMLResponse)
+async def kiosk_config_page(request: Request):
+    context = _config_ui_context()
+    if _is_htmx_request(request):
+        return templates.TemplateResponse(request=request,
+            name="components/kiosk/config/_config.html", context=context)
+    return templates.TemplateResponse(request=request,
+        name="pages/kiosk/config.html", context=context)
+
+
+@router.post("/kiosk/config/save/{section}")
+async def kiosk_config_save(section: str, request: Request):
+    from app.core.service_container import get_service
+    from app.services.config_store import VALID_LOG_LEVELS
+
+    form = await request.form()
+    store = get_service("config_store")
+    config_service = get_service("config_service")
+
+    try:
+        if section == "subsonic":
+            values = {key: (form.get(key) or "") for key in
+                      ("url", "user", "client", "api_version", "proxy_basic_user", "proxy_basic_pass")}
+            if form.get("password"):
+                values["password"] = form.get("password")
+            store.update_section("subsonic", values)
+        elif section == "logging":
+            level = str(form.get("level", "")).upper()
+            if level not in VALID_LOG_LEVELS:
+                return HTMLResponse(f"Invalid log level: {level}", status_code=400)
+            store.update_section("logging", {"level": level})
+            config_service.apply_runtime()
+        elif section == "server":
+            store.update_section("server", {
+                "cors_allow_origins": form.get("cors_allow_origins", ""),
+                "public_base_url": form.get("public_base_url", ""),
+            })
+        else:
+            return HTMLResponse(f"Unknown section: {section}", status_code=404)
+    except ValueError as e:
+        return HTMLResponse(str(e), status_code=400)
+
+    context = _config_ui_context(saved_section=section)
+    context["request"] = request
+    return templates.TemplateResponse(request=request,
+        name="components/kiosk/config/_config.html", context=context)
 
 
 @router.get("/", response_class=HTMLResponse)

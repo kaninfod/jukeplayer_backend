@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "subsonic": {
+    "url": "http://192.168.68.102:4747",
+    "user": "jukebox",
+    "password": "",
+    "client": "JukeboxPi",
+    "api_version": "1.16.1",
+    "proxy_basic_user": "",
+    "proxy_basic_pass": ""
+  },
+  "speakers": [
+    {"name": "living_room", "backend": "chromecast", "options": {}, "is_default": true},
+    {"name": "bedroom", "backend": "chromecast", "options": {}, "is_default": false},
+    {"name": "kitchen", "backend": "chromecast", "options": {}, "is_default": false},
+    {"name": "boom3", "backend": "mpv", "options": {"device_name": "BOOM3"}, "is_default": false}
+  ],
+  "mpv": {
+    "binary": "mpv",
+    "cache_enabled": true,
+    "cache_secs": 90,
+    "demuxer_max_bytes": "128MiB",
+    "demuxer_max_back_bytes": "32MiB",
+    "audio_buffer": 1.2,
+    "msg_level": ""
+  },
+  "logging": {"level": "INFO"},
+  "server": {"cors_allow_origins": "*", "public_base_url": ""},
+  "chromecast": {"discovery_timeout": 3, "wait_timeout": 10}
+}

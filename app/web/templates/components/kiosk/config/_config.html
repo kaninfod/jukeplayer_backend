@@ -1,0 +1,120 @@
+<div class="kiosk-component-container h-100 d-flex flex-column p-4" id="config-panel">
+    <div class="mb-3 flex-shrink-0 d-flex justify-content-between align-items-center">
+        <h3 class="kiosk-artist mb-0"><i class="mdi mdi-cog"></i> Configuration</h3>
+        {% if saved_section %}
+        <span class="badge text-bg-success">
+            {{ saved_section }} saved
+            {% if applies == 'live' %}&nbsp;<span class="text-white-50">(applied live)</span>
+            {% else %}&nbsp;<span class="text-white-50">(restart required)</span>{% endif %}
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- SPEAKERS (management UI arrives in the next update) -->
+    <div class="card mb-3 flex-shrink-0">
+        <div class="card-body py-3">
+            <h6 class="text-muted mb-2"><i class="mdi mdi-speaker-multiple"></i> Speakers
+                <span class="badge text-bg-secondary ms-2">managed in the next update</span>
+            </h6>
+            {% if speakers %}
+            <div class="d-flex flex-wrap gap-2">
+                {% for s in speakers %}
+                <span class="badge {% if s.is_default %}text-bg-primary{% else %}text-bg-light{% endif %} border">
+                    {{ s.name }} · {{ s.backend }}{% if s.is_default %} · default{% endif %}
+                </span>
+                {% endfor %}
+            </div>
+            {% else %}
+            <small class="text-muted">No speakers configured yet.</small>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="flex-grow-1 overflow-auto">
+        <form method="post" action="/kiosk/config/save/subsonic" class="card mb-3">
+            <div class="card-body">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-server"></i> Music source (Subsonic/Gonic)
+                    <span class="badge text-bg-warning ms-2">restart required</span></h6>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">URL</label>
+                        <input type="text" name="url" class="form-control form-control-sm" value="{{ config.subsonic.url }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">User</label>
+                        <input type="text" name="user" class="form-control form-control-sm" value="{{ config.subsonic.user }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Password</label>
+                        <input type="password" name="password" class="form-control form-control-sm" placeholder="{% if config.subsonic.password_set %}unchanged{% else %}not set{% endif %}" autocomplete="new-password">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted">Client identifier</label>
+                        <input type="text" name="client" class="form-control form-control-sm" value="{{ config.subsonic.client }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">API version</label>
+                        <input type="text" name="api_version" class="form-control form-control-sm" value="{{ config.subsonic.api_version }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Proxy user (optional)</label>
+                        <input type="text" name="proxy_basic_user" class="form-control form-control-sm" value="{{ config.subsonic.proxy_basic_user }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Proxy pass</label>
+                        <input type="password" name="proxy_basic_pass" class="form-control form-control-sm" value="{{ config.subsonic.proxy_basic_pass }}">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary mt-3"><i class="mdi mdi-content-save"></i> Save</button>
+            </div>
+        </form>
+
+        <form method="post" action="/kiosk/config/save/logging" class="card mb-3">
+            <div class="card-body">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-text-box-outline"></i> Logging
+                    <span class="badge text-bg-success ms-2">applies live</span></h6>
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Level</label>
+                        <select name="level" class="form-select form-select-sm">
+                            {% for lvl in ['DEBUG','INFO','WARNING','ERROR','CRITICAL'] %}
+                            <option {% if lvl == config.logging.level %}selected{% endif %}>{{ lvl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-sm btn-primary"><i class="mdi mdi-content-save"></i> Save &amp; apply</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <form method="post" action="/kiosk/config/save/server" class="card mb-3">
+            <div class="card-body">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-earth"></i> Server
+                    <span class="badge text-bg-warning ms-2">restart required</span></h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted">CORS origins (comma-separated)</label>
+                        <input type="text" name="cors_allow_origins" class="form-control form-control-sm" value="{{ config.server.cors_allow_origins }}">
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small text-muted">Public base URL (optional)</label>
+                        <input type="text" name="public_base_url" class="form-control form-control-sm" value="{{ config.server.public_base_url }}">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary mt-3"><i class="mdi mdi-content-save"></i> Save</button>
+            </div>
+        </form>
+
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-2"><i class="mdi mdi-information-outline"></i> System (environment-managed)</h6>
+                <small class="text-muted">
+                    Syslog: {{ system_env.log_server_host }}:{{ system_env.log_server_port }} — these stay in the
+                    deployment environment (env file) and require a restart to change.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>

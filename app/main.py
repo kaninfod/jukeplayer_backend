@@ -4,11 +4,11 @@
 import logging
 import os
 from app.config import config
-from app.core.logging_config import setup_logging
+from app.core.logging_config import boot_log_level, setup_logging
 
 # Setup logging FIRST, before importing anything else that might log.
-# Respect LOG_LEVEL from the environment (default INFO).
-setup_logging(level=getattr(logging, str(config.LOG_LEVEL).upper(), logging.INFO))
+# Boot level: config store's logging.level, else LOG_LEVEL env, else INFO.
+setup_logging(level=boot_log_level())
 
 import getpass
 from fastapi import FastAPI
@@ -25,6 +25,7 @@ from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.mediaplayer import wsrouter as wsmediaplayer_router
 from app.routes.system import router as system_router
 from app.routes.subsonic import router as subsonic_router
+from app.routes.config_api import router as config_router
 from app.routes.output import router as output_router
 from app.routes.nfc_encoding import router as nfc_encoding_router
 
@@ -44,12 +45,19 @@ app = FastAPI(
     openapi_url=(config.OPENAPI_URL if enable_docs else None),
 )
 
-# Optional HTTP -> HTTPS redirect
-if config.ENABLE_HTTPS_REDIRECT:
+# Server behaviour (CORS + optional HTTPS redirect) lives in the config store.
+# Boot-read: the store file is plain JSON, readable before services exist.
+from app.services.config_store import ConfigStoreService
+_server_store = ConfigStoreService()
+_server_cfg = _server_store.section("server")
+enable_https_redirect = bool(_server_cfg.get("enable_https_redirect"))
+cors_origins = [o.strip() for o in (_server_cfg.get("cors_allow_origins") or "*").split(",") if o.strip()]
+
+# Optional HTTP -> HTTPS redirect (use behind a TLS-terminating reverse proxy)
+if enable_https_redirect:
     app.add_middleware(HTTPSRedirectMiddleware)
 
 # Add CORS middleware
-cors_origins = [o.strip() for o in config.CORS_ALLOW_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins if cors_origins else ["*"],
@@ -94,15 +102,14 @@ def global_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers
-# app.include_router(album_router)
 app.include_router(mediaplayer_router)
 app.include_router(system_router)
 app.include_router(subsonic_router)
-# app.include_router(chromecast_router)
 app.include_router(output_router)
 app.include_router(nfc_encoding_router)
 app.include_router(web_router)
 app.include_router(wsmediaplayer_router)
+app.include_router(config_router)
 # Mount web static files (JS, CSS) - serve from app/web/static with proper MIME types
 # MUST be mounted AFTER routers to avoid route conflicts
 web_static_dir = os.path.join(os.path.dirname(__file__), "web", "static")
@@ -114,13 +121,21 @@ else:
 @app.on_event("startup")
 async def startup_event():
     """Initialize all systems using the service container"""
-    # Step 0: Validate configuration
-    if not config.validate_config():
-        logging.error("❌ Configuration validation failed. Please check your .env file.")
-        return
     # Step 1: Setup service container
     from app.core.service_container import setup_service_container
     global_container = setup_service_container()
+    # Step 1.2: Surface unconfigured state — the app still boots so it can be
+    # configured from the web UI (config store is authoritative).
+    config_service = global_container.get('config_service')
+    subsonic_cfg = config_service.subsonic()
+    if not subsonic_cfg.get("url") or not subsonic_cfg.get("user"):
+        logging.warning(
+            "⚠️  Subsonic is not configured yet — open the web UI (/kiosk/config) "
+            "to set the music source, then restart.")
+    if not config_service.speakers():
+        logging.warning(
+            "⚠️  No speakers configured yet — manage them from the web UI once "
+            "speaker management ships (they can also be pre-set in the store file).")
     # Step 1.5: Give the event bus the running loop so backend-thread callbacks
     # (pychromecast / MPV) can schedule async handlers safely.
     import asyncio
@@ -144,7 +159,7 @@ async def startup_event():
 
     speaker_broker_service = global_container.get('speaker_broker_service')
     speakers_service = speaker_broker_service.speakers
-    speakers_service.initialize_speakers(config.PLAYBACK_DEVICES)
+    speakers_service.initialize_speakers(config_service.speakers())
 
     # Step 4: Background volume sync — connect to each configured device and
     # pull its real volume into app state (clients would otherwise show the
