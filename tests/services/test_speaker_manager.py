@@ -267,3 +267,26 @@ async def test_broker_detaches_clients_when_no_speakers_remain(mock_event_bus):
 
     assert client.speaker_name is None
     client.send_callback.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_broker_resolves_display_form_device_names(mock_event_bus):
+    """TRACK_FINISHED from an mpv speaker carries the display-form name
+    ('OPENRUN PRO 2 BY SHOKZ') — routing must still land on that speaker
+    instead of falling back to the default (routing bug 2026-09-24)."""
+    from app.services.media_player_service import MediaPlayerService  # noqa: F401
+
+    speakers = SpeakersService()
+    headphones = Speaker("id-openrun", "openrun_pro_2_by_shokz", "mpv",
+                         SimpleNamespace(get_context=lambda minimal=False: {}))
+    default_speaker = Speaker("id-b", "living_room", "chromecast",
+                              SimpleNamespace(get_context=lambda minimal=False: {}))
+    speakers._speakers = {"openrun_pro_2_by_shokz": headphones, "living_room": default_speaker}
+    speakers.set_default_name("living_room")
+
+    broker = SpeakerBrokerService(SimpleNamespace(_clients={}), speakers, mock_event_bus)
+
+    # display-form (uppercase + spaces) and store form both resolve correctly
+    assert broker.resolve_speaker(device_name="OPENRUN PRO 2 BY SHOKZ") is headphones
+    assert broker.resolve_speaker(device_name="openrun_pro_2_by_shokz") is headphones
+    assert broker.resolve_speaker(device_name="Openrun Pro 2 By Shokz") is headphones

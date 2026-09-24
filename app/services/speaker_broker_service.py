@@ -263,7 +263,14 @@ class SpeakerBrokerService:
             if speaker is None:
                 logger.warning(f"[SpeakerBrokerService] client_id {client_id} not attached to a speaker — falling back")
         if speaker is None and device_name:
-            speaker = self.speakers.get_speaker(speaker_name=device_name)
+            # Event payloads carry display-form names (mpv uppercases and uses
+            # spaces: 'OPENRUN PRO 2 BY SHOKZ') while registry keys are the
+            # normalized store names ('openrun_pro_2_by_shokz') — normalize
+            # before the lookup, else live-added mpv speakers fall through to
+            # the default speaker (routing bug found 2026-09-24: next_track
+            # after track-end executed against the wrong speaker).
+            from app.services.speaker_manager_service import normalize_speaker_name
+            speaker = self.speakers.get_speaker(speaker_name=normalize_speaker_name(device_name))
             if speaker is None:
                 logger.warning(f"[SpeakerBrokerService] Unknown device_name '{device_name}' — falling back")
         if speaker is None:

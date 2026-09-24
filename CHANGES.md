@@ -354,6 +354,22 @@ forced the stack swap).
   sinks/card add-speaker incl. duplicate rejection and full-page render).
   **Suite: 96 passing.**
 
+## Routing bug: mpv display-form device names (found 2026-09-24, RPi)
+
+While debugging the simultaneous audio stop, the journal exposed a routing
+bug: MPVService emits TRACK_FINISHED with the **display-form** device name
+(`OPENRUN PRO 2 BY SHOKZ` — uppercased, spaces) while the speakers registry
+keys are normalized store names (`openrun_pro_2_by_shokz`).
+`SpeakerBrokerService.resolve_speaker` matched exactly → miss → **fallback to
+the default speaker**: after a track ended on a live-added BT speaker,
+next_track/stop executed against the Chromecast instead ("stop(bedroom)") and
+the mpv playlist stopped instead of advancing.
+
+- Fix: `resolve_speaker` normalizes the payload device_name
+  (`normalize_speaker_name`) before the lookup — covers case, spaces and
+  underscores for every event source. Test added (display/store/mixed forms
+  all resolve to the right speaker). Suite: 104 passing.
+
 ## Final state notes
 
 - Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.
