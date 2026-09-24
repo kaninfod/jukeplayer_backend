@@ -13,8 +13,13 @@ htmlcov/
 *.db
 *.sqlite
 logs/
+*.log
+tmp_mpv.log
+venv/
 .env
 .env.local
+.env_dev
+.env_dev.bak
 .DS_Store
 README.md
 docs/

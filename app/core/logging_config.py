@@ -4,11 +4,16 @@ import socket
 import os
 from app.config import config
 
-def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
+# Log file lives under logs/ (rotated). Honors LOG_FILE env var when set.
+DEFAULT_LOG_FILE = os.getenv("LOG_FILE", "logs/jukebox.log")
+
+def setup_logging(log_file=None, level=logging.INFO):
     """Configure logging: RFC3164 directly to syslog (real PRI severity per
     record), plus container-local file and console handlers. The Docker
     syslog driver is deliberately NOT used — the app owns its syslog identity
     (facility local0, tag jukeplayer_backend, hostname jukeplayer-backend)."""
+    if not log_file:
+        log_file = DEFAULT_LOG_FILE
 
     # 1. TRULY clear everything attached to the root logger first
     # This wipes out Uvicorn defaults and previous setups cleanly.
@@ -51,10 +56,12 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     else:
         delayed_logs.append(("debug", "[SYSLOG] not configured (LOG_SERVER_HOST empty)"))
 
-    # === FILE HANDLER (container-local, always) ===
+    # === FILE HANDLER (container-local, rotated) ===
     try:
-        os.makedirs("logs", exist_ok=True)
-        file_handler = logging.FileHandler(log_file)
+        os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        )
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
     except Exception as e:
@@ -66,7 +73,7 @@ def setup_logging(log_file="jukebox.log", level=logging.DEBUG):
     root_logger.addHandler(screen_handler)
 
     # === SUPPRESS NOISY THIRD-PARTY LOGS ===
-    for lib in ["requests", "PIL", "urllib3", "pychromecast", "httpcore"]:
+    for lib in ["requests", "PIL", "urllib3", "pychromecast", "httpcore", "asyncio"]:
         logging.getLogger(lib).setLevel(logging.WARNING)
 
     for lib in ["websockets", "websockets.protocol", "websockets.frames", "websockets.client",

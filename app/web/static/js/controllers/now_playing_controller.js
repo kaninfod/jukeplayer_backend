@@ -109,104 +109,24 @@ export default class extends Controller {
         this.updateMuteState();
     }
 
-    update_old() {
-        if (window.appState.lastTrackData) {
-            console.log("Updating Now Playing with track data:", window.appState.lastTrackData);
-        } else {
-            console.log("No track data available to update Now Playing.");
-            return
-        }
-        const data = window.appState.lastTrackData;        
-        const hasTrack = !!data.artist;
-        console.log(`Has track: ${hasTrack}, Artist: ${data.artist}, Title: ${data.title}, Album: ${data.album}, Tracknum: ${data.track_number}, Cover URL: ${data.cover_url}`);
-        
-        if (hasTrack) {
-            console.log("Track data is present, updating UI elements.");
-            if (this.hasTrackinfoTarget) {
-                this.trackinfoTarget.classList.remove("d-none");
-            }
-            if (this.hasCoverTarget) {
-                this.coverTarget.classList.remove("d-none");
-            }
-            if (this.hasNotrackinfoTarget) {
-                this.notrackinfoTarget.classList.add("d-none");
-            }
-            if (this.hasNocoverTarget) {
-                this.nocoverTarget.classList.add("d-none");
-            }
-
-            if (this.hasArtistTarget) {
-                this.artistTarget.textContent = `${data.artist}`;
-            }
-
-            if (this.hasTitleTarget) {
-                this.titleTarget.textContent = `${data.title}`;
-            }
-
-            if (this.hasAlbumTarget) {
-                this.albumTarget.textContent = `${data.album}`;
-            }
-
-            if (this.hasTracknumTarget) {
-                const trackNumberText = `Track ${data.track_number} of ${window.appState.playlist.length}`;
-                this.tracknumTarget.textContent = trackNumberText;
-            }
-            
-            // this.renderState(hasTrack);
-
-            if (this.hasCoverTarget) {
-                let coverUrl = data.cover_url;
-                if (coverUrl) {
-
-                    if (coverUrl.startsWith('/')) {
-                        coverUrl = window.location.origin + coverUrl + '?size=512';
-                    }
-                    this.coverimgTarget.src = coverUrl;
-                } else {
-                    console.log(`UPDATE: No cover_url, showing placeholder`);
-                    this.coverimgTarget.src = '';
-                }
-            }
-
-        } else {
-            console.log("No track data available, showing placeholders.");
-            if (this.hasTrackinfoTarget) {
-                this.trackinfoTarget.classList.add("d-none");
-            }
-            if (this.hasCoverTarget) {
-                this.coverTarget.classList.add("d-none");
-            }
-            if (this.hasNotrackinfoTarget) {
-                this.notrackinfoTarget.classList.remove("d-none");
-            }
-            if (this.hasNocoverTarget) {
-                this.nocoverTarget.classList.remove("d-none");
-            }
-        }  
-        
-        console.log(`Playback status: ${window.appState.playerStatus}, hastarget: ${this.hasPlaystatusTarget}, Repeat: ${window.appState.repeatState}, Volume: ${window.appState.volume}, Output Device: ${window.appState.deviceName}`);
-
-        
-        try {
-            this.updateRepeatState();
-            this.updatePlayerstatus();
-            this.updateVolume();
-            this.updateDevice();
-            this.updateMuteState();
-        } catch (e) {
-            console.error("STOPPED before mute:", e);
-        }
-        
-        
-    }
-
 
     renderState(hasTrack) {
-        this.trackinfoTarget.classList.toggle("d-none", !hasTrack);
-        this.coverTarget.classList.toggle("d-none", !hasTrack);
-
-        this.notrackinfoTarget.classList.toggle("d-none", hasTrack);
-        this.nocoverTarget.classList.toggle("d-none", hasTrack);
+        // Guarded: this controller also runs on pages (or page states) where
+        // these targets do not exist; an unguarded access here would throw
+        // "Missing target element" and abort the whole update (volume, mute,
+        // player status would stop updating — seen 2026-09-24).
+        if (this.hasTrackinfoTarget) {
+            this.trackinfoTarget.classList.toggle("d-none", !hasTrack);
+        }
+        if (this.hasCoverTarget) {
+            this.coverTarget.classList.toggle("d-none", !hasTrack);
+        }
+        if (this.hasNotrackinfoTarget) {
+            this.notrackinfoTarget.classList.toggle("d-none", hasTrack);
+        }
+        if (this.hasNocoverTarget) {
+            this.nocoverTarget.classList.toggle("d-none", hasTrack);
+        }
     }
 
     updateVolume() {

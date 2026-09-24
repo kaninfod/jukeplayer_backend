@@ -1,4 +1,5 @@
 import json
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, Request, Query, HTTPException
@@ -67,60 +68,6 @@ def _filter_artists_by_group(group_name: str, artists: list) -> list:
     return filtered_artists
 
 
-async def _get_output_status_data() -> dict:
-    from app.core.service_container import get_service
-    from app.routes.output import _backend_key
-    from app.playback_backends.factory import get_available_output_devices
-
-    player = get_service("media_player_service")
-    backend = getattr(player, "playback_backend", None)
-    devices = get_available_output_devices()
-
-    backend_status = await backend.get_status() if hasattr(backend, "get_status") else None
-    readiness = (
-        backend.get_output_readiness()
-        if hasattr(backend, "get_output_readiness")
-        else {"ready": True, "message": "No backend-specific checks"}
-    )
-
-    backend_name = _backend_key(backend)
-    connected = readiness.get("ready", True)
-    if backend_name == "chromecast" and hasattr(backend, "is_connected"):
-        try:
-            connected = bool(backend.is_connected())
-        except Exception:
-            connected = False
-
-    for device in devices:
-        if device.get("backend") == backend_name and device.get("device") == getattr(backend, "device_name", None):
-            device["active"] = True
-        else:
-            device["active"] = False
-
-        if device.get("backend") == "mpv":
-            device["icon"] = "mdi-bluetooth-audio"
-        elif device.get("backend") == "chromecast":
-            device["icon"] = "mdi-cast"
-        else:
-            device["icon"] = "mdi-cast"
-
-    return {
-        "status": "ok",
-        "active_backend": backend_name,
-        "active_device": getattr(backend, "device_name", None),
-        "connected": connected,
-        "playback_backend_ready": readiness.get("ready", True),
-        "backend_status": backend_status,
-        "output_readiness": readiness,
-        "capabilities": {
-            "runtime_switch": True,
-            "chromecast_device_selection": True,
-            "bluetooth_via_mpv": True,
-        },
-        "devices": devices,
-    }
-
-
 def _is_htmx_request(request: Request) -> bool:
     return request.headers.get("HX-Request", "").lower() == "true"
 
@@ -170,7 +117,7 @@ async def kiosk_playlist_partial(request: Request, injected_client_id: str = Que
     speaker = speaker_broker_service.get_speaker_for_client(injected_client_id)
 
     player = speaker.mediaplayer if speaker else None
-    playlist = player.playlist_manager.to_dict()
+    playlist = player.playlist_manager.to_dict() if player and player.playlist_manager else []
     current_track_index = player.playlist_manager.current_index if player and player.playlist_manager else None
     context = {
         "request": request,
@@ -279,7 +226,8 @@ async def kiosk_library_partial(
     }
 
     if group and not artist_id:
-        all_artists = subsonic_service.list_artists()
+        # Offloaded: blocking HTTP call, must not stall the event loop
+        all_artists = await asyncio.to_thread(subsonic_service.list_artists)
         artists = _filter_artists_by_group(group, all_artists or [])
         context.update({
             "title": f"Music Library — {group}",
@@ -294,7 +242,7 @@ async def kiosk_library_partial(
         return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
     if artist_id:
-        albums = subsonic_service.list_albums_for_artist(artist_id)
+        albums = await asyncio.to_thread(subsonic_service.list_albums_for_artist, artist_id)
         context.update({
             "title": artist_name or "Albums",
             "content_template": "components/kiosk/media_library/_albums_container.html",
@@ -333,16 +281,14 @@ async def kiosk_nfc_client_select(
     album_id: str = Query(...),
     album_name: str = Query(...)
 ):
+    clients = {}
     try:
-        # client_registry = get_service("client_registry")
-        # clients = client_registry.get_by_capability("nfc_reader")
         control_clients_service = get_service("control_clients_service")
         clients = control_clients_service.get_all_clients(capability="nfc_reader")
-        logger.info(f"Found {len(clients)} clients with NFC capability for album_id {album_id}: {[getattr(c, 'client_id', '?') for c in clients]}")
+        logger.info(f"Found {len(clients)} clients with NFC capability for album_id {album_id}: {[getattr(c, 'client_id', '?') for c in clients.values()]}")
     except Exception as e:
         logger.error(f"Failed to get clients: {e}")
-        
-    
+
     logger.info(f"Rendering NFC client select for album_id {album_id}")
     context = {
         "request": request,

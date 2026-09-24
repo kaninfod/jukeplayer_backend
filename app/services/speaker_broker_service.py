@@ -1,6 +1,6 @@
 from app.core import EventType, Event
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from app.services.speakers_service import Speaker
 logger = logging.getLogger(__name__)
@@ -27,10 +27,31 @@ class SpeakerBrokerService:
         self.event_bus.subscribe(EventType.VOLUME_MUTE, self.handle_volume_mute)
         self.event_bus.subscribe(EventType.TOGGLE_REPEAT, self.handle_toggle_repeat)
         self.event_bus.subscribe(EventType.PLAY_TRACK, self.handle_play_track)
+        self.event_bus.subscribe(EventType.TRACK_CHANGED, self.handle_track_changed)
+        self.event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
 
-        # event_bus.subscribe(EventType.VOLUME_CHANGED, self.handle_volume_changed)
-        # event_bus.subscribe(EventType.NOTIFICATION, self.handle_notification)
-        # event_bus.subscribe(EventType.BROADCAST_GENERIC_MESSAGE, self.handle_generic_message)
+    async def handle_volume_changed(self, event: Event):
+        """A backend reported a device-side volume change (Google Home app,
+        hardware buttons, or the initial status on connect). Update local
+        state and push it to the speaker's clients. Read-back only — never
+        written back to the device."""
+        payload = event.payload
+        device_name = payload.get("device_name")
+        speaker = self.speakers.get_speaker(speaker_name=device_name) if device_name else None
+        if not speaker or not speaker.mediaplayer:
+            logger.warning(f"[SpeakerBrokerService] VOLUME_CHANGED for unknown device: {device_name}")
+            return
+        speaker.mediaplayer.volume_manager.set_local_volume(
+            payload.get("volume"), payload.get("muted"))
+        await self.broadcast_volume_to_clients(speaker)
+
+    async def handle_track_changed(self, event: Event):
+        """A player published a state update (e.g. after a backend switch) —
+        push fresh context to its speaker's clients."""
+        device_name = event.payload.get("device_name")
+        speaker = self.speakers.get_speaker(speaker_name=device_name) if device_name else self.speakers.get_default_speaker()
+        if speaker:
+            await self.broadcast_context_to_clients(speaker)
 
 
     async def handle_register_control_client(self, event: Event):
@@ -124,12 +145,16 @@ class SpeakerBrokerService:
             logger.warning(f"[SpeakerBrokerService] No speaker provided for broadcasting message")
             return
         logger.info(f"[SpeakerBrokerService] Broadcasting volume message to speaker: {speaker.speaker_name} with clients: {speaker.clients}")
-        volume = speaker.mediaplayer.volume_manager.volume
-        for client_id in speaker.clients:
+        volume_manager = speaker.mediaplayer.volume_manager
+        payload = {
+            "volume": volume_manager.volume,
+            "muted": bool(getattr(volume_manager, "is_muted", False)),
+        }
+        for client_id in list(speaker.clients):
             client = self.control_clients._clients.get(client_id)
 
             if client:
-                await client.send_callback(message = {"type": "volume_changed", "payload": volume})
+                await client.send_callback({"type": "volume_changed", "payload": payload})
 
 
     def _get_mediaplayer_context_for_client(self, client):
@@ -162,27 +187,6 @@ class SpeakerBrokerService:
 
         # Pass it to the helper
         await self._execute_media_action(event, "play_album", custom_action=play_album_action)
-
-    async def handle_play_album_from_rfid(self, event: Event):
-        from app.core.service_container import get_service
-        playback_service = get_service("playback_service")
-
-        payload = event.payload
-        rfid = payload.get("rfid")
-        start_track_index = payload.get("start_track_index", 0)
-        client_id = payload.get("client_id") # Needed only for the local logger string below
-
-        async def play_album_action(mediaplayer):
-            result = await playback_service.load_rfid(
-                rfid, 
-                player=mediaplayer, 
-                start_track_index=start_track_index
-            )
-            logger.info(f"[SpeakerBrokerService] Loaded rfid: {rfid} for client_id: {client_id} with result: {result}")
-
-        # Pass it to the helper
-        await self._execute_media_action(event, "play_album", custom_action=play_album_action)
-
 
     async def handle_play_pause(self, event: Event):
         await self._execute_media_action(event, "play_pause")
@@ -222,32 +226,50 @@ class SpeakerBrokerService:
         
         await self._execute_media_action(event, "play_track", custom_action=play_track_action)  
 
+    def resolve_speaker(self, client_id: str = None, device_name: str = None) -> Optional[Speaker]:
+        """Resolve the speaker for a routing context, in priority order:
+        1. The speaker the client is attached to (client_id)
+        2. The speaker explicitly named in the payload (device_name)
+        3. The configured default speaker
+        Returns None (with a log line) when nothing can be resolved."""
+        speaker = None
+        if client_id:
+            speaker = self.get_speaker_for_client(client_id)
+            if speaker is None:
+                logger.warning(f"[SpeakerBrokerService] client_id {client_id} not attached to a speaker — falling back")
+        if speaker is None and device_name:
+            speaker = self.speakers.get_speaker(speaker_name=device_name)
+            if speaker is None:
+                logger.warning(f"[SpeakerBrokerService] Unknown device_name '{device_name}' — falling back")
+        if speaker is None:
+            speaker = self.speakers.get_default_speaker()
+            if speaker:
+                logger.info(f"[SpeakerBrokerService] No client/device context — using default speaker {speaker.speaker_name}")
+            else:
+                logger.warning("[SpeakerBrokerService] Cannot resolve a speaker: no routing context and no speakers configured")
+        return speaker
+
     async def _execute_media_action(self, event: Event, action_name: str, custom_action=None, broadcaster=None):
         payload = event.payload
         client_id = payload.get("client_id")
         logger.info(f"[SpeakerBrokerService] Executing media action: {action_name} for client_id: {client_id} with payload: {payload}")
-        if not client_id:
-            if "device_name" in payload:
-                device_name = payload.get("device_name")
-                speaker = self.speakers.get_speaker(speaker_name=device_name)
-                logger.info(f"[SpeakerBrokerService] Handling {event.type} event for speaker: {speaker.speaker_name}")
-        else:
-            speaker = self.get_speaker_for_client(client_id)
-            logger.info(f"[SpeakerBrokerService] Handling {event.type} event for client_id: {client_id} and speaker: {speaker.speaker_name if speaker else 'None'}")
-        
-        if speaker:
-            mediaplayer = speaker.mediaplayer
-        else:
-            mediaplayer = None
 
-        if mediaplayer and speaker:
-            if custom_action:
-                await custom_action(mediaplayer)
-            else:
-                action_method = getattr(mediaplayer, action_name)
-                await action_method()
-            
-            if broadcaster is None:
-                await self.broadcast_context_to_clients(speaker)
-            else:
-                await broadcaster(speaker)
+        speaker = self.resolve_speaker(client_id=client_id, device_name=payload.get("device_name"))
+        if speaker is None:
+            return
+
+        mediaplayer = speaker.mediaplayer
+        if not mediaplayer:
+            logger.warning(f"[SpeakerBrokerService] Speaker {speaker.speaker_name} has no media player instance")
+            return
+
+        if custom_action:
+            await custom_action(mediaplayer)
+        else:
+            action_method = getattr(mediaplayer, action_name)
+            await action_method()
+
+        if broadcaster is None:
+            await self.broadcast_context_to_clients(speaker)
+        else:
+            await broadcaster(speaker)

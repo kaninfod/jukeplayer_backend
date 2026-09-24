@@ -47,11 +47,6 @@ def create_event_bus(container):
     from app.core.event_bus import event_bus
     return event_bus
 
-def create_album_database(container):
-    from app.database.album_db import AlbumDatabase
-    config = container.get('config')
-    return AlbumDatabase(config)
-
 def create_subsonic_service(container):
     from app.services.subsonic_service import SubsonicService
     config = container.get('config')
@@ -60,8 +55,6 @@ def create_subsonic_service(container):
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService
     return PlaybackService(
-        player=None,
-        album_db=container.get('album_database'),
         subsonic_service=container.get('subsonic_service'),
         event_bus=container.get('event_bus')
     )
@@ -99,17 +92,12 @@ def setup_service_container():
     container.register_singleton('config', create_config)
     container.register_singleton('nfc_encoding_state', create_nfc_encoding_state)
     container.register_singleton('event_bus', create_event_bus)
-    container.register_singleton('album_database', create_album_database)
     container.register_singleton('subsonic_service', create_subsonic_service)
-    
-    # Register ClientRegistry BEFORE MediaPlayerService (dependency order)
-    # container.register_singleton('client_registry', create_client_registry)
+
     container.register_singleton('control_clients_service', create_control_clients_service)
     container.register_singleton('speakers_service', create_speakers_service)
     container.register_singleton('speaker_broker_service', create_speaker_broker_service)
 
-    # Register media player service as singleton (gets default instance from registry)
-    # container.register_singleton('media_player_service', create_media_player_service)
     container.register_singleton('playback_service', create_playback_service)
 
     return container

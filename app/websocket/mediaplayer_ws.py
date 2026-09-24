@@ -394,8 +394,13 @@ class WebSocketConnection:
                     pass
                 except json.JSONDecodeError:
                     logger.warning("Received invalid JSON from client")
+                except WebSocketDisconnect as e:
+                    # Normal client disconnect (1005 no status, 1001 going away,
+                    # 1012 service restart). This is not an error.
+                    logger.debug(f"Client disconnected | code={e.code} reason={e.reason!r}")
+                    break
                 except Exception as e:
-                    logger.error(f"Error receiving message: {e}")
+                    logger.error(f"Error receiving message: {type(e).__name__}: {e}")
                     break
         except asyncio.CancelledError:
             pass

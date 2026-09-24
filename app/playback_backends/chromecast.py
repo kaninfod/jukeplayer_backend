@@ -37,12 +37,56 @@ class ChromecastMediaStatusListener:
     """
     Listener for Chromecast media status changes.
     Provides detailed logging of all status changes for debugging and integration.
+    Also propagates device-side volume changes (Google Home app, device
+    hardware buttons) into the app so clients stay in sync.
     """
     def __init__(self, device_name: str):
         self.device_name = device_name
         self.last_player_state = None
         self.last_current_time = None
         self.last_session_id = None
+        self.last_volume_level = None
+        self.last_volume_muted = None
+
+    def new_cast_status(self, status):
+        self._propagate_volume_change(status)
+        self.log_cast_status(status)
+        session_id = getattr(status, 'session_id', 'None')
+        if session_id not in (None, self.last_session_id):
+            logger.info(f"[{self.device_name}] 🎬 New Cast Session Detected: {session_id}")
+            self.last_session_id = session_id
+        if session_id is None and self.last_session_id is not None:
+            logger.info(f"[{self.device_name}] 📴 Cast Session Ended")
+            self.last_session_id = None
+            from app.core import event_bus, EventType, Event
+            result = event_bus.emit(Event(
+                type=EventType.STOP,
+                payload={"device_name": self.device_name}
+            ))
+
+    def _propagate_volume_change(self, status):
+        """Emit VOLUME_CHANGED when the device reports a different volume/mute
+        state (covers Google Home app changes, hardware buttons, and the
+        initial status pushed on connect)."""
+        volume_level = getattr(status, 'volume_level', None)
+        volume_muted = getattr(status, 'volume_muted', None)
+        if volume_level is None:
+            return
+        changed = (volume_level != self.last_volume_level) or (volume_muted != self.last_volume_muted)
+        self.last_volume_level = volume_level
+        self.last_volume_muted = volume_muted
+        if not changed:
+            return
+        from app.core import event_bus, EventType, Event
+        event_bus.emit(Event(
+            type=EventType.VOLUME_CHANGED,
+            payload={
+                "device_name": self.device_name,
+                "volume": int(round(volume_level * 100)),
+                "muted": bool(volume_muted),
+            },
+        ))
+
     def new_media_status(self, status):
         try:
             player_state = getattr(status, 'player_state', 'UNKNOWN')
@@ -123,24 +167,6 @@ class ChromecastMediaStatusListener:
                        f"images_count={len(images) if images else 0}")
         except Exception as e:
             logger.error(f"[{self.device_name}] Error logging full status: {e}")
-
-    def new_cast_status(self, status):
-        print(f"App Active: {status.display_name}, Session ID: {status.session_id}")
-        self.log_cast_status(status)
-        session_id = getattr(status, 'session_id', 'None')
-        if session_id not in (None, self.last_session_id):
-            logger.info(f"[{self.device_name}] 🎬 New Cast Session Detected: {session_id}")
-            self.last_session_id = session_id
-        if session_id is None and self.last_session_id is not None:
-            logger.info(f"[{self.device_name}] 📴 Cast Session Ended")
-            self.last_session_id = None
-            from app.core import event_bus, EventType, Event
-            result = event_bus.emit(Event(
-                type=EventType.STOP,
-                payload={"device_name": self.device_name}
-            ))
-        
-      
 
     def log_cast_status(self, status):
         """Logs the active application and device-level state."""
@@ -269,19 +295,22 @@ class ChromecastService(PlaybackBackend):
         logger.debug(f"Background discovery scan complete: found {len(devices)} Chromecast devices")
         return devices, target_cast_info, name_to_cast_info
 
-    def connect(self, device_name: Optional[str] = None, fallback: bool = True) -> bool:
+    def connect(self, device_name: Optional[str] = None, fallback: bool = False) -> bool:
         """
         Connect to a Chromecast device from the statically configured device list.
-        
-        Device names are normalized from config format (e.g., 'living_room') 
+
+        Device names are normalized from config format (e.g., 'living_room')
         to discovery format (e.g., 'Living Room').
-        
-        If the target device is unavailable and fallback=True, tries fallback devices.
-        
+
+        If the target device is unavailable and fallback=True, tries fallback
+        devices. Note: fallback playback happens in a DIFFERENT room — only
+        pass fallback=True where the user explicitly asked for it.
+
         Args:
             device_name: Target device name (e.g., 'living_room', 'bedroom', 'kitchen')
             fallback: If True, try fallback devices if target is unavailable
-            
+                (default False — silent wrong-room playback is a surprise)
+
         Returns:
             True if connected successfully, False otherwise
         """
@@ -525,14 +554,20 @@ class ChromecastService(PlaybackBackend):
             return False
     async def stop(self) -> bool:
         import asyncio
-        if not await asyncio.to_thread(self.ensure_connected):
-            return False
+        if not self.is_connected():
+            # Do NOT reconnect just to stop — a reconnect waits
+            # CHROMECAST_WAIT_TIMEOUT per device (plus fallbacks) and made
+            # stop() hang for tens of seconds against offline devices.
+            # An absent connection means nothing is playing.
+            logger.info(f"stop({self.device_name}): no active connection — already stopped")
+            return True
         try:
             await asyncio.to_thread(self.mc.stop)
             logger.info("Media stopped")
             return True
         except Exception as e:
-            logger.error(f"Failed to stop: {e}")
+            # Stop timeouts are benign — the device is usually already idle/off
+            logger.info(f"stop({self.device_name}) did not confirm (device may already be idle): {type(e).__name__}: {e}")
             return False
     async def set_volume(self, volume: float) -> bool:
         import asyncio

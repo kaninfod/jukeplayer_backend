@@ -6,12 +6,11 @@ Entry point for FastAPI backend application
 
 import logging
 import sys
-from app.core.logging_config import setup_logging
 
-# Initialize logging FIRST, before any other imports
-setup_logging(log_file="jukebox.log", level=logging.INFO)
+# Logging is configured inside app.main:app (setup_logging). Do not call
+# setup_logging here as well — a second setup would wipe the first's handlers.
 
-# Get logger after setup
+# Get logger; handlers may not exist yet, so keep import-time logging minimal
 logger = logging.getLogger("run")
 logger.info("Starting Jukebox Backend...")
 
@@ -40,8 +39,8 @@ def main():
         host="0.0.0.0",
         port=8000,
         log_config=None,       # Use our custom logging, not uvicorn's
-        log_level="debug",  # Temporarily enabled for debugging
-        access_log=False       # Don't add HTTP access logs
+        log_level="info",
+        access_log=False       # Keep off: app-level handlers cover syslog/file
     )
 
 

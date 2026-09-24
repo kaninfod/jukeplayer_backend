@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Callable, List
+from typing import Dict, Optional, Callable, List, Any
 from datetime import datetime
 import uuid
 from app.core import event_bus, EventType, Event
@@ -49,7 +49,9 @@ class ControlClientsService:
         self._clients: Dict[str, ControlClient] = {}
 
 
-    async def register(self, payload: Dict[str, any]) -> ControlClient:
+    async def register(self, payload: Dict[str, Any]) -> ControlClient:
+        """Register (or update) a control client. Raises on invalid payloads —
+        callers are expected to surface the error to the connecting client."""
 
         client_id = payload.get("client_id") if payload.get("client_id") is not None else str(uuid.uuid4())
         client_type = payload.get("client_type")
@@ -61,59 +63,52 @@ class ControlClientsService:
         speaker_name = payload.get("device_name")
         config = payload.get("config")
         tft_refresh_splits = payload.get("tft_refresh_splits") or []
-        
-        try:
-            control_client = self._clients.get(client_id) if client_id else None
-            
-            if control_client:
-                logger.info(f"[ControlClientsService]  Client with ID {client_id} already exists. Updating existing client info.")
-                control_client.client_type = client_type
-                control_client.user_name = user_name
-                control_client.capabilities = capabilities
-                control_client.client_ip = client_ip
-                control_client.websocket = websocket
-                control_client.send_callback = send_callback
-                control_client.speaker_name = speaker_name
-                control_client.config = config
-                control_client.tft_refresh_splits = tft_refresh_splits
-                control_client.ws_active = True
-            
-            else:
 
-                control_client = ControlClient(
-                    client_id=client_id,
-                    client_type=client_type,
-                    user_name=user_name,
-                    capabilities=capabilities,
-                    connected_at=datetime.now(),
-                    client_ip=client_ip,
-                    websocket=websocket,
-                    send_callback=send_callback,
-                    session_token=None,
-                    speaker_name=speaker_name,
-                    config=config,
-                    tft_refresh_splits=tft_refresh_splits
-                )
-            
-                self._clients[control_client.client_id] = control_client
+        control_client = self._clients.get(client_id) if client_id else None
 
-            logger.info(f"[ControlClientsService]  Registered control client: {control_client.client_id} (Type: {control_client.client_type}, User: {control_client.user_name}, Speaker: {control_client.speaker_name})")
-            logger.debug(f"[ControlClientsService]  Current control clients: {list(self._clients.keys())}")
+        if control_client:
+            logger.info(f"[ControlClientsService]  Client with ID {client_id} already exists. Updating existing client info.")
+            control_client.client_type = client_type
+            control_client.user_name = user_name
+            control_client.capabilities = capabilities
+            control_client.client_ip = client_ip
+            control_client.websocket = websocket
+            control_client.send_callback = send_callback
+            control_client.speaker_name = speaker_name
+            control_client.config = config
+            control_client.tft_refresh_splits = tft_refresh_splits
+            control_client.ws_active = True
 
-            if speaker_name:
-                logger.info(f"[ControlClientsService]  Client {control_client.client_id} associated with speaker {speaker_name}")
-                result = await event_bus.aemit(Event(
-                    type=EventType.ASSIGN_SPEAKER,
-                    payload={"client_id": client_id, "speaker_name": speaker_name}
-                ))
+        else:
 
-            return control_client    
-        
-        except Exception as e:
-            logger.warning(f"Error: {client_id}: {e}")
-        
-        
-    
+            control_client = ControlClient(
+                client_id=client_id,
+                client_type=client_type,
+                user_name=user_name,
+                capabilities=capabilities,
+                connected_at=datetime.now(),
+                client_ip=client_ip,
+                websocket=websocket,
+                send_callback=send_callback,
+                session_token=None,
+                speaker_name=speaker_name,
+                config=config,
+                tft_refresh_splits=tft_refresh_splits
+            )
+
+            self._clients[control_client.client_id] = control_client
+
+        logger.info(f"[ControlClientsService]  Registered control client: {control_client.client_id} (Type: {control_client.client_type}, User: {control_client.user_name}, Speaker: {control_client.speaker_name})")
+        logger.debug(f"[ControlClientsService]  Current control clients: {list(self._clients.keys())}")
+
+        if speaker_name:
+            logger.info(f"[ControlClientsService]  Client {control_client.client_id} associated with speaker {speaker_name}")
+            await event_bus.aemit(Event(
+                type=EventType.ASSIGN_SPEAKER,
+                payload={"client_id": client_id, "speaker_name": speaker_name}
+            ))
+
+        return control_client
     def unregister(self, client_id: str):
         try:
             if client_id in self._clients:

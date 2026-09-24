@@ -117,8 +117,16 @@ export default class extends Controller {
         }
 
         if (msg.type === 'volume_changed') {
-            window.appState.volume = msg.payload;
-            this.broadcast("volume-change", { volume: msg.payload });
+            // Backend payload is {"volume": 0-100, "muted": bool} (older builds
+            // sent a bare number). Normalize once here so every consumer gets
+            // a plain integer in window.appState.volume.
+            const payload = msg.payload;
+            const isDict = payload !== null && typeof payload === 'object';
+            window.appState.volume = isDict ? payload.volume : payload;
+            if (isDict && payload.muted !== undefined) {
+                window.appState.isMuted = !!payload.muted;
+            }
+            this.broadcast("volume-change", { volume: window.appState.volume });
         }
 
         if (msg.type === 'switch_device_response') {

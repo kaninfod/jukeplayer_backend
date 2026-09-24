@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from jukeplayer_backend.app.services.media_player_service.DELETE_media_player_service import MediaPlayerService
+from app.services import MediaPlayerService
 
 
 def test_constructor_initializes_correctly(media_player_service, mock_event_bus, mock_playback_backend):
@@ -35,8 +35,9 @@ async def test_stop(media_player_service):
 @pytest.mark.asyncio
 async def test_volume_up(media_player_service, mock_playback_backend):
     result = await media_player_service.handle_volume_up()
-    assert result > 0
-    
+    assert result["message"] == "Volume increased"
+    assert result["volume"] > 0
+
     mock_playback_backend.set_volume.assert_called()
 	
 def test_get_context_minimal(media_player_service):

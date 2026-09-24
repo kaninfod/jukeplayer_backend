@@ -3,10 +3,12 @@
 
 import logging
 import os
+from app.config import config
 from app.core.logging_config import setup_logging
 
-# Setup logging FIRST, before importing anything else that might log
-setup_logging(level=logging.DEBUG)
+# Setup logging FIRST, before importing anything else that might log.
+# Respect LOG_LEVEL from the environment (default INFO).
+setup_logging(level=getattr(logging, str(config.LOG_LEVEL).upper(), logging.INFO))
 
 import getpass
 from fastapi import FastAPI
@@ -19,12 +21,10 @@ from app.core.security_headers import SecurityHeadersMiddleware
 
 logger = logging.getLogger(__name__)
 
-#from app.routes.albums import router as album_router
 from app.routes.mediaplayer import router as mediaplayer_router
 from app.routes.mediaplayer import wsrouter as wsmediaplayer_router
 from app.routes.system import router as system_router
 from app.routes.subsonic import router as subsonic_router
-#from app.routes.chromecast import router as chromecast_router
 from app.routes.output import router as output_router
 from app.routes.nfc_encoding import router as nfc_encoding_router
 
@@ -121,6 +121,11 @@ async def startup_event():
     # Step 1: Setup service container
     from app.core.service_container import setup_service_container
     global_container = setup_service_container()
+    # Step 1.5: Give the event bus the running loop so backend-thread callbacks
+    # (pychromecast / MPV) can schedule async handlers safely.
+    import asyncio
+    from app.core import event_bus
+    event_bus.set_main_loop(asyncio.get_running_loop())
     # Step 2: Resolve all main services
     playback_service = global_container.get('playback_service')
     
@@ -138,7 +143,32 @@ async def startup_event():
     # )
 
     speaker_broker_service = global_container.get('speaker_broker_service')
-    speaker_broker_service.speakers.initialize_speakers(config.PLAYBACK_DEVICES)
+    speakers_service = speaker_broker_service.speakers
+    speakers_service.initialize_speakers(config.PLAYBACK_DEVICES)
+
+    # Step 4: Background volume sync — connect to each configured device and
+    # pull its real volume into app state (clients would otherwise show the
+    # 50% default until the first interaction). Runs in the background so it
+    # never delays startup; each connect also triggers the cast status
+    # listener, which propagates device-side volume changes to clients.
+    import asyncio
+
+    async def sync_all_speaker_volumes():
+        for speaker in speakers_service.get_all_speakers().values():
+            player = speaker.mediaplayer
+            backend = getattr(player, "playback_backend", None)
+            try:
+                is_connected = getattr(backend, "is_connected", None)
+                if is_connected and not is_connected():
+                    ensure_connected = getattr(backend, "ensure_connected", None)
+                    if ensure_connected:
+                        await asyncio.to_thread(ensure_connected)
+                volume = await player.volume_manager.sync_volume_from_backend()
+                logger.info(f"Synced volume for {speaker.speaker_name}: {volume}")
+            except Exception as e:
+                logger.warning(f"Volume sync skipped for {speaker.speaker_name}: {e}")
+
+    asyncio.create_task(sync_all_speaker_volumes())
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")

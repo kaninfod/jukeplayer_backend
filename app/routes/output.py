@@ -1,6 +1,5 @@
 
 from typing import Optional
-from urllib import request
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -46,8 +45,12 @@ async def output_status():
     from app.core.service_container import get_service
     from app.playback_backends.factory import get_available_output_devices
 
+    ss = get_service("speakers_service")
+    default_speaker = ss.get_default_speaker()
+    if not default_speaker:
+        return {"status": "error", "message": "No speakers configured"}
 
-    player = get_service("media_player_service")
+    player = default_speaker.mediaplayer
     backend = getattr(player, "playback_backend", None)
     devices = get_available_output_devices()
 
@@ -116,7 +119,12 @@ def output_devices():
 async def output_switch(request: OutputSwitchRequest):
     from app.core.service_container import get_service
 
-    player = get_service("media_player_service")
+    ss = get_service("speakers_service")
+    default_speaker = ss.get_default_speaker()
+    if not default_speaker or not default_speaker.mediaplayer:
+        return {"status": "error", "message": "No speakers configured"}
+
+    player = default_speaker.mediaplayer
 
     previous_backend = _backend_key(getattr(player, "playback_backend", None))
 
@@ -144,13 +152,16 @@ async def list_speakers():
     speakers_info = ss.to_dict()
 
     for speaker_name, speaker_data in speakers_info.items():
-        clients = speaker_data.get("clients", {})
+        clients = speaker_data.get("clients", [])
         if len(clients) > 0:
             clients_info = {}
             for client_id in clients:
                 logger.debug(f"Fetching info for client ID: {client_id}")
-                control_client = ccs.get_client(client_id).to_dict()
-                clients_info[client_id] = control_client
+                control_client = ccs.get_client(client_id)
+                if control_client:
+                    clients_info[client_id] = control_client.to_dict()
+                else:
+                    logger.warning(f"Client {client_id} listed on speaker {speaker_name} but not registered")
             speaker_data["clients"] = clients_info
             speakers_info[speaker_name] = speaker_data
     
@@ -169,8 +180,8 @@ async def list_control_clients():
     client_info = ccs.to_dict()
     for client_id, client_data in client_info.items():
         speaker_name = client_data.get("speaker_name")
-        speaker_info = ss.get_speaker(speaker_name=speaker_name).to_dict() if speaker_name else None
-        client_data["speaker_info"] = speaker_info
+        speaker = ss.get_speaker(speaker_name=speaker_name) if speaker_name else None
+        client_data["speaker_info"] = speaker.to_dict() if speaker else None
         client_info[client_id] = client_data
 
     return {

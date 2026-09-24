@@ -1,5 +1,4 @@
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -8,12 +7,9 @@ class VolumeManager:
         self.playback_backend = playback_backend
         self._volume = 50  # Default volume level (0-100)
         self.is_muted = False
-
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self.sync_volume_from_backend())
-        except RuntimeError:
-            asyncio.run(self.sync_volume_from_backend())
+        # NOTE: no eager sync here. Syncing at construction connected every
+        # device at startup (slow boot, noisy logs); the volume converges on
+        # the first interaction or backend switch instead.
 
     @property
     def volume(self) -> int:
@@ -69,12 +65,24 @@ class VolumeManager:
             logger.error(f"Failed to toggle mute: {e}")
             return {"success": False, "muted": None}
         
+    def set_local_volume(self, volume, muted=None):
+        """Update local volume state from a backend-reported value.
+        Read-back only — never written to the device."""
+        if volume is None:
+            return self._volume
+        try:
+            self._volume = max(0, min(100, int(round(volume))))
+        except (TypeError, ValueError):
+            return self._volume
+        if muted is not None:
+            self.is_muted = bool(muted)
+        return self._volume
+
     async def sync_volume_from_backend(self):
-        """Sync volume from active playback backend (0.0-1.0) to 0-100 scale."""
+        """Pull the backend's current volume into local state (read-only —
+        the old version wrote the value straight back to the device)."""
         backend_volume = await self.playback_backend.get_volume()
         logger.debug(f"[sync_volume_from_backend] volume from backend: {backend_volume}")
-        
-        value = int(backend_volume * 100) if backend_volume is not None else self._volume
-        await self.set_volume(value)
-
+        if backend_volume is not None:
+            self.set_local_volume(int(round(backend_volume * 100)))
         return self._volume

@@ -3,7 +3,9 @@
 import logging
 from typing import Dict, Optional
 import uuid
-    
+
+from app.config import config
+
 logger = logging.getLogger(__name__)
 class Speaker:
     def __init__(self, speaker_id: str, name: str, backend: str, mediaplayer: object):
@@ -14,22 +16,14 @@ class Speaker:
         self.clients = set()
 
     def to_dict(self):
+        context = {}
         if self.mediaplayer:
             context = self.mediaplayer.get_context()
 
-        # clients = {}
-        # if len(self.clients) > 0:
-        #     from app.core.service_container import get_service
-        #     control_clients_service = get_service("control_clients_service")
-        #     for client_id in self.clients:
-        #         control_client = control_clients_service.get_client(client_id).to_dict()
-        #         clients[client_id] = control_client
-                           
         return {
             "speaker_name": self.speaker_name,
             "speaker_id": self.speaker_id,
             "backend": self.backend,
-            #"clients": clients if self.clients else {},
             "clients": list(self.clients),
             "mediaplayer": {
                 "status": context.get("status"),
@@ -68,7 +62,17 @@ class SpeakersService:
                 if speaker.speaker_id == speaker_id:
                     return speaker
         return None
-    
+
+    def get_default_speaker(self) -> Optional[Speaker]:
+        """Return the default speaker (from DEFAULT_CHROMECAST_DEVICE) or the
+        first configured speaker. Speaker names are lowercase logical names
+        (e.g. 'living_room') while the config default may be 'Living Room'."""
+        if not self._speakers:
+            return None
+        default_name = (getattr(config, "DEFAULT_CHROMECAST_DEVICE", "") or "").strip().lower().replace(" ", "_")
+        if default_name and default_name in self._speakers:
+            return self._speakers[default_name]
+        return next(iter(self._speakers.values()), None)
     def get_all_speakers(self) -> Dict[str, Speaker]:
         return self._speakers
     

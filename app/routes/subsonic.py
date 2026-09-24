@@ -67,9 +67,9 @@ from typing import Optional
 @router.get("/cover/{album_id}")
 def get_cover_art(
     album_id: str,
-    source: str = Query("local", regex="^(local|subsonic)$"),
+    source: str = Query("local", pattern="^(local|subsonic)$"),
     size: int = Query(180, ge=64, le=1024),
-    format: Optional[str] = Query(None, regex="^(4bit|webp|jpg|jpeg|rgb565)$"),
+    format: Optional[str] = Query(None, pattern="^(webp|jpg|jpeg|rgb565)$"),
 ):
     """
     Serve album cover art, defaulting to local cache, with optional fallback to Subsonic.
@@ -132,7 +132,7 @@ def get_cover_art(
 # @router.get("/cover/{album_id}")
 # def get_cover_art(
 #     album_id: str,
-#     source: str = Query("local", regex="^(local|subsonic)$"),
+#     source: str = Query("local", pattern="^(local|subsonic)$"),
 #     size: int = Query(180, ge=64, le=1024)
 # ):
 #     """
