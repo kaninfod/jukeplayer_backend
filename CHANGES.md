@@ -4,6 +4,22 @@ Working log of the backend cleanup (started 2026-09-24). Batches are deployed
 and verified one at a time; new findings discovered along the way are appended
 to "New findings & tweaks" at the bottom.
 
+## Config & speaker management (feature branch `feature/config-management`)
+
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Dedicated RPi deployment (scripts, systemd, ops guide) | ✅ committed — RPi setup in progress by user |
+| A | JSON config store + effective-config view + /kiosk/system card | ✅ committed (dcafd79), 57/57 tests |
+| B | Live speaker manager (CC discovery picker, add/remove) | ⬜ |
+| C | Audio/BT card (pair/connect from the web UI) | ⬜ |
+| D | Docs + final env trim | ⬜ |
+| — | USB-DAC output (MPV audio_device per speaker) | 🔒 backburner — schema slot reserved in Phase B |
+
+Design decisions (user-confirmed): JSON store · everything UI-managed incl.
+secrets (masked fields, 0600 file) · no env fallback (store authoritative,
+clean cutover) · speakers live-managed · no auth (LAN-only) · dedicated RPi
+as phase 0.
+
 ## Batch status
 
 | # | Scope | Status |
