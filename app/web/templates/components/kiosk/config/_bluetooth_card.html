@@ -8,7 +8,7 @@
             <button type="button" class="btn btn-sm btn-outline-primary"
                     hx-get="/kiosk/config/bluetooth/scan"
                     hx-target="#bluetooth-card" hx-swap="outerHTML">
-                <i class="mdi mdi-bluetooth-search"></i> Scan
+                <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-search"></i> Scan
             </button>
         </div>
 
@@ -48,32 +48,32 @@
                         <button type="button" class="btn btn-outline-primary" title="Create a speaker entry for this device"
                                 hx-post="/kiosk/config/bluetooth/add-speaker" hx-vals='{"mac": "{{ d.mac }}", "display_name": "{{ d.name }}"}'
                                 hx-target="#bluetooth-card" hx-swap="outerHTML">
-                            <i class="mdi mdi-plus"></i> Add as speaker
+                            <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-plus"></i> Add as speaker
                         </button>
                         {% endif %}
                         <button type="button" class="btn btn-outline-secondary" title="Disconnect"
                                 hx-post="/kiosk/config/bluetooth/disconnect" hx-vals='{"mac": "{{ d.mac }}"}'
                                 hx-target="#bluetooth-card" hx-swap="outerHTML">
-                            <i class="mdi mdi-bluetooth-off"></i>
+                            <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-off"></i>
                         </button>
                     {% elif d.paired %}
                         <button type="button" class="btn btn-outline-primary" title="Connect"
                                 hx-post="/kiosk/config/bluetooth/connect" hx-vals='{"mac": "{{ d.mac }}"}'
                                 hx-target="#bluetooth-card" hx-swap="outerHTML">
-                            <i class="mdi mdi-bluetooth-connect"></i> Connect
+                            <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-connect"></i> Connect
                         </button>
                     {% else %}
                         <button type="button" class="btn btn-outline-primary" title="Pair, trust and connect"
                                 hx-post="/kiosk/config/bluetooth/pair" hx-vals='{"mac": "{{ d.mac }}"}'
                                 hx-target="#bluetooth-card" hx-swap="outerHTML">
-                            <i class="mdi mdi-bluetooth-audio"></i> Pair
+                            <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-audio"></i> Pair
                         </button>
                     {% endif %}
                     <button type="button" class="btn btn-outline-danger" title="Remove pairing"
                             hx-post="/kiosk/config/bluetooth/forget" hx-vals='{"mac": "{{ d.mac }}"}'
                             hx-confirm="Forget '{{ d.name or d.mac }}'? It will need to be paired again."
                             hx-target="#bluetooth-card" hx-swap="outerHTML">
-                        <i class="mdi mdi-delete"></i>
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-delete"></i>
                     </button>
                 </span>
             </li>

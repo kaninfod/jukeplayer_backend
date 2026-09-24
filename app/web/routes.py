@@ -15,6 +15,13 @@ router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="app/web/templates")
 
 
+def _with_toast(response, message: str, theme: str = "success"):
+    """Attach an HX-Trigger header so the client flashes a toast notification
+    after the htmx swap (listener lives in static/js/kiosk-toast.js)."""
+    response.headers["HX-Trigger"] = json.dumps({"kioskToast": {"message": message, "theme": theme}})
+    return response
+
+
 def format_iso_string(date_str: str, fmt: str = "%Y-%m-%d %H:%M") -> str:
     if not date_str:
         return ""
@@ -173,9 +180,11 @@ async def kiosk_speakers_scan(request: Request):
         devices = await asyncio.to_thread(manager.discover)
     except Exception as e:
         logger.warning(f"Speaker scan failed: {e}")
-        return _render_speakers_card(request, **_speakers_card_context(
+        resp = _render_speakers_card(request, **_speakers_card_context(
             error=f"Scan failed: {e}", scanned=True))
-    return _render_speakers_card(request, **_speakers_card_context(discovered=devices, scanned=True))
+        return _with_toast(resp, f"Chromecast scan failed: {e}", theme="error")
+    resp = _render_speakers_card(request, **_speakers_card_context(discovered=devices, scanned=True))
+    return _with_toast(resp, f"Chromecast scan finished — {len(devices)} device{'s' if len(devices) != 1 else ''} found")
 
 
 @router.post("/kiosk/config/speakers/add")
@@ -205,10 +214,12 @@ async def kiosk_speakers_display(name: str, request: Request):
     try:
         result = manager.set_display_name(name, display)
         label = result["display_name"] or name
-        return _render_speakers_card(request, **_speakers_card_context(
+        resp = _render_speakers_card(request, **_speakers_card_context(
             message=f"Display name for {name}: {label}"))
+        return _with_toast(resp, f"Display name for {name}: {label}")
     except ValueError as e:
-        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        resp = _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
 
 
 @router.post("/kiosk/config/speakers/{name}/remove")
@@ -216,10 +227,12 @@ async def kiosk_speakers_remove(name: str, request: Request):
     manager = get_service("speaker_manager")
     try:
         await manager.remove_speaker(name)
-        return _render_speakers_card(request, **_speakers_card_context(
+        resp = _render_speakers_card(request, **_speakers_card_context(
             message=f"Removed {name}"))
+        return _with_toast(resp, f"Removed {name}")
     except ValueError as e:
-        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        resp = _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
 
 
 @router.post("/kiosk/config/speakers/{name}/default")
@@ -227,10 +240,12 @@ async def kiosk_speakers_default(name: str, request: Request):
     manager = get_service("speaker_manager")
     try:
         manager.set_default(name)
-        return _render_speakers_card(request, **_speakers_card_context(
+        resp = _render_speakers_card(request, **_speakers_card_context(
             message=f"Default speaker: {name}"))
+        return _with_toast(resp, f"Default speaker: {name}")
     except ValueError as e:
-        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        resp = _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
 
 
 # Bluetooth card (Phase C): scan/pair/connect for BT speakers + "add as
@@ -276,7 +291,8 @@ async def kiosk_bluetooth_scan(request: Request):
     bt = get_service("bluetooth_service")
     try:
         devices = await asyncio.to_thread(bt.scan)
-        return _render_bluetooth_card(request, **_bluetooth_card_context(scanned=True, devices=devices))
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(scanned=True, devices=devices))
+        return _with_toast(resp, f"Scan finished — {len(devices)} device{'s' if len(devices) != 1 else ''} found")
     except Exception as e:
         logger.warning(f"Bluetooth scan failed: {e}")
         return _render_bluetooth_card(request, **_bluetooth_card_context(
@@ -291,12 +307,14 @@ async def kiosk_bluetooth_pair(request: Request):
     try:
         result = await asyncio.to_thread(bt.pair_and_connect, mac)
         if result.get("error"):
-            return _render_bluetooth_card(request, **_bluetooth_card_context(
+            resp = _render_bluetooth_card(request, **_bluetooth_card_context(
                 error=result["error"], scanned=True,
                 devices=await asyncio.to_thread(bt.scan)))
-        return _render_bluetooth_card(request, **_bluetooth_card_context(
+            return _with_toast(resp, result["error"], theme="error")
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
             message=f"Paired and connected: {result.get('name') or mac}", scanned=True,
             devices=await asyncio.to_thread(bt.scan)))
+        return _with_toast(resp, f"Paired and connected: {result.get('name') or mac}")
     except Exception as e:
         return _render_bluetooth_card(request, **_bluetooth_card_context(
             error=f"Pairing failed: {e}", scanned=True))
@@ -310,10 +328,12 @@ async def kiosk_bluetooth_connect(request: Request):
     try:
         result = await asyncio.to_thread(bt.connect, mac)
         if not result["connected"]:
-            return _render_bluetooth_card(request, **_bluetooth_card_context(
+            resp = _render_bluetooth_card(request, **_bluetooth_card_context(
                 error=result.get("error") or "Connect failed"))
-        return _render_bluetooth_card(request, **_bluetooth_card_context(
+            return _with_toast(resp, result.get("error") or "Connect failed", theme="error")
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
             message=f"Connected: {mac}"))
+        return _with_toast(resp, f"Connected: {mac}")
     except Exception as e:
         return _render_bluetooth_card(request, **_bluetooth_card_context(error=f"Connect failed: {e}"))
 
@@ -324,7 +344,8 @@ async def kiosk_bluetooth_disconnect(request: Request):
     bt = get_service("bluetooth_service")
     mac = str(form.get("mac") or "")
     await asyncio.to_thread(bt.disconnect, mac)
-    return _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Disconnected: {mac}"))
+    resp = _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Disconnected: {mac}"))
+    return _with_toast(resp, f"Disconnected: {mac}")
 
 
 @router.post("/kiosk/config/bluetooth/forget")
@@ -333,7 +354,8 @@ async def kiosk_bluetooth_forget(request: Request):
     bt = get_service("bluetooth_service")
     mac = str(form.get("mac") or "")
     await asyncio.to_thread(bt.forget, mac)
-    return _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Removed {mac}"))
+    resp = _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Removed {mac}"))
+    return _with_toast(resp, f"Removed {mac}")
 
 
 @router.post("/kiosk/config/bluetooth/add-speaker")
@@ -349,20 +371,24 @@ async def kiosk_bluetooth_add_speaker(request: Request):
         name = info.get("name") or mac.replace(":", "_").lower()
         sink = await asyncio.to_thread(bt.sink_for_device, mac)
         if not sink:
-            return _render_bluetooth_card(request, **_bluetooth_card_context(
+            resp = _render_bluetooth_card(request, **_bluetooth_card_context(
                 error=f"{info.get('name') or mac} is not connected — no audio sink available yet"))
+            return _with_toast(resp, "No audio sink — is the device still connected?", theme="error")
         entry = manager.add_speaker(
             name=name, backend="mpv",
             options={"audio_device": sink},
             display_name=str(form.get("display_name") or name),
         )
-        return _render_bluetooth_card(request, **_bluetooth_card_context(
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
             message=f"Speaker added: {entry.get('display_name') or entry['name']} ({entry['name']})"))
+        return _with_toast(resp, f"Speaker added: {entry.get('display_name') or entry['name']}")
     except ValueError as e:
-        return _render_bluetooth_card(request, **_bluetooth_card_context(error=str(e)))
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
     except Exception as e:
         logger.warning(f"Add BT speaker failed: {e}")
-        return _render_bluetooth_card(request, **_bluetooth_card_context(error=f"Could not add speaker: {e}"))
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(error=f"Could not add speaker: {e}"))
+        return _with_toast(resp, f"Could not add speaker: {e}", theme="error")
 
 
 @router.get("/", response_class=HTMLResponse)

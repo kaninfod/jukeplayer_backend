@@ -6,7 +6,7 @@
             <button type="button" class="btn btn-sm btn-outline-primary"
                     hx-get="/kiosk/config/speakers/scan"
                     hx-target="#speakers-card" hx-swap="outerHTML">
-                <i class="mdi mdi-radar"></i> Scan network
+                <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-radar"></i> Scan network
             </button>
         </div>
 
@@ -33,20 +33,20 @@
                             hx-prompt="Display name for {{ s.name }} (empty = show technical name)"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/display"
                             hx-target="#speakers-card" hx-swap="outerHTML">
-                        <i class="mdi mdi-pencil"></i>
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-pencil"></i>
                     </button>
                     {% if not s.is_default %}
                     <button type="button" class="btn btn-outline-secondary" title="Make default"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/default"
                             hx-target="#speakers-card" hx-swap="outerHTML">
-                        <i class="mdi mdi-star-outline"></i>
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-star-outline"></i>
                     </button>
                     {% endif %}
                     <button type="button" class="btn btn-outline-danger" title="Remove speaker"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/remove"
                             hx-confirm="Remove speaker '{{ label }}'? Its attached clients move to the default speaker."
                             hx-target="#speakers-card" hx-swap="outerHTML">
-                        <i class="mdi mdi-delete"></i>
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-delete"></i>
                     </button>
                 </span>
             </li>
@@ -71,7 +71,7 @@
                         hx-post="/kiosk/config/speakers/add"
                         hx-vals='{"name": "{{ d.name }}", "backend": "chromecast", "display_name": "{{ d.name }}"}'
                         hx-target="#speakers-card" hx-swap="outerHTML">
-                    <i class="mdi mdi-plus"></i> Add
+                    <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-plus"></i> Add
                 </button>
                 {% endif %}
             </li>
@@ -103,7 +103,7 @@
                 </div>
             </div>
             <div class="col-sm-2">
-                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="mdi mdi-plus"></i> Add manually</button>
+                <button type="submit" class="btn btn-sm btn-primary w-100"><span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-plus"></i> Add manually</button>
             </div>
         </form>
     </div>

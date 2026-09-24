@@ -36,3 +36,10 @@
         toast.addEventListener('hidden.bs.toast', () => toast.remove());
     };
 })();
+
+// Server-driven toasts: htmx responses carrying an HX-Trigger header fire a
+// custom "kioskToast" event with {message, theme} — listen once here.
+document.body.addEventListener("kioskToast", function (evt) {
+    const d = evt.detail || {};
+    window.showKioskToast(d.message || String(d.value || ""), { theme: d.theme || "info" });
+});

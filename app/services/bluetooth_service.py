@@ -205,6 +205,7 @@ class BluetoothService:
         BLE-beacon junk nearby stays out of the list. Collects every device
         seen with its flags + Class/Icon attributes."""
         seconds = float(seconds or self.SCAN_SECONDS)
+        logger.info(f"[BT] Scan started ({seconds:.0f}s window, BR/EDR only)")
         proc = subprocess.Popen(
             ["bluetoothctl"],
             stdin=subprocess.PIPE,
@@ -237,6 +238,7 @@ class BluetoothService:
             raise
 
         attrs = parse_scan_attributes(text)
+        logger.debug(f"[BT] Scan session collected {len(text.splitlines())} output lines")
         devices = []
         seen = set()
         for entry in parse_devices(text):
@@ -251,48 +253,80 @@ class BluetoothService:
                 device["icon"] = extra["icon"]
             device["audio"] = is_audio_device(device)
             devices.append(device)
+        audio = sum(1 for d in devices if d["audio"])
+        logger.info(f"[BT] Scan finished: {len(devices)} device{'s' if len(devices) != 1 else ''} found "
+                    f"({audio} audio) in {seconds:.0f}s")
+        for d in devices:
+            logger.debug(f"[BT]   {d['mac']} name='{d.get('name', '')}' audio={d['audio']} "
+                         f"paired={d.get('paired')} connected={d.get('connected')}")
         return devices
 
     # --- mutations ----------------------------------------------------------------
     def pair_and_connect(self, mac: str) -> Dict[str, Any]:
         """The card's one-click flow: pair → trust → connect."""
+        logger.info(f"[BT] Pairing started for {mac} (pair → trust → connect)")
         result: Dict[str, Any] = {"mac": mac, "paired": False, "trusted": False,
                                   "connected": False, "error": None}
         pair_out = self._ctl("pair", mac, timeout=30.0)
         result["paired"] = "Pairing successful" in pair_out or self.info(mac)["paired"]
         if not result["paired"]:
             result["error"] = _first_error_line(pair_out) or "Pairing failed"
+            logger.warning(f"[BT] Pairing {mac} failed: {result['error']}")
             return result
+        logger.info(f"[BT] Pairing {mac}: paired")
         result["trusted"] = "trust succeeded" in self._ctl("trust", mac, timeout=10.0)
+        logger.info(f"[BT] Pairing {mac}: trusted={result['trusted']}")
+        logger.info(f"[BT] Connecting {mac} …")
         connect_out = self._ctl("connect", mac, timeout=25.0)
         info = self.info(mac)
         result["connected"] = info["connected"]
         if not info["connected"]:
             result["error"] = _first_error_line(connect_out) or "Connect failed"
+            logger.warning(f"[BT] Connect {mac} failed: {result['error']}")
+        else:
+            logger.info(f"[BT] Pairing {mac}: connected (name='{info.get('name')}')")
         return result
 
     def connect(self, mac: str) -> Dict[str, Any]:
+        logger.info(f"[BT] Connecting {mac} …")
         connect_out = self._ctl("connect", mac, timeout=25.0)
         info = self.info(mac)
-        return {"mac": mac, "connected": info["connected"], "paired": info["paired"],
-                "error": None if info["connected"] else _first_error_line(connect_out)}
+        if not info["connected"]:
+            error = _first_error_line(connect_out) or "Connect failed"
+            logger.warning(f"[BT] Connect {mac} failed: {error}")
+            return {"mac": mac, "connected": False, "paired": info["paired"], "error": error}
+        logger.info(f"[BT] Connected {mac} ({info.get('name')})")
+        return {"mac": mac, "connected": True, "paired": info["paired"], "error": None}
 
     def disconnect(self, mac: str) -> Dict[str, Any]:
+        logger.info(f"[BT] Disconnecting {mac} …")
         self._ctl("disconnect", mac, timeout=15.0)
-        return {"mac": mac, "connected": self.info(mac)["connected"]}
+        connected = self.info(mac)["connected"]
+        logger.info(f"[BT] Disconnect {mac}: connected={connected}")
+        return {"mac": mac, "connected": connected}
 
     def forget(self, mac: str) -> Dict[str, Any]:
+        logger.info(f"[BT] Forgetting {mac} …")
         self._ctl("remove", mac, timeout=10.0)
-        return {"mac": mac, "removed": not self.info(mac)["paired"]}
+        removed = not self.info(mac)["paired"]
+        logger.info(f"[BT] Forget {mac}: removed={removed}")
+        return {"mac": mac, "removed": removed}
 
     # --- pulse integration ------------------------------------------------------------
     def bluez_sinks(self) -> List[Dict[str, str]]:
         output = self._run("pactl", "list", "sinks", "short", timeout=10.0)
-        return [s for s in parse_pactl_sinks(output) if s["name"].startswith("bluez_sink.")]
+        sinks = [s for s in parse_pactl_sinks(output) if s["name"].startswith("bluez_sink.")]
+        logger.debug(f"[BT] PulseAudio bluez sinks: {[s['name'] for s in sinks]}")
+        return sinks
 
     def sink_for_device(self, mac: str) -> Optional[str]:
         """mpv device id ('pulse/<sink>') for a connected BT device, or None."""
-        return pulse_sink_for_mac(self.bluez_sinks(), mac)
+        sink = pulse_sink_for_mac(self.bluez_sinks(), mac)
+        if sink:
+            logger.info(f"[BT] Audio sink for {mac}: {sink}")
+        else:
+            logger.info(f"[BT] No pulse sink for {mac} (not connected?)")
+        return sink
 
     def auto_connect_trusted(self) -> None:
         """Best-effort startup reconnect (design decision #3): attempt connect

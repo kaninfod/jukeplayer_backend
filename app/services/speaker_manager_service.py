@@ -45,6 +45,7 @@ class SpeakerManagerService:
         from app.playback_backends.chromecast import discover_devices
         timeout = float(self.store.section("chromecast").get("discovery_timeout", 3))
         configured = {s["name"] for s in self.configured()}
+        logger.info(f"[SpeakerManager] Chromecast discovery started (window {timeout:.0f}s)")
         devices = []
         for device in discover_devices(timeout=timeout):
             store_name = normalize_speaker_name(device.get("name", ""))
@@ -55,6 +56,11 @@ class SpeakerManagerService:
                 "store_name": store_name,
                 "configured": store_name in configured,
             })
+        logger.info(f"[SpeakerManager] Chromecast discovery finished: {len(devices)} device{'s' if len(devices) != 1 else ''} found "
+                    f"({sum(1 for d in devices if d['configured'])} already configured)")
+        for d in devices:
+            logger.debug(f"[SpeakerManager]   {d['name']} model={d.get('model')} host={d.get('host')} "
+                         f"configured={d['configured']}")
         return devices
 
     # --- mutations (persist, then apply live) --------------------------------------
