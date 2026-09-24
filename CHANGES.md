@@ -269,6 +269,33 @@ cosmetic presentation changes.
 - Added `tv_lounge` from the picker: card updated live, store persisted
   (`data/config.json` shows the entry with `is_default: false`).
 
+## Phase C pre-work — BT audio feasibility on the RPi (2026-09-24 evening)
+
+User-tested on the Pi 3 before implementation. Findings, decisions:
+
+- **rfkill soft-block on boot**: `hci0` was soft-blocked (fresh Trixie image);
+  `sudo rfkill unblock bluetooth` fixed power-on/scan. → `setup_rpi.sh` should
+  unblock rfkill.
+- **Pairing flow verified**: scan/pair/trust/connect via `bluetoothctl` as the
+  pi user, no sudo, no agent issues. BOOM 3 paired+bonded+trusted. Cast-group
+  name-matching caveat captured in New findings #8.
+- **A2DP connect broken on the pipewire stack**: bluetoothd logs
+  `a2dp-sink profile connect failed: Protocol not available` — no A2DP
+  endpoints are ever registered. Verified across wireplumber's monitor, a
+  manual `spa-node-factory` monitor with `api.bluez5.enum.dbus`, and
+  `pipewire-audio` installed (pipewire 1.4.2-1+rpt3, wireplumber 0.5.8-2,
+  bluez 5.82-1.1+rpt2, kernel 6.18.50+rpt-rpi-v8). Matches the open BlueZ bug
+  family (bluez#1610/#1922 — Pi 3/arm reports; no distro fix shipped yet).
+- **Decision (user):** Phase C's BT audio layer uses **PulseAudio +
+  pulseaudio-module-bluetooth** — the docker-era stack that already served
+  this Boom speaker. mpv plays via `ao=pulse`; per-speaker `options.
+  audio_device` targets pulse sink ids (`pulse/bluez_sink.<MAC>.a2dp-sink`).
+  pipewire/wireplumber/pipewire-pulse stay installed but disabled (user
+  services). The bluetoothctl-based BT card design is unchanged.
+- The `pipewire-audio` meta-package was also missing from setup (now
+  installed for completeness) → add it to `setup_rpi.sh` if pipewire is ever
+  revisited.
+
 ## Final state notes
 
 - Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.
