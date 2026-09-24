@@ -382,8 +382,11 @@ failures were invisible.
 
 - **Consolidation (user request):** all BT/system interactions now live in
   `app/services/bluetooth_service.py` — `BluetoothAudioChecker` moved in from
-  `playback_backends/bluetooth.py` (which is now a compat shim), and every
-  bluetoothctl/pactl call logs through the module logger.
+  `playback_backends/bluetooth.py` (deleted: the shim had no importers), and
+  every bluetoothctl/pactl call logs through the module logger. Full BT code
+  audit: the only BT-touching modules are `services/bluetooth_service.py`
+  (device lifecycle + sink checks), `routes/bluetooth_api.py` (JSON API),
+  the mpv backend's checker usage, and the two config cards — all live.
 - **mpv logging gap fixed:** the mpv backend registers mpv's internal log
   stream (`request_log_levels(info/warn/error/fatal)` + log_handler) into the
   app logger — dead-sink write failures and demuxer errors now appear as
