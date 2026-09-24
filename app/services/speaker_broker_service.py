@@ -94,7 +94,8 @@ class SpeakerBrokerService:
         speaker = self._assign_client_to_speaker(client_id, speaker_name)
         logger.info(f"[SpeakerBrokerService] Assigned client_id: {client_id} to speaker_name: {speaker_name} with result: {speaker is not False}")
         if speaker:
-            self.control_clients._clients[client_id].speaker_name = speaker_name
+            # store the canonical registry name, not the payload's display form
+            self.control_clients._clients[client_id].speaker_name = speaker.speaker_name
             await self.broadcast_context_to_clients(speaker)
 
     async def handle_speaker_removed(self, removed_speaker):
@@ -133,7 +134,11 @@ class SpeakerBrokerService:
         return result
 
     def _assign_client_to_speaker(self, client_id, speaker_name):
-        speaker = self.speakers.get_speaker(speaker_name=speaker_name)
+        # Clients may remember speaker names in display form ('OPENRUN PRO 2
+        # BY SHOKZ') — normalize before the lookup (registry keys are store
+        # names). Same normalization as resolve_speaker (bug found 2026-09-24).
+        from app.services.speaker_manager_service import normalize_speaker_name
+        speaker = self.speakers.get_speaker(speaker_name=normalize_speaker_name(speaker_name))
         if speaker:
             speaker.clients.add(client_id)
             return speaker
@@ -143,9 +148,14 @@ class SpeakerBrokerService:
         client = self.control_clients._clients.get(client_id)
         if not client:
             return None
-        
+
         speaker_name = client.speaker_name
-        speaker = self.speakers.get_speaker(speaker_name=speaker_name)
+        if not speaker_name:
+            return None
+        # client.speaker_name may be a stale display-form name from before the
+        # canonical-name fix — normalize on every lookup
+        from app.services.speaker_manager_service import normalize_speaker_name
+        speaker = self.speakers.get_speaker(speaker_name=normalize_speaker_name(speaker_name))
         if not speaker:
             return None
         
