@@ -26,6 +26,46 @@ _MAC_RE = re.compile(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})")
 _DEVICE_LINE_RE = re.compile(r"^(?:\[NEW\]\s+)?Device\s+([0-9A-Fa-f:]{17})\s+(.+)$")
 _CONTROLLER_RE = re.compile(r"Controller\s+([0-9A-Fa-f:]{17})")
 _UUID_RE = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
+_CLASS_RE = re.compile(r"Class:\s*0x([0-9A-Fa-f]+)")
+_ICON_RE = re.compile(r"Icon:\s*(\S+)")
+
+# CoD major device class 4 == Audio/Video
+COD_MAJOR_AUDIO = 4
+
+
+def is_audio_device(info: Dict[str, Any]) -> bool:
+    """Heuristic: does this device look like an audio device? Uses the
+    bluetoothctl Icon (audio-card/…) and the Class of Device major class
+    (4 = Audio/Video). Unknown-class devices with a real name may still be
+    audio — the UI keeps those visible."""
+    icon = str(info.get("icon") or "")
+    if icon.startswith("audio"):
+        return True
+    cod = info.get("class")
+    if cod is not None:
+        return ((int(cod) >> 8) & 0x1F) == COD_MAJOR_AUDIO
+    return False
+
+
+def parse_scan_attributes(text: str) -> Dict[str, Dict[str, Any]]:
+    """Collect Class/Icon attributes from a scan session's [CHG]/[NEW]
+    Device lines → {MAC: {"class": int|None, "icon": str}}."""
+    attrs: Dict[str, Dict[str, Any]] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.match(r"(?:\[NEW\]\s+|\[CHG\]\s+)?Device\s+([0-9A-Fa-f:]{17})\s+(.+)$", line)
+        if not m:
+            continue
+        mac = m.group(1).upper()
+        rest = m.group(2)
+        entry = attrs.setdefault(mac, {"class": None, "icon": ""})
+        cm = _CLASS_RE.search(rest)
+        if cm:
+            entry["class"] = int(cm.group(1), 16)
+        im = _ICON_RE.search(rest)
+        if im:
+            entry["icon"] = im.group(1)
+    return attrs
 
 
 def parse_devices(output: str) -> List[Dict[str, str]]:
@@ -47,7 +87,7 @@ def parse_devices(output: str) -> List[Dict[str, str]]:
 def parse_info(output: str) -> Dict[str, Any]:
     """Parse `bluetoothctl info <MAC>` output → flags + name + uuids."""
     info: Dict[str, Any] = {"paired": False, "trusted": False, "connected": False,
-                            "name": "", "a2dp_sink": False}
+                            "name": "", "a2dp_sink": False, "class": None, "icon": ""}
     uuids = []
     for line in output.splitlines():
         line = line.strip()
@@ -59,12 +99,21 @@ def parse_info(output: str) -> Dict[str, Any]:
             info["trusted"] = "yes" in line
         elif line.startswith("Connected:"):
             info["connected"] = "yes" in line
+        elif line.startswith("Class:"):
+            cm = _CLASS_RE.search(line)
+            if cm:
+                info["class"] = int(cm.group(1), 16)
+        elif line.startswith("Icon:"):
+            im = _ICON_RE.search(line)
+            if im:
+                info["icon"] = im.group(1)
         elif line.startswith("UUID:"):
             m = _UUID_RE.search(line)
             if m:
                 uuids.append(m.group(1).lower())
     info["uuids"] = uuids
     info["a2dp_sink"] = A2DP_SINK_UUID in uuids
+    info["audio"] = is_audio_device(info)
     return info
 
 
@@ -152,7 +201,9 @@ class BluetoothService:
 
     def scan(self, seconds: Optional[float] = None) -> List[Dict[str, Any]]:
         """Open a scan window (keeping one bluetoothctl session alive so bluez
-        keeps discovering), then collect every device seen with its flags."""
+        keeps discovering), restricted to BR/EDR (classic) transport so the
+        BLE-beacon junk nearby stays out of the list. Collects every device
+        seen with its flags + Class/Icon attributes."""
         seconds = float(seconds or self.SCAN_SECONDS)
         proc = subprocess.Popen(
             ["bluetoothctl"],
@@ -166,7 +217,8 @@ class BluetoothService:
             import time
             time.sleep(0.5)
             assert proc.stdin
-            proc.stdin.write("scan on\n")
+            # BR/EDR-only discovery: LE beacons are not audio devices
+            proc.stdin.write("menu scan\ntransport bredr\nback\nscan on\n")
             proc.stdin.flush()
             time.sleep(seconds)
             proc.stdin.write("scan off\ndevices\n")
@@ -184,13 +236,21 @@ class BluetoothService:
             proc.wait()
             raise
 
+        attrs = parse_scan_attributes(text)
         devices = []
         seen = set()
         for entry in parse_devices(text):
             if entry["mac"] in seen:
                 continue
             seen.add(entry["mac"])
-            devices.append({**entry, **self.info(entry["mac"])})
+            device = {**entry, **self.info(entry["mac"])}
+            extra = attrs.get(entry["mac"], {})
+            if extra.get("class") is not None:
+                device["class"] = extra["class"]
+            if extra.get("icon"):
+                device["icon"] = extra["icon"]
+            device["audio"] = is_audio_device(device)
+            devices.append(device)
         return devices
 
     # --- mutations ----------------------------------------------------------------

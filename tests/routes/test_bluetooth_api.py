@@ -24,10 +24,11 @@ class StubBT:
 
     def info(self, mac):
         return {"paired": True, "trusted": True, "connected": True,
-                "name": "BOOM 3", "a2dp_sink": True, "uuids": []}
+                "name": "BOOM 3", "a2dp_sink": True, "uuids": [],
+                "class": 0x240414, "icon": "audio-card", "audio": True}
 
     def scan(self, seconds=None):
-        return [self._device()]
+        return [self._device(), self._junk_device()]
 
     def bluez_sinks(self):
         return [{"index": "1", "name": "bluez_sink.10_94_97_0F_CB_BF.a2dp_sink",
@@ -55,7 +56,16 @@ class StubBT:
     @staticmethod
     def _device():
         return {"mac": "10:94:97:0F:CB:BF", "name": "BOOM 3", "paired": True,
-                "trusted": True, "connected": True, "a2dp_sink": True, "uuids": []}
+                "trusted": True, "connected": True, "a2dp_sink": True,
+                "uuids": [], "audio": True}
+
+    @staticmethod
+    def _junk_device():
+        """Unpaired, unnamed (name == MAC), non-audio — must be hidden."""
+        mac = "11:22:33:44:55:66"
+        return {"mac": mac, "name": mac, "paired": False, "trusted": False,
+                "connected": False, "a2dp_sink": False, "uuids": [],
+                "audio": False}
 
 
 @pytest.fixture
@@ -170,3 +180,20 @@ async def test_config_page_renders_bluetooth_card(initialized_app):
         html = page.text
         for needle in ('id="bluetooth-card"', "BOOM 3", "Bluetooth"):
             assert needle in html
+
+
+@pytest.mark.asyncio
+async def test_bluetooth_card_hides_unnamed_non_audio_devices(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        card = await client.get("/kiosk/config/bluetooth/scan")
+        assert card.status_code == 200
+        text = card.text
+        # the paired BOOM 3 is visible…
+        assert "BOOM 3" in text
+        # …while the unnamed non-audio beacon is hidden with a count
+        assert "non-audio device" in text
+        assert "11:22:33:44:55:66" not in text
+        # the JSON API still returns everything (filtering is a UI concern)
+        scan = await client.get("/api/bluetooth/scan?seconds=5")
+        macs = [d["mac"] for d in scan.json()["devices"]]
+        assert macs == ["10:94:97:0F:CB:BF", "11:22:33:44:55:66"]

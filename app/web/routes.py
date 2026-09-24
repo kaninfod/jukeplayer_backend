@@ -237,15 +237,32 @@ async def kiosk_speakers_default(name: str, request: Request):
 # speaker" wiring through the SpeakerManager (mpv backend + pulse sink).
 
 def _bluetooth_card_context(message: str | None = None, error: str | None = None,
-                            scanned: bool = False) -> dict:
+                            scanned: bool = False, devices: list | None = None) -> dict:
     bt = get_service("bluetooth_service")
-    context = {**bt.status(), "devices": bt.devices(), "scanned": scanned,
-               "message": message, "error": error}
+    context = {**bt.status(),
+               "devices": devices if devices is not None else bt.devices(),
+               "scanned": scanned, "message": message, "error": error}
     sinks = {s["name"] for s in bt.bluez_sinks()}
+    devices = []
+    hidden = 0
     for device in context["devices"]:
         mac = device["mac"]
         wanted = f"bluez_sink.{mac.replace(':', '_')}."
         device["sink"] = next((s for s in sinks if s.startswith(wanted)), None)
+        # keep paired/connected + audio devices visible; named unknowns too
+        # (their class may not have come through in the scan window); hide
+        # unpaired non-audio devices that never announced a name (beacons).
+        name = (device.get("name") or "").strip()
+        if device.get("paired") or device.get("connected") or device.get("audio") \
+                or (name and name != mac):
+            devices.append(device)
+        else:
+            hidden += 1
+    devices.sort(key=lambda d: (not d.get("connected"), not d.get("paired"),
+                                not d.get("audio"),
+                                (d.get("name") or d["mac"]).lower()))
+    context["devices"] = devices
+    context["hidden_devices"] = hidden
     return context
 
 
@@ -258,8 +275,8 @@ def _render_bluetooth_card(request: Request, **ctx):
 async def kiosk_bluetooth_scan(request: Request):
     bt = get_service("bluetooth_service")
     try:
-        await asyncio.to_thread(bt.scan)
-        return _render_bluetooth_card(request, **_bluetooth_card_context(scanned=True))
+        devices = await asyncio.to_thread(bt.scan)
+        return _render_bluetooth_card(request, **_bluetooth_card_context(scanned=True, devices=devices))
     except Exception as e:
         logger.warning(f"Bluetooth scan failed: {e}")
         return _render_bluetooth_card(request, **_bluetooth_card_context(
@@ -275,9 +292,11 @@ async def kiosk_bluetooth_pair(request: Request):
         result = await asyncio.to_thread(bt.pair_and_connect, mac)
         if result.get("error"):
             return _render_bluetooth_card(request, **_bluetooth_card_context(
-                error=result["error"], scanned=True))
+                error=result["error"], scanned=True,
+                devices=await asyncio.to_thread(bt.scan)))
         return _render_bluetooth_card(request, **_bluetooth_card_context(
-            message=f"Paired and connected: {result.get('name') or mac}", scanned=True))
+            message=f"Paired and connected: {result.get('name') or mac}", scanned=True,
+            devices=await asyncio.to_thread(bt.scan)))
     except Exception as e:
         return _render_bluetooth_card(request, **_bluetooth_card_context(
             error=f"Pairing failed: {e}", scanned=True))

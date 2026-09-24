@@ -2,10 +2,12 @@
 stubbed subprocess output."""
 from app.services.bluetooth_service import (
     BluetoothService,
+    is_audio_device,
     mac_to_underscored,
     parse_devices,
     parse_info,
     parse_pactl_sinks,
+    parse_scan_attributes,
     pulse_sink_for_mac,
 )
 
@@ -43,7 +45,40 @@ def test_parse_info_flags_and_a2dp_uuid():
 def test_parse_info_defaults():
     info = parse_info("Device AA:BB:CC:DD:EE:FF")
     assert info == {"paired": False, "trusted": False, "connected": False,
-                    "name": "", "a2dp_sink": False, "uuids": []}
+                    "name": "", "a2dp_sink": False, "class": None, "icon": "",
+                    "audio": False, "uuids": []}
+
+
+def test_parse_info_class_icon_audio():
+    output = """Device 10:94:97:0F:CB:BF (public)
+        Name: BOOM 3
+        Class: 0x00240414 (2360340)
+        Icon: audio-card
+        Paired: yes"""
+    info = parse_info(output)
+    assert info["class"] == 0x240414
+    assert info["icon"] == "audio-card"
+    assert info["audio"] is True
+
+
+def test_is_audio_device():
+    # audio icon → audio
+    assert is_audio_device({"icon": "audio-card"}) is True
+    # CoD major class 4 (audio/video) → audio
+    assert is_audio_device({"class": 0x240414}) is True
+    assert is_audio_device({"class": 0x000204}) is False  # major 2 = phone
+    # unknown class/icon → not audio (may still be shown if named)
+    assert is_audio_device({}) is False
+
+
+def test_parse_scan_attributes_class_and_icon():
+    text = """[CHG] Device 10:94:97:0F:CB:BF Class: 0x00240414 (2360340)
+[CHG] Device 10:94:97:0F:CB:BF Icon: audio-card
+[NEW] Device 78:98:68:00:00:00 78-98-68-00-00-00
+[CHG] Device 78:98:68:00:00:00 RSSI: -80"""
+    attrs = parse_scan_attributes(text)
+    assert attrs["10:94:97:0F:CB:BF"] == {"class": 0x240414, "icon": "audio-card"}
+    assert attrs["78:98:68:00:00:00"] == {"class": None, "icon": ""}
 
 
 def test_parse_pactl_sinks():
