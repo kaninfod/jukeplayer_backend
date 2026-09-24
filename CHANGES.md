@@ -11,7 +11,7 @@ to "New findings (running list)" at the bottom.
 | 0 | Dedicated RPi deployment (scripts, systemd, ops guide) | ✅ committed — RPi setup in progress by user |
 | A | JSON config store + effective-config view + /kiosk/system card | ✅ committed (dcafd79), 57/57 tests |
 | B | Live speaker manager (CC discovery picker, add/remove) | ✅ verified on RPi 2026-09-24 — scan, add (tv_lounge), store persistence, live apply; 74/74 tests |
-| C | Audio/BT card (pair/connect from the web UI) | ⬜ |
+| C | Audio/BT card (pair/connect from the web UI) | ✅ Code done, 96/96 tests — pending test-env run |
 | D | Docs + final env trim | ⬜ |
 | — | USB-DAC output (MPV audio_device per speaker) | 🔒 backburner — schema slot reserved in Phase B |
 
@@ -308,6 +308,51 @@ User-tested on the Pi 3 before implementation. Findings, decisions:
 - The `pipewire-audio` meta-package was also missing from setup (now
   installed for completeness) → add it to `setup_rpi.sh` if pipewire is ever
   revisited.
+
+## Phase C — Audio/BT card (2026-09-24, evening)
+
+Live Bluetooth speaker management, built on the evening's verified ground
+truth: bluetoothctl lifecycle as the app user + PulseAudio as the A2DP
+endpoint provider (see "Phase C pre-work" for the pipewire regression that
+forced the stack swap).
+
+- **New `app/services/bluetooth_service.py`** (`bluetooth_service` singleton):
+  blocking wrapper around `bluetoothctl` (status/devices/info/scan/pair/
+  trust/connect/disconnect/remove — routes offload via `asyncio.to_thread`)
+  and `pactl` (sink discovery). The scan keeps one bluetoothctl session alive
+  for the window (bluez stops discovery when the starting client exits).
+  Parsers (`parse_devices`/`parse_info`/`parse_pactl_sinks`) are pure and
+  unit-tested; UUIDs are extracted from the parenthesised form bluetoothctl
+  prints. `pair_and_connect()` = the card's single click (pair → trust →
+  connect). `auto_connect_trusted()` reconnects paired A2DP devices at boot
+  (design decision #3).
+- **API** `app/routes/bluetooth_api.py`: `GET /api/bluetooth/status`,
+  `GET /api/bluetooth/scan?seconds=…`, `POST /api/bluetooth/pair|connect|
+  disconnect|forget`, `GET /api/bluetooth/sinks`. MAC-validated; blocking
+  calls in `asyncio.to_thread`.
+- **Web card** `components/kiosk/config/_bluetooth_card.html` (included on
+  the config page under the Speakers card): adapter status, scan button with
+  the pairing-mode hint, device list with per-state actions — connected:
+  Disconnect / Add-as-speaker (only when a pulse sink exists); paired:
+  Connect; unpaired (after scan): Pair. Errors render inside the card.
+  `_config_ui_context` merges the card context so the full-page include works.
+- **Add-as-speaker flow:** connected BT device → speaker entry via
+  `SpeakerManagerService.add_speaker` — backend `mpv`,
+  `options.audio_device = pulse/bluez_sink.<MAC>.a2dp_sink` (verified sink
+  format), display_name = the device's friendly name. Duplicate names are
+  rejected with the card error (existing entries: remove + re-add to rebind
+  the sink — v1).
+- `main.py` startup: background `reconnect_bluetooth()` task (paired BT
+  speakers auto-connect after a reboot).
+- `scripts/setup_rpi.sh`: swaps the audio stack — installs
+  `pulseaudio pulseaudio-module-bluetooth pulseaudio-utils` (+ `rfkill`),
+  unblocks rfkill on boot, enables `pulseaudio.service/.socket` and disables
+  the pipewire user services.
+- **Tests added:** `tests/services/test_bluetooth_service.py` (8: parsers,
+  device flags, pair success/failure, sink mapping, auto-connect gating) +
+  `tests/routes/test_bluetooth_api.py` (7: status/scan/pair validation/
+  sinks/card add-speaker incl. duplicate rejection and full-page render).
+  **Suite: 96 passing.**
 
 ## Final state notes
 

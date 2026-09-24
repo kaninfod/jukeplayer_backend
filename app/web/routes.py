@@ -82,7 +82,7 @@ def _config_ui_context(saved_section: str | None = None) -> dict:
         return {key: entry["value"] for key, entry in config_service.effective()["sections"][section]["keys"].items()}
 
     subsonic = scalars("subsonic")
-    return {
+    context = {
         "config": {
             "subsonic": {**subsonic, "password_set": bool(config_service.subsonic().get("password"))},
             "logging": scalars("logging"),
@@ -93,6 +93,9 @@ def _config_ui_context(saved_section: str | None = None) -> dict:
         "saved_section": saved_section,
         "applies": "live" if saved_section == "logging" else "restart" if saved_section else None,
     }
+    # the bluetooth card include needs its own context on the full page
+    context.update(_bluetooth_card_context())
+    return context
 
 
 @router.get("/kiosk/config", response_class=HTMLResponse)
@@ -228,6 +231,119 @@ async def kiosk_speakers_default(name: str, request: Request):
             message=f"Default speaker: {name}"))
     except ValueError as e:
         return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+
+
+# Bluetooth card (Phase C): scan/pair/connect for BT speakers + "add as
+# speaker" wiring through the SpeakerManager (mpv backend + pulse sink).
+
+def _bluetooth_card_context(message: str | None = None, error: str | None = None,
+                            scanned: bool = False) -> dict:
+    bt = get_service("bluetooth_service")
+    context = {**bt.status(), "devices": bt.devices(), "scanned": scanned,
+               "message": message, "error": error}
+    sinks = {s["name"] for s in bt.bluez_sinks()}
+    for device in context["devices"]:
+        mac = device["mac"]
+        wanted = f"bluez_sink.{mac.replace(':', '_')}."
+        device["sink"] = next((s for s in sinks if s.startswith(wanted)), None)
+    return context
+
+
+def _render_bluetooth_card(request: Request, **ctx):
+    return templates.TemplateResponse(request=request,
+        name="components/kiosk/config/_bluetooth_card.html", context=ctx)
+
+
+@router.get("/kiosk/config/bluetooth/scan")
+async def kiosk_bluetooth_scan(request: Request):
+    bt = get_service("bluetooth_service")
+    try:
+        await asyncio.to_thread(bt.scan)
+        return _render_bluetooth_card(request, **_bluetooth_card_context(scanned=True))
+    except Exception as e:
+        logger.warning(f"Bluetooth scan failed: {e}")
+        return _render_bluetooth_card(request, **_bluetooth_card_context(
+            error=f"Scan failed: {e}", scanned=True))
+
+
+@router.post("/kiosk/config/bluetooth/pair")
+async def kiosk_bluetooth_pair(request: Request):
+    form = await request.form()
+    bt = get_service("bluetooth_service")
+    mac = str(form.get("mac") or "")
+    try:
+        result = await asyncio.to_thread(bt.pair_and_connect, mac)
+        if result.get("error"):
+            return _render_bluetooth_card(request, **_bluetooth_card_context(
+                error=result["error"], scanned=True))
+        return _render_bluetooth_card(request, **_bluetooth_card_context(
+            message=f"Paired and connected: {result.get('name') or mac}", scanned=True))
+    except Exception as e:
+        return _render_bluetooth_card(request, **_bluetooth_card_context(
+            error=f"Pairing failed: {e}", scanned=True))
+
+
+@router.post("/kiosk/config/bluetooth/connect")
+async def kiosk_bluetooth_connect(request: Request):
+    form = await request.form()
+    bt = get_service("bluetooth_service")
+    mac = str(form.get("mac") or "")
+    try:
+        result = await asyncio.to_thread(bt.connect, mac)
+        if not result["connected"]:
+            return _render_bluetooth_card(request, **_bluetooth_card_context(
+                error=result.get("error") or "Connect failed"))
+        return _render_bluetooth_card(request, **_bluetooth_card_context(
+            message=f"Connected: {mac}"))
+    except Exception as e:
+        return _render_bluetooth_card(request, **_bluetooth_card_context(error=f"Connect failed: {e}"))
+
+
+@router.post("/kiosk/config/bluetooth/disconnect")
+async def kiosk_bluetooth_disconnect(request: Request):
+    form = await request.form()
+    bt = get_service("bluetooth_service")
+    mac = str(form.get("mac") or "")
+    await asyncio.to_thread(bt.disconnect, mac)
+    return _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Disconnected: {mac}"))
+
+
+@router.post("/kiosk/config/bluetooth/forget")
+async def kiosk_bluetooth_forget(request: Request):
+    form = await request.form()
+    bt = get_service("bluetooth_service")
+    mac = str(form.get("mac") or "")
+    await asyncio.to_thread(bt.forget, mac)
+    return _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Removed {mac}"))
+
+
+@router.post("/kiosk/config/bluetooth/add-speaker")
+async def kiosk_bluetooth_add_speaker(request: Request):
+    """Create a speaker entry for a connected BT device: mpv backend +
+    options.audio_device = its pulse sink (verified format)."""
+    form = await request.form()
+    bt = get_service("bluetooth_service")
+    manager = get_service("speaker_manager")
+    mac = str(form.get("mac") or "")
+    try:
+        info = await asyncio.to_thread(bt.info, mac)
+        name = info.get("name") or mac.replace(":", "_").lower()
+        sink = await asyncio.to_thread(bt.sink_for_device, mac)
+        if not sink:
+            return _render_bluetooth_card(request, **_bluetooth_card_context(
+                error=f"{info.get('name') or mac} is not connected — no audio sink available yet"))
+        entry = manager.add_speaker(
+            name=name, backend="mpv",
+            options={"audio_device": sink},
+            display_name=str(form.get("display_name") or name),
+        )
+        return _render_bluetooth_card(request, **_bluetooth_card_context(
+            message=f"Speaker added: {entry.get('display_name') or entry['name']} ({entry['name']})"))
+    except ValueError as e:
+        return _render_bluetooth_card(request, **_bluetooth_card_context(error=str(e)))
+    except Exception as e:
+        logger.warning(f"Add BT speaker failed: {e}")
+        return _render_bluetooth_card(request, **_bluetooth_card_context(error=f"Could not add speaker: {e}"))
 
 
 @router.get("/", response_class=HTMLResponse)

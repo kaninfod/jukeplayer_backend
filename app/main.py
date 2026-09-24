@@ -28,6 +28,7 @@ from app.routes.subsonic import router as subsonic_router
 from app.routes.config_api import router as config_router
 from app.routes.output import router as output_router
 from app.routes.nfc_encoding import router as nfc_encoding_router
+from app.routes.bluetooth_api import router as bluetooth_router
 
 
 # Import services to ensure event subscriptions are active
@@ -107,6 +108,7 @@ app.include_router(system_router)
 app.include_router(subsonic_router)
 app.include_router(output_router)
 app.include_router(nfc_encoding_router)
+app.include_router(bluetooth_router)
 app.include_router(web_router)
 app.include_router(wsmediaplayer_router)
 app.include_router(config_router)
@@ -170,6 +172,13 @@ async def startup_event():
     import asyncio
     speaker_manager = global_container.get('speaker_manager')
     asyncio.create_task(speaker_manager.sync_all_speaker_volumes())
+
+    # Step 5: Best-effort BT reconnect — paired+trusted BT speakers that are
+    # powered on come back after a reboot without touching the web UI.
+    async def reconnect_bluetooth():
+        await asyncio.to_thread(global_container.get('bluetooth_service').auto_connect_trusted)
+
+    asyncio.create_task(reconnect_bluetooth())
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")

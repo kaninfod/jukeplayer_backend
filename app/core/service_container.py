@@ -97,6 +97,10 @@ def create_speaker_manager_service(container):
         broker=container.get('speaker_broker_service'),
     )
 
+def create_bluetooth_service(container):
+    from app.services.bluetooth_service import BluetoothService
+    return BluetoothService()
+
 
 # --- Setup function ---
 def setup_service_container():
@@ -115,6 +119,7 @@ def setup_service_container():
     container.register_singleton('speakers_service', create_speakers_service)
     container.register_singleton('speaker_broker_service', create_speaker_broker_service)
     container.register_singleton('speaker_manager', create_speaker_manager_service)
+    container.register_singleton('bluetooth_service', create_bluetooth_service)
 
     container.register_singleton('playback_service', create_playback_service)
 

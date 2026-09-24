@@ -15,7 +15,9 @@ APP_UID="$(id -u)"
 
 echo "==> Jukeplayer setup on $(hostname) (user: ${APP_USER}, dir: ${APP_DIR})"
 
-# --- System packages (audio: mpv -> pipewire; BT: bluez + pipewire bt modules)
+# --- System packages (audio: PulseAudio is the BT audio server — pipewire's
+# bluez monitor never registers A2DP endpoints on this Pi 3 / bluez 5.82
+# stack; see ledger "Phase C pre-work". mpv -> pulse -> bluez sink.)
 # --no-install-recommends keeps this headless-Lite: no desktop/X stack, no
 # yt-dlp & friends. (mpv still links a few X11/Wayland *client* libs — a few
 # MB of shared libraries, not a desktop — needed by the package even for
@@ -25,17 +27,22 @@ sudo apt-get update -qq
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     git python3 python3-venv python3-pip \
     mpv \
-    pipewire pipewire-pulse pipewire-alsa wireplumber \
-    libspa-0.2-bluetooth \
-    bluez bluez-firmware \
+    pulseaudio pulseaudio-module-bluetooth pulseaudio-utils \
+    bluez bluez-firmware rfkill \
     alsa-utils curl
 
-# --- Bluetooth + user-session audio services
-echo "==> Enabling bluetooth + user audio services..."
+# --- Bluetooth + audio server
+# rfkill: fresh images can ship hci0 soft-blocked (boot-time finding 2026-09-24)
+echo "==> Enabling bluetooth + PulseAudio audio server..."
+sudo rfkill unblock bluetooth 2>/dev/null || true
 sudo systemctl enable --now bluetooth 2>/dev/null || true
 loginctl enable-linger "${APP_USER}" >/dev/null 2>&1 || \
     sudo loginctl enable-linger "${APP_USER}" || true
-systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null || true
+# PulseAudio provides the A2DP endpoints (user-session service)
+systemctl --user enable --now pulseaudio.service pulseaudio.socket 2>/dev/null || true
+# Disable the pipewire stack so it does not fight PulseAudio for the pulse socket
+systemctl --user disable --now pipewire pipewire-pulse wireplumber \
+    pipewire.socket pipewire-pulse.socket 2>/dev/null || true
 
 # --- App directory: assume this script lives in the checked-out repo
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
