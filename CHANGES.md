@@ -394,9 +394,21 @@ failures were invisible.
 - **Aggregated logging:** Loki (API :3100, Grafana UI :3101 on the host) —
   both devices ship there (`{source="JUKEPLAYER", device=~"jukeplayer-rpi"}`);
   journalctl on-device remains the source of truth for bluetoothd/dmesg.
-- Known follow-ups: BT watchdog (periodic reconnect for mid-session drops),
-  USB BT dongle trial (user has an old one — the onboard BCM43430 keeps
-  dropping links), Wi-Fi power-save off as a coexistence mitigation.
+- **BT watchdog (Phase C hardening, 2026-09-24):** `BluetoothService.
+  watchdog_tick()` runs every 30s from `main.py` startup: for every BT-backed
+  speaker (audio_device with a bluez sink), verify the pulse sink is present;
+  reconnect paired devices whose sink vanished mid-session (the shared chip
+  drops links without app-visible errors). Per-MAC exponential backoff after
+  failed connects (30s→300s) so a powered-off speaker is not hammered; skips
+  unpaired/forgotten devices; healthy passes log nothing. Startup
+  `auto_connect_trusted` stays for immediate boot recovery. Note: after a
+  reconnect the mpv stream may still need a play/pause from the UI to resume
+  at position (the pause/play toggle re-attaches the stream — observed on the
+  RPi); automatic resume is a possible future refinement.
+- Known follow-ups: USB BT dongle trial (user has ordered the ASUS USB-BT500,
+  Realtek RTL8761B — onboard BCM43430 keeps dropping links; UGREEN BT 6.0
+  chipsets reported needing out-of-tree patches, avoided), Wi-Fi power-save
+  off as a coexistence mitigation.
 
 ## Final state notes
 
