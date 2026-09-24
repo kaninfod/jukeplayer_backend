@@ -22,6 +22,7 @@ pychromecast>=14.0.0
 zeroconf>=0.50.0
 
 # Async
+python-multipart>=0.0.9
 aiofiles>=23.0.0
 
 pillow>=9.0.0,<11.0.0
