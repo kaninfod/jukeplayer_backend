@@ -1,0 +1,29 @@
+# Jukeplayer backend — systemd unit (dedicated RPi, bare metal)
+# Installed by scripts/setup_rpi.sh (paths adjusted to APP_DIR).
+# Audio note: the service runs as a real user with XDG_RUNTIME_DIR pointed at
+# that user's runtime dir, so mpv -> pipewire -> bluetooth works exactly like
+# an interactive session (requires: loginctl enable-linger <user>).
+
+[Unit]
+Description=Jukeplayer backend (FastAPI + uvicorn)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=__APP_DIR__/.env
+Environment=XDG_RUNTIME_DIR=/run/user/__APP_UID__
+ExecStart=__APP_DIR__/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+
+# Hardening (safe basics — the app talks to BT/audio via the user session)
+NoNewPrivileges=true
+ProtectHome=read-only
+ReadWritePaths=__APP_DIR__
+
+[Install]
+WantedBy=multi-user.target
