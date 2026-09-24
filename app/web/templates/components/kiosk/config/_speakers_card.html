@@ -33,21 +33,6 @@
                     {% endif %}
                 </span>
                 <span class="btn-group btn-group-sm">
-                    {% if s.bt_mac %}
-                    {% if s.bt_connected %}
-                    <button type="button" class="btn btn-outline-secondary" title="Disconnect the Bluetooth device"
-                            hx-post="/kiosk/config/speakers/{{ s.name }}/bt-disconnect"
-                            hx-target="#speakers-card" hx-swap="outerHTML">
-                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-off"></i>
-                    </button>
-                    {% else %}
-                    <button type="button" class="btn btn-outline-secondary" title="Connect the Bluetooth device"
-                            hx-post="/kiosk/config/speakers/{{ s.name }}/bt-connect"
-                            hx-target="#speakers-card" hx-swap="outerHTML">
-                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-connect"></i>
-                    </button>
-                    {% endif %}
-                    {% endif %}
                     <button type="button" class="btn btn-outline-secondary" title="Edit display name"
                             hx-prompt="Display name for {{ s.name }} (empty = show technical name)"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/display"

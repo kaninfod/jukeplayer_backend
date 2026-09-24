@@ -9,6 +9,7 @@ import NfcEncodingController from "./controllers/nfc_encoding_controller.js"
 import ClientActionsController from "./controllers/client_actions_controller.js"
 import ConfigureController from "./controllers/configure_controller.js"
 import LoggingController from "./controllers/logging_controller.js"
+import BtSpeakerController from "./controllers/bt_speaker_controller.js"
 
 const application = Application.start()
 
@@ -26,5 +27,6 @@ application.register("nfcencoding", NfcEncodingController)
 application.register("clientactions", ClientActionsController)
 application.register("configure", ConfigureController)
 application.register("logging", LoggingController)
+application.register("btspeaker", BtSpeakerController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

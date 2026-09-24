@@ -59,6 +59,9 @@ class StubBT:
     def forget(self, mac):
         return {"mac": mac, "removed": True}
 
+    def battery_percent(self, mac):
+        return 42 if mac == "10:94:97:0F:CB:BF" else None
+
     def auto_connect_trusted(self):
         pass
 
@@ -221,21 +224,46 @@ async def test_bt_card_skips_managed_devices(initialized_app):
 
 
 @pytest.mark.asyncio
-async def test_speakers_card_bt_controls(initialized_app):
+async def test_speakers_card_shows_bt_state_without_buttons(initialized_app):
+    """BT connect/disconnect moved to the device card — the config-page
+    speakers list keeps the state badge only."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
-
         card = await client.get("/kiosk/config/speakers/scan")
         assert card.status_code == 200
         assert "BT connected" in card.text
-        assert "/kiosk/config/speakers/boom_3/bt-disconnect" in card.text
+        assert "bt-connect" not in card.text
+        assert "bt-disconnect" not in card.text
 
-        # disconnect from the Speakers card → state badge flips
-        resp = await client.post("/kiosk/config/speakers/boom_3/bt-disconnect")
-        assert "Disconnected: boom_3" in resp.text
-        assert "BT disconnected" in resp.text
+
+@pytest.mark.asyncio
+async def test_device_card_bt_controls(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
+
+        page = await client.get("/kiosk/devices")
+        assert page.status_code == 200
+        html = page.text
+        assert "BT connected" in html
+        assert "42%" in html                      # battery from bluez Battery1
+        assert "10:94:97:0F:CB:BF" in html        # mac on the card
+
+        # toggle from the device card: disconnect → badge flips
+        resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "boom_3"})
+        assert resp.status_code == 200
+        assert resp.json()["connected"] is False
+        page = await client.get("/kiosk/devices")
+        assert "BT disconnected" in page.text
 
         # and back
-        resp = await client.post("/kiosk/config/speakers/boom_3/bt-connect")
-        assert "Connected: boom_3" in resp.text
-        assert "BT connected" in resp.text
+        resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "boom_3"})
+        assert resp.json()["connected"] is True
+
+
+@pytest.mark.asyncio
+async def test_device_card_bt_toggle_without_bt_device(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/api/config/speakers", json={"name": "living_room"})
+        resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "living_room"})
+        assert resp.status_code == 400
+        assert "no Bluetooth audio device" in resp.json()["detail"]

@@ -430,6 +430,19 @@ class BluetoothService:
             logger.info(f"[BT] No pulse sink for {mac} (not connected?)")
         return sink
 
+    def battery_percent(self, mac: str) -> Optional[int]:
+        """Battery percentage from BlueZ's Battery1 interface (standard
+        Battery Service). Returns None when the device does not expose it."""
+        dev_path = f"/org/bluez/hci0/dev_{mac_to_underscored(mac)}"
+        try:
+            out = self._run("busctl", "get-property", "org.bluez", dev_path,
+                            "org.bluez.Battery1", "Percentage", timeout=6.0)
+        except Exception as e:
+            logger.debug(f"[BT] Battery lookup failed for {mac}: {e}")
+            return None
+        m = re.search(r"(-?\d+)", out)
+        return int(m.group(1)) if m else None
+
     def auto_connect_trusted(self) -> None:
         """Best-effort startup reconnect (design decision #3): attempt connect
         for every known device that is paired but disconnected, so a
