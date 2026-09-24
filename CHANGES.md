@@ -370,6 +370,31 @@ the mpv playlist stopped instead of advancing.
   underscores for every event source. Test added (display/store/mixed forms
   all resolve to the right speaker). Suite: 104 passing.
 
+## BT hardening (2026-09-24, evening)
+
+Second audio drop (16:51, RPi): only the headphones were playing this time —
+the kernel itself killed the stalled connection (`hci0: link tx timeout` /
+`killing stalled connection a8:f5:e1:7e:08:17`, dmesg ~816–932s after boot ≈
+16:49–16:51). Same shared-chip flakiness signature as the first incident, now
+proven **single-stream** (the Boom wasn't playing). The app saw NOTHING —
+mpv ran with `--log-file=None` and no log handler, so dead-sink write
+failures were invisible.
+
+- **Consolidation (user request):** all BT/system interactions now live in
+  `app/services/bluetooth_service.py` — `BluetoothAudioChecker` moved in from
+  `playback_backends/bluetooth.py` (which is now a compat shim), and every
+  bluetoothctl/pactl call logs through the module logger.
+- **mpv logging gap fixed:** the mpv backend registers mpv's internal log
+  stream (`request_log_levels(info/warn/error/fatal)` + log_handler) into the
+  app logger — dead-sink write failures and demuxer errors now appear as
+  `[mpv:<name>] …` lines.
+- **Aggregated logging:** Loki (API :3100, Grafana UI :3101 on the host) —
+  both devices ship there (`{source="JUKEPLAYER", device=~"jukeplayer-rpi"}`);
+  journalctl on-device remains the source of truth for bluetoothd/dmesg.
+- Known follow-ups: BT watchdog (periodic reconnect for mid-session drops),
+  USB BT dongle trial (user has an old one — the onboard BCM43430 keeps
+  dropping links), Wi-Fi power-save off as a coexistence mitigation.
+
 ## Final state notes
 
 - Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.
