@@ -292,6 +292,14 @@ User-tested on the Pi 3 before implementation. Findings, decisions:
   audio_device` targets pulse sink ids (`pulse/bluez_sink.<MAC>.a2dp-sink`).
   pipewire/wireplumber/pipewire-pulse stay installed but disabled (user
   services). The bluetoothctl-based BT card design is unchanged.
+- **RESOLVED (executed on the RPi):** PulseAudio + pulseaudio-module-bluetooth
+  installed, pipewire/wireplumber/pipewire-pulse user services disabled,
+  bluetooth restarted → `Endpoint registered` handlers exist →
+  `bluetoothctl connect` to BOOM 3 **succeeded** (A2DP UUIDs + GATT services
+  enumerated; BT battery level available via GATT). Phase C feasibility fully
+  confirmed on hardware. `deploy/jukeplayer.service` already sets
+  `XDG_RUNTIME_DIR=/run/user/__APP_UID__`, so mpv inside the backend reaches
+  the user's pulse server.
 - The `pipewire-audio` meta-package was also missing from setup (now
   installed for completeness) → add it to `setup_rpi.sh` if pipewire is ever
   revisited.
