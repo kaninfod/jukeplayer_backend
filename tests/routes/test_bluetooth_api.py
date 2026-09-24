@@ -16,6 +16,9 @@ def anyio_backend():
 class StubBT:
     """BluetoothService double — no subprocess calls."""
 
+    def __init__(self):
+        self._connected = True
+
     def status(self):
         return {"powered": True, "controller": "AA:BB:CC:DD:EE:FF"}
 
@@ -23,7 +26,7 @@ class StubBT:
         return [self._device()]
 
     def info(self, mac):
-        return {"paired": True, "trusted": True, "connected": True,
+        return {"paired": True, "trusted": True, "connected": self._connected,
                 "name": "BOOM 3", "a2dp_sink": True, "uuids": [],
                 "class": 0x240414, "icon": "audio-card", "audio": True}
 
@@ -31,20 +34,26 @@ class StubBT:
         return [self._device(), self._junk_device()]
 
     def bluez_sinks(self):
-        return [{"index": "1", "name": "bluez_sink.10_94_97_0F_CB_BF.a2dp_sink",
-                 "state": "SUSPENDED"}]
+        sinks = [{"index": "1", "name": "bluez_sink.10_94_97_0F_CB_BF.a2dp_sink",
+                  "state": "SUSPENDED"}] if self._connected else []
+        return sinks
 
     def sink_for_device(self, mac):
-        return "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink" if mac == self._device()["mac"] else None
+        if mac != "10:94:97:0F:CB:BF" or not self._connected:
+            return None
+        return "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
 
     def pair_and_connect(self, mac):
+        self._connected = True
         return {"mac": mac, "paired": True, "trusted": True, "connected": True,
                 "name": "BOOM 3", "error": None}
 
     def connect(self, mac):
+        self._connected = True
         return {"mac": mac, "connected": True, "paired": True, "error": None}
 
     def disconnect(self, mac):
+        self._connected = False
         return {"mac": mac, "connected": False}
 
     def forget(self, mac):
@@ -197,3 +206,36 @@ async def test_bluetooth_card_hides_unnamed_non_audio_devices(initialized_app):
         scan = await client.get("/api/bluetooth/scan?seconds=5")
         macs = [d["mac"] for d in scan.json()["devices"]]
         assert macs == ["10:94:97:0F:CB:BF", "11:22:33:44:55:66"]
+
+
+@pytest.mark.asyncio
+async def test_bt_card_skips_managed_devices(initialized_app):
+    """A device with a speaker entry lives in the Speakers card — the BT card
+    hides it and points at the Speakers card instead."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
+        card = await client.get("/kiosk/config/bluetooth/scan")
+        text = card.text
+        assert "already added as speaker" in text
+        assert "10:94:97:0F:CB:BF" not in text  # no longer listed, no Add button
+
+
+@pytest.mark.asyncio
+async def test_speakers_card_bt_controls(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
+
+        card = await client.get("/kiosk/config/speakers/scan")
+        assert card.status_code == 200
+        assert "BT connected" in card.text
+        assert "/kiosk/config/speakers/boom_3/bt-disconnect" in card.text
+
+        # disconnect from the Speakers card → state badge flips
+        resp = await client.post("/kiosk/config/speakers/boom_3/bt-disconnect")
+        assert "Disconnected: boom_3" in resp.text
+        assert "BT disconnected" in resp.text
+
+        # and back
+        resp = await client.post("/kiosk/config/speakers/boom_3/bt-connect")
+        assert "Connected: boom_3" in resp.text
+        assert "BT connected" in resp.text

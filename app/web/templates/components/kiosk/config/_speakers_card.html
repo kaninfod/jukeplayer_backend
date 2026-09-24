@@ -27,8 +27,27 @@
                     {% if s.display_name %}<small class="text-muted ms-1">({{ s.name }})</small>{% endif %}
                     <span class="badge text-bg-secondary ms-1">{{ s.backend }}</span>
                     {% if s.is_default %}<span class="badge text-bg-primary ms-1">default</span>{% endif %}
+                    {% if s.bt_mac %}
+                    {% if s.bt_connected %}<span class="badge text-bg-success ms-1">BT connected</span>
+                    {% else %}<span class="badge text-bg-light border ms-1">BT disconnected</span>{% endif %}
+                    {% endif %}
                 </span>
                 <span class="btn-group btn-group-sm">
+                    {% if s.bt_mac %}
+                    {% if s.bt_connected %}
+                    <button type="button" class="btn btn-outline-secondary" title="Disconnect the Bluetooth device"
+                            hx-post="/kiosk/config/speakers/{{ s.name }}/bt-disconnect"
+                            hx-target="#speakers-card" hx-swap="outerHTML">
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-off"></i>
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-outline-secondary" title="Connect the Bluetooth device"
+                            hx-post="/kiosk/config/speakers/{{ s.name }}/bt-connect"
+                            hx-target="#speakers-card" hx-swap="outerHTML">
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-connect"></i>
+                    </button>
+                    {% endif %}
+                    {% endif %}
                     <button type="button" class="btn btn-outline-secondary" title="Edit display name"
                             hx-prompt="Display name for {{ s.name }} (empty = show technical name)"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/display"

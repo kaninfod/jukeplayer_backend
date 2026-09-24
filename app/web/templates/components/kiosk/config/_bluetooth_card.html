@@ -26,11 +26,16 @@
         </small>
         {% endif %}
 
-        {% if devices %}
         {% if hidden_devices %}
         <small class="text-muted d-block mb-1"><i class="mdi mdi-eye-off"></i>
             Hiding {{ hidden_devices }} non-audio device{{ 's' if hidden_devices != 1 }} (beacons, unnamed LE devices…)</small>
         {% endif %}
+        {% if managed_devices %}
+        <small class="text-muted d-block mb-1"><i class="mdi mdi-speaker-multiple"></i>
+            {{ managed_devices }} device{{ 's' if managed_devices != 1 }} already added as speaker{{ 's' if managed_devices != 1 }} — managed in the Speakers card above.</small>
+        {% endif %}
+
+        {% if devices %}
         <ul class="list-group list-group-flush mb-2">
             {% for d in devices %}
             <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">

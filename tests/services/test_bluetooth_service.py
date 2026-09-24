@@ -3,6 +3,7 @@ stubbed subprocess output."""
 from app.services.bluetooth_service import (
     BluetoothService,
     is_audio_device,
+    mac_from_sink_id,
     mac_to_underscored,
     parse_devices,
     parse_info,
@@ -10,6 +11,12 @@ from app.services.bluetooth_service import (
     parse_scan_attributes,
     pulse_sink_for_mac,
 )
+
+def test_mac_from_sink_id():
+    assert mac_from_sink_id("pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink") == "10:94:97:0F:CB:BF"
+    assert mac_from_sink_id("pulse/alsa_output.stereo") is None
+    assert mac_from_sink_id(None) is None
+    assert mac_from_sink_id("") is None
 
 # --- parsers -----------------------------------------------------------------
 

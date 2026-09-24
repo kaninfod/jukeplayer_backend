@@ -142,6 +142,19 @@ def pulse_sink_for_mac(sinks: List[Dict[str, str]], mac: str) -> Optional[str]:
     return None
 
 
+_SINK_MAC_RE = re.compile(r"bluez_sink\.([0-9A-Fa-f_]{17})\.")
+
+
+def mac_from_sink_id(sink_id: Optional[str]) -> Optional[str]:
+    """Inverse of pulse_sink_for_mac: extract the device MAC (colons) from an
+    mpv audio-device id like 'pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink'.
+    Returns None for non-bluetooth sinks."""
+    if not sink_id:
+        return None
+    m = _SINK_MAC_RE.search(sink_id)
+    return m.group(1).replace("_", ":").upper() if m else None
+
+
 def _first_error_line(output: str) -> str:
     for line in output.splitlines():
         line = line.strip()
