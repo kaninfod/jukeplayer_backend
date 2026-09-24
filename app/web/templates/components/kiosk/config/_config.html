@@ -31,7 +31,8 @@
     </div>
 
     <div class="flex-grow-1 overflow-auto">
-        <form method="post" action="/kiosk/config/save/subsonic" class="card mb-3">
+        <form method="post" action="/kiosk/config/save/subsonic" class="card mb-3"
+         hx-post="/kiosk/config/save/subsonic" hx-target="#config-panel" hx-swap="outerHTML">
             <div class="card-body">
                 <h6 class="text-muted mb-3"><i class="mdi mdi-server"></i> Music source (Subsonic/Gonic)
                     <span class="badge text-bg-warning ms-2">restart required</span></h6>
@@ -69,7 +70,8 @@
             </div>
         </form>
 
-        <form method="post" action="/kiosk/config/save/logging" class="card mb-3">
+        <form method="post" action="/kiosk/config/save/logging" class="card mb-3"
+         hx-post="/kiosk/config/save/logging" hx-target="#config-panel" hx-swap="outerHTML">
             <div class="card-body">
                 <h6 class="text-muted mb-3"><i class="mdi mdi-text-box-outline"></i> Logging
                     <span class="badge text-bg-success ms-2">applies live</span></h6>
@@ -89,7 +91,8 @@
             </div>
         </form>
 
-        <form method="post" action="/kiosk/config/save/server" class="card mb-3">
+        <form method="post" action="/kiosk/config/save/server" class="card mb-3"
+         hx-post="/kiosk/config/save/server" hx-target="#config-panel" hx-swap="outerHTML">
             <div class="card-body">
                 <h6 class="text-muted mb-3"><i class="mdi mdi-earth"></i> Server
                     <span class="badge text-bg-warning ms-2">restart required</span></h6>
