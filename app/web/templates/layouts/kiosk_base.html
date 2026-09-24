@@ -21,7 +21,7 @@
     {% block head_extra %}{% endblock %}
 </head>
 <body class="" 
-    data-controller="websocket navigation playercontrols device nowplaying" 
+    data-controller="websocket navigation playercontrols device nowplaying logging"
     data-action="
       ws:send@window->websocket#handleOutgoing
       nav:go@window->navigation#load
