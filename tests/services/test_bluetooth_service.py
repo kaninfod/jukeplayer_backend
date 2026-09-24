@@ -51,9 +51,9 @@ def test_parse_info_flags_and_a2dp_uuid():
 
 def test_parse_info_defaults():
     info = parse_info("Device AA:BB:CC:DD:EE:FF")
-    assert info == {"paired": False, "trusted": False, "connected": False,
-                    "name": "", "a2dp_sink": False, "class": None, "icon": "",
-                    "audio": False, "uuids": []}
+    assert info == {"paired": False, "bonded": False, "trusted": False,
+                    "connected": False, "name": "", "a2dp_sink": False,
+                    "class": None, "icon": "", "audio": False, "uuids": []}
 
 
 def test_parse_info_class_icon_audio():

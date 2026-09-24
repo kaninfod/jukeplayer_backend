@@ -69,8 +69,9 @@ def parse_devices(output: str) -> List[Dict[str, str]]:
 
 def parse_info(output: str) -> Dict[str, Any]:
     """Parse `bluetoothctl info <MAC>` output → flags + name + uuids."""
-    info: Dict[str, Any] = {"paired": False, "trusted": False, "connected": False,
-                            "name": "", "a2dp_sink": False, "class": None, "icon": ""}
+    info: Dict[str, Any] = {"paired": False, "bonded": False, "trusted": False,
+                            "connected": False, "name": "", "a2dp_sink": False,
+                            "class": None, "icon": ""}
     uuids = []
     for line in output.splitlines():
         line = line.strip()
@@ -82,6 +83,8 @@ def parse_info(output: str) -> Dict[str, Any]:
             info["trusted"] = "yes" in line
         elif line.startswith("Connected:"):
             info["connected"] = "yes" in line
+        elif line.startswith("Bonded:"):
+            info["bonded"] = "yes" in line
         elif line.startswith("Class:"):
             cm = _CLASS_RE.search(line)
             if cm:
@@ -366,7 +369,11 @@ class BluetoothService:
     # --- mutations ----------------------------------------------------------------
     def pair_and_connect(self, mac: str) -> Dict[str, Any]:
         """The card's one-click flow: pair → trust → connect."""
-        logger.info(f"[BT] Pairing started for {mac} (pair → trust → connect)")
+        logger.info(f"[BT] Pairing started for {mac} (bondable on → pair → trust → connect)")
+        # Ensure the adapter bonds during pairing — transparent re-pairing
+        # (bluez 5.82 kernel-side path) completes without persistent keys,
+        # leaving the pairing non-durable (found 2026-09-24, RPi).
+        self._ctl("bondable", "on", timeout=10.0)
         result: Dict[str, Any] = {"mac": mac, "paired": False, "trusted": False,
                                   "connected": False, "error": None}
         pair_out = self._ctl("pair", mac, timeout=30.0)
@@ -387,6 +394,9 @@ class BluetoothService:
             logger.warning(f"[BT] Connect {mac} failed: {result['error']}")
         else:
             logger.info(f"[BT] Pairing {mac}: connected (name='{info.get('name')}')")
+        if not info["bonded"]:
+            logger.warning(f"[BT] Pairing {mac} completed WITHOUT bonding — link keys "
+                           f"will not persist across restarts (is the adapter bondable?)")
         return result
 
     def connect(self, mac: str) -> Dict[str, Any]:
