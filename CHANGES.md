@@ -414,10 +414,28 @@ failures were invisible.
   state badge, the MAC and the battery % from BlueZ Battery1 when the device
   exposes it. The speakers list keeps the state badge only (the speakers-card
   bt-connect/bt-disconnect routes were removed). Suite: 115 passing.
-- Known follow-ups: USB BT dongle trial (user has ordered the ASUS USB-BT500,
-  Realtek RTL8761B — onboard BCM43430 keeps dropping links; UGREEN BT 6.0
-  chipsets reported needing out-of-tree patches, avoided), Wi-Fi power-save
-  off as a coexistence mitigation.
+- **Clean install verified end-to-end (2026-09-24, ~18:30):** fresh Trixie image
+  → clone → `setup_rpi.sh` → config-store restore → service start → both BT
+  speakers paired via the card, both playing. Persistence was NOT broken:
+  "pairings missing from disk" was a verification illusion — `/var/lib/
+  bluetooth` is root:root 0700 and the check `ls` commands ran as `pi` with
+  stderr swallowed, hiding "Permission denied". With sudo, both device dirs
+  (Boom + headphones, with link keys) are present and written at pairing/
+  reconnect time. BlueZ's `info`/`settings` files also get rewritten across
+  bluetoothd restarts (observed mtimes changed at the restart) — the pairing
+  store works.
+- **Boom battery quirk:** BlueZ Battery1 reports 1% for the BOOM 3 (its phone
+  app shows no battery at all — vendor characteristic misreports through the
+  standard BAS mapping). The OpenRun Pros report correctly (70%). Battery is
+  displayed as-reported; a quirk filter can be added later if it matters.
+- **Scan UX note (user, works as designed):** devices with a speaker entry
+  are hidden from the BT card behind the "managed in the Speakers card" note
+  — possible refinement: list the managed device names in that note.
+- Known follow-ups: USB BT dongle trial (ASUS USB-BT500 ordered — onboard
+  BCM43430 dropped links three times tonight, including single-stream; dmesg:
+  `killing stalled connection` / `Opcode 0x0c03 failed: -110`), Wi-Fi
+  power-save off as a coexistence mitigation, watchdog auto-resume
+  (reconnect works; playback still needs one play/pause tap after a drop).
 
 ## Final state notes
 
