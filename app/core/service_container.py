@@ -88,6 +88,15 @@ def create_speakers_service(container):
     from app.services.speakers_service import SpeakersService
     return SpeakersService()
 
+def create_speaker_manager_service(container):
+    from app.services.speaker_manager_service import SpeakerManagerService
+    return SpeakerManagerService(
+        store=container.get('config_store'),
+        config_service=container.get('config_service'),
+        speakers_service=container.get('speakers_service'),
+        broker=container.get('speaker_broker_service'),
+    )
+
 
 # --- Setup function ---
 def setup_service_container():
@@ -105,6 +114,7 @@ def setup_service_container():
     container.register_singleton('control_clients_service', create_control_clients_service)
     container.register_singleton('speakers_service', create_speakers_service)
     container.register_singleton('speaker_broker_service', create_speaker_broker_service)
+    container.register_singleton('speaker_manager', create_speaker_manager_service)
 
     container.register_singleton('playback_service', create_playback_service)
 

@@ -143,6 +143,76 @@ async def kiosk_config_save(section: str, request: Request):
         name="components/kiosk/config/_config.html", context=context)
 
 
+# Speakers card (Phase B): every action re-renders the card fragment.
+
+def _speakers_card_context(message: str | None = None, error: str | None = None,
+                           discovered=None, scanned: bool = False) -> dict:
+    from app.services.speaker_manager_service import normalize_speaker_name
+    manager = get_service("speaker_manager")
+    return {
+        "speakers": manager.configured(),
+        "discovered": discovered,
+        "scanned": scanned,
+        "message": message,
+        "error": error,
+    }
+
+
+def _render_speakers_card(request: Request, **ctx):
+    return templates.TemplateResponse(request=request,
+        name="components/kiosk/config/_speakers_card.html", context=ctx)
+
+
+@router.get("/kiosk/config/speakers/scan")
+async def kiosk_speakers_scan(request: Request):
+    manager = get_service("speaker_manager")
+    try:
+        devices = await asyncio.to_thread(manager.discover)
+    except Exception as e:
+        logger.warning(f"Speaker scan failed: {e}")
+        return _render_speakers_card(request, **_speakers_card_context(
+            error=f"Scan failed: {e}", scanned=True))
+    return _render_speakers_card(request, **_speakers_card_context(discovered=devices, scanned=True))
+
+
+@router.post("/kiosk/config/speakers/add")
+async def kiosk_speakers_add(request: Request):
+    form = await request.form()
+    manager = get_service("speaker_manager")
+    try:
+        entry = manager.add_speaker(
+            name=str(form.get("name") or ""),
+            backend=str(form.get("backend") or "chromecast"),
+            is_default=form.get("is_default") == "on",
+        )
+        return _render_speakers_card(request, **_speakers_card_context(
+            message=f"Added {entry['name']}"))
+    except ValueError as e:
+        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+
+
+@router.post("/kiosk/config/speakers/{name}/remove")
+async def kiosk_speakers_remove(name: str, request: Request):
+    manager = get_service("speaker_manager")
+    try:
+        await manager.remove_speaker(name)
+        return _render_speakers_card(request, **_speakers_card_context(
+            message=f"Removed {name}"))
+    except ValueError as e:
+        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+
+
+@router.post("/kiosk/config/speakers/{name}/default")
+async def kiosk_speakers_default(name: str, request: Request):
+    manager = get_service("speaker_manager")
+    try:
+        manager.set_default(name)
+        return _render_speakers_card(request, **_speakers_card_context(
+            message=f"Default speaker: {name}"))
+    except ValueError as e:
+        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+
+
 @router.get("/", response_class=HTMLResponse)
 async def status_page(request: Request, kiosk: bool = False):
     return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={

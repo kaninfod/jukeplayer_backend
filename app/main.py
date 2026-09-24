@@ -134,8 +134,8 @@ async def startup_event():
             "to set the music source, then restart.")
     if not config_service.speakers():
         logging.warning(
-            "⚠️  No speakers configured yet — manage them from the web UI once "
-            "speaker management ships (they can also be pre-set in the store file).")
+            "⚠️  No speakers configured yet — add them in the web UI "
+            "(/kiosk/config → Speakers): scan for Chromecasts or add manually.")
     # Step 1.5: Give the event bus the running loop so backend-thread callbacks
     # (pychromecast / MPV) can schedule async handlers safely.
     import asyncio
@@ -166,24 +166,10 @@ async def startup_event():
     # 50% default until the first interaction). Runs in the background so it
     # never delays startup; each connect also triggers the cast status
     # listener, which propagates device-side volume changes to clients.
+    # The same logic re-syncs a single speaker when it is added live (Phase B).
     import asyncio
-
-    async def sync_all_speaker_volumes():
-        for speaker in speakers_service.get_all_speakers().values():
-            player = speaker.mediaplayer
-            backend = getattr(player, "playback_backend", None)
-            try:
-                is_connected = getattr(backend, "is_connected", None)
-                if is_connected and not is_connected():
-                    ensure_connected = getattr(backend, "ensure_connected", None)
-                    if ensure_connected:
-                        await asyncio.to_thread(ensure_connected)
-                volume = await player.volume_manager.sync_volume_from_backend()
-                logger.info(f"Synced volume for {speaker.speaker_name}: {volume}")
-            except Exception as e:
-                logger.warning(f"Volume sync skipped for {speaker.speaker_name}: {e}")
-
-    asyncio.create_task(sync_all_speaker_volumes())
+    speaker_manager = global_container.get('speaker_manager')
+    asyncio.create_task(speaker_manager.sync_all_speaker_volumes())
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")

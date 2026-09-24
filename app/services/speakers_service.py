@@ -39,28 +39,64 @@ class SpeakersService:
     def initialize_speakers(self, speakers: List[dict]):
         """Create the speaker registry from the config store's speaker list:
         entries are {name, backend, options, is_default}."""
-        from app.services import MediaPlayerService
-        from app.playback_backends.factory import get_playback_backend_by_name
-        from app.core.service_container import get_service
-
         for entry in speakers:
             device_name = entry.get("name")
             if not device_name or device_name in self._speakers:
                 continue
-            backend = get_playback_backend_by_name(
-                entry.get("backend", "chromecast"),
-                device_name=device_name,
-                options=entry.get("options") or {},
-            )
-            mediaplayer = MediaPlayerService(
-                event_bus=get_service("event_bus"),
-                playback_backend=backend,
-                device_name=device_name
-            )
-            self._speakers[device_name] = Speaker(str(uuid.uuid4()), device_name, entry.get("backend", "chromecast"), mediaplayer)
+            self._speakers[device_name] = self._build_speaker(entry)
             if entry.get("is_default") and not self._default_name:
                 self._default_name = device_name
-            logger.info(f"[SpeakersService]  Created MediaPlayerService for device: {device_name}")
+
+    def _build_speaker(self, entry: dict) -> Speaker:
+        """Construct the backend + MediaPlayerService for one store entry."""
+        from app.services import MediaPlayerService
+        from app.playback_backends.factory import get_playback_backend_by_name
+        from app.core.service_container import get_service
+
+        device_name = entry.get("name")
+        backend_name = entry.get("backend", "chromecast")
+        backend = get_playback_backend_by_name(
+            backend_name,
+            device_name=device_name,
+            options=entry.get("options") or {},
+        )
+        mediaplayer = MediaPlayerService(
+            event_bus=get_service("event_bus"),
+            playback_backend=backend,
+            device_name=device_name
+        )
+        logger.info(f"[SpeakersService]  Created MediaPlayerService for device: {device_name}")
+        return Speaker(str(uuid.uuid4()), device_name, backend_name, mediaplayer)
+
+    def add_speaker(self, entry: dict) -> Speaker:
+        """Live speaker add (Phase B): construct and register without a restart.
+        Raises ValueError on empty or already-active names."""
+        name = str(entry.get("name") or "").strip().lower()
+        if not name:
+            raise ValueError("Speaker name is required")
+        if name in self._speakers:
+            raise ValueError(f"Speaker '{name}' is already active")
+        speaker = self._build_speaker({**entry, "name": name})
+        self._speakers[name] = speaker
+        if entry.get("is_default"):
+            self._default_name = name
+        return speaker
+
+    def remove_speaker(self, name: str) -> Optional[Speaker]:
+        """Live speaker removal: drop it from the registry and return the
+        removed object (caller stops playback, disconnects, re-homes clients)."""
+        speaker = self._speakers.pop(str(name or "").strip().lower(), None)
+        if speaker and self._default_name == speaker.speaker_name:
+            self._default_name = None
+        return speaker
+
+    def set_default_name(self, name: Optional[str]) -> bool:
+        """Point the registry's default at a configured speaker (or clear it;
+        get_default_speaker then falls back to the first entry)."""
+        if name and name not in self._speakers:
+            raise ValueError(f"Unknown speaker: {name}")
+        self._default_name = name
+        return True
 
     def get_speaker(self, speaker_id: str = None, speaker_name: str = None) -> Optional[Speaker]:
         if speaker_name:

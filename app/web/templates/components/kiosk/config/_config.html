@@ -10,25 +10,8 @@
         {% endif %}
     </div>
 
-    <!-- SPEAKERS (management UI arrives in the next update) -->
-    <div class="card mb-3 flex-shrink-0">
-        <div class="card-body py-3">
-            <h6 class="text-muted mb-2"><i class="mdi mdi-speaker-multiple"></i> Speakers
-                <span class="badge text-bg-secondary ms-2">managed in the next update</span>
-            </h6>
-            {% if speakers %}
-            <div class="d-flex flex-wrap gap-2">
-                {% for s in speakers %}
-                <span class="badge {% if s.is_default %}text-bg-primary{% else %}text-bg-light{% endif %} border">
-                    {{ s.name }} · {{ s.backend }}{% if s.is_default %} · default{% endif %}
-                </span>
-                {% endfor %}
-            </div>
-            {% else %}
-            <small class="text-muted">No speakers configured yet.</small>
-            {% endif %}
-        </div>
-    </div>
+    <!-- SPEAKERS: live speaker manager (Phase B) -->
+    {% include "components/kiosk/config/_speakers_card.html" %}
 
     <div class="flex-grow-1 overflow-auto">
         <form method="post" action="/kiosk/config/save/subsonic" class="card mb-3"

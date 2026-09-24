@@ -30,6 +30,26 @@ def _get_global_browser():
         logger.info("Started global background Chromecast discovery")
     return _global_browser
 
+
+def discover_devices(timeout: Optional[float] = None) -> List[Dict]:
+    """One scan of the persistent global discovery browser (blocking, network
+    I/O — call off the event loop). Returns
+    [{"name", "model", "host", "uuid"}] for the speaker-manager picker."""
+    browser = _get_global_browser()
+    if not browser.services:
+        time.sleep(timeout or 1.0)
+    devices = []
+    for uuid, cast_info in browser.services.items():
+        if hasattr(cast_info, 'friendly_name'):
+            devices.append({
+                'name': cast_info.friendly_name,
+                'model': getattr(cast_info, 'model_name', 'Unknown'),
+                'host': str(getattr(cast_info, 'host', 'Unknown')),
+                'uuid': str(uuid),
+            })
+    logger.debug(f"Discovery scan complete: found {len(devices)} Chromecast devices")
+    return devices
+
 DEFAULT_MEDIA_RECEIVER_APP_ID = "CC1AD845"
 
 class ChromecastMediaStatusListener:

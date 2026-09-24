@@ -74,5 +74,74 @@ async def update_server(payload: Dict[str, Any] = Body(...)):
     _store().update_section("server", payload or {})
     return {"status": "saved", "applies": "restart"}
 
-# Speakers: read-only in Phase A (live management arrives in Phase B).
-# The store schema already reserves the section; the UI shows the list.
+
+# Speakers (Phase B): live-managed — add/remove applies without a restart.
+# The store stays authoritative; SpeakerManagerService applies the change to
+# the live registry + broker after persisting.
+
+def _speaker_manager():
+    return get_service("speaker_manager")
+
+
+@router.get("/speakers")
+async def list_speakers():
+    manager = _speaker_manager()
+    return {
+        "speakers": manager.configured(),
+        "default": _config_service().default_speaker_name(),
+        "applies": "live",
+    }
+
+
+@router.get("/speakers/discovered")
+async def discovered_speakers():
+    """Chromecasts visible on the network (blocking mDNS scan, off the loop)."""
+    import asyncio
+    manager = _speaker_manager()
+    devices = await asyncio.to_thread(manager.discover)
+    return {"discovered": devices}
+
+
+@router.post("/speakers")
+async def add_speaker(payload: Dict[str, Any] = Body(...)):
+    manager = _speaker_manager()
+    try:
+        entry = manager.add_speaker(
+            name=str((payload or {}).get("name", "")),
+            backend=str((payload or {}).get("backend", "chromecast")),
+            options=(payload or {}).get("options"),
+            is_default=bool((payload or {}).get("is_default")),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "status": "added",
+        "applies": "live",
+        "speaker": entry,
+        "speakers": manager.configured(),
+        "default": _config_service().default_speaker_name(),
+    }
+
+
+@router.delete("/speakers/{name}")
+async def remove_speaker(name: str):
+    manager = _speaker_manager()
+    try:
+        result = await manager.remove_speaker(name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {
+        "status": "removed",
+        **result,
+        "default": _config_service().default_speaker_name(),
+    }
+
+
+@router.put("/speakers/{name}/default")
+async def set_default_speaker(name: str):
+    manager = _speaker_manager()
+    try:
+        result = manager.set_default(name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "saved", "applies": "live", **result}

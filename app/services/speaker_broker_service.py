@@ -97,6 +97,31 @@ class SpeakerBrokerService:
             self.control_clients._clients[client_id].speaker_name = speaker_name
             await self.broadcast_context_to_clients(speaker)
 
+    async def handle_speaker_removed(self, removed_speaker):
+        """Re-home clients attached to a speaker that was just removed from the
+        config (live speaker management, Phase B): they move to the default
+        speaker, or detach when no default exists."""
+        if not removed_speaker:
+            return
+        orphans = list(removed_speaker.clients)
+        if not orphans:
+            return
+        fallback = self.speakers.get_default_speaker()
+        target = fallback if fallback and fallback is not removed_speaker else None
+        for client_id in orphans:
+            self._remove_client_from_speakers(client_id)
+            client = self.control_clients._clients.get(client_id)
+            if not client:
+                continue
+            if target:
+                self._assign_client_to_speaker(client_id, target.speaker_name)
+                client.speaker_name = target.speaker_name
+            else:
+                client.speaker_name = None
+            logger.info(f"[SpeakerBrokerService] Re-homed client_id: {client_id} after speaker '{removed_speaker.speaker_name}' was removed")
+        if target:
+            await self.broadcast_context_to_clients(target)
+
 
     def _remove_client_from_speakers(self, client_id):
         result = False

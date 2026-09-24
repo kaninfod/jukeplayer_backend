@@ -57,7 +57,7 @@ SECTION_APPLIES = {
     "subsonic": "restart",
     "mpv": "restart",
     "server": "restart",
-    "speakers": "restart",  # becomes live in Phase B
+    "speakers": "live",  # live since Phase B: add/remove applies without restart
 }
 
 
@@ -167,6 +167,59 @@ class ConfigStoreService:
         self.save()
         return cleaned
 
+    # --- speaker list management (Phase B: live speaker manager) -----------------
+    def add_speaker(self, name: str, backend: str = "chromecast",
+                    options: Optional[Dict[str, Any]] = None,
+                    is_default: bool = False) -> List[Dict[str, Any]]:
+        """Add one speaker to the store. Raises ValueError on empty/duplicate
+        names; an added default clears the previous one (single default)."""
+        clean = str(name or "").strip().lower()
+        if not clean:
+            raise ValueError("Speaker name is required")
+        speakers = list(self.section("speakers"))
+        if any(s["name"] == clean for s in speakers):
+            raise ValueError(f"Speaker '{clean}' is already configured")
+        if is_default:
+            for s in speakers:
+                s["is_default"] = False
+        speakers.append({
+            "name": clean,
+            "backend": (backend or "chromecast").strip().lower(),
+            "options": dict(options or {}),
+            "is_default": bool(is_default),
+        })
+        self._data["speakers"] = speakers
+        self.save()
+        return speakers
+
+    def remove_speaker(self, name: str) -> List[Dict[str, Any]]:
+        """Remove one speaker from the store. Raises ValueError if unknown.
+        If the removed speaker was the default, the first remaining one is
+        promoted so the store always has a deterministic default."""
+        clean = str(name or "").strip().lower()
+        speakers = list(self.section("speakers"))
+        remaining = [s for s in speakers if s["name"] != clean]
+        if len(remaining) == len(speakers):
+            raise ValueError(f"Speaker '{clean}' is not configured")
+        removed_was_default = any(s["name"] == clean and s.get("is_default") for s in speakers)
+        if removed_was_default and remaining:
+            remaining[0]["is_default"] = True
+        self._data["speakers"] = remaining
+        self.save()
+        return remaining
+
+    def set_default_speaker(self, name: str) -> List[Dict[str, Any]]:
+        """Flag exactly one configured speaker as default."""
+        clean = str(name or "").strip().lower()
+        speakers = list(self.section("speakers"))
+        if not any(s["name"] == clean for s in speakers):
+            raise ValueError(f"Speaker '{clean}' is not configured")
+        for s in speakers:
+            s["is_default"] = s["name"] == clean
+        self._data["speakers"] = speakers
+        self.save()
+        return speakers
+
 
 class ConfigService:
     """Merged effective configuration + runtime appliers.
@@ -209,6 +262,7 @@ class ConfigService:
                 view["sections"][section] = {
                     "value": self.speakers(),
                     "source": "store" if self.store.section("speakers") else "empty",
+                    "applies": "live",
                 }
                 continue
             store_section = dict(self.store.section(section))

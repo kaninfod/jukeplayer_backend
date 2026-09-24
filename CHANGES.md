@@ -2,7 +2,7 @@
 
 Working log of the backend cleanup (started 2026-09-24). Batches are deployed
 and verified one at a time; new findings discovered along the way are appended
-to "New findings & tweaks" at the bottom.
+to "New findings (running list)" at the bottom.
 
 ## Config & speaker management (feature branch `feature/config-management`)
 
@@ -10,7 +10,7 @@ to "New findings & tweaks" at the bottom.
 |---|---|---|
 | 0 | Dedicated RPi deployment (scripts, systemd, ops guide) | ✅ committed — RPi setup in progress by user |
 | A | JSON config store + effective-config view + /kiosk/system card | ✅ committed (dcafd79), 57/57 tests |
-| B | Live speaker manager (CC discovery picker, add/remove) | ⬜ |
+| B | Live speaker manager (CC discovery picker, add/remove) | ✅ Code done, 74/74 tests — pending test-env run |
 | C | Audio/BT card (pair/connect from the web UI) | ⬜ |
 | D | Docs + final env trim | ⬜ |
 | — | USB-DAC output (MPV audio_device per speaker) | 🔒 backburner — schema slot reserved in Phase B |
@@ -36,11 +36,6 @@ as phase 0.
 | 6d | Web UI: volume_changed dict payload normalized (0% display bug) | ✅ Code done — pending test-env run |
 | 7 | Module name collision resolved (media_player_service package) | ✅ Code done, 46/46 tests — pending test-env run |
 | 8 | Config/ops hygiene + docs | ✅ Code done, 46/46 tests — pending test-env run |
-| 4 | Chromecast stop hardening + fallback policy | ⬜ |
-| 5 | Subsonic async hygiene + scrobble fix | ⬜ |
-| 6 | Event bus thread-safety + payload consistency | ⬜ |
-| 7 | Module name collision rename (DELETE file already removed in B3); DB work done in B3.5 | ⬜ |
-| 8 | Config/ops hygiene + docs | ⬜ |
 
 ---
 
@@ -177,6 +172,66 @@ in `services/__init__.py` that loaded the file as `_media_player_service_module`
 - `.env_dev` (active test config): removed the 4 dead keys. `.env_dev.example` + `.env.example` trimmed of all dead keys.
 - `README.md`: rewritten to match reality — current env vars, run commands, architecture (speaker broker), live endpoints, client list (web/ESP32/HA only), log setup. Removed stale references (`.env.example` path, album database, `/api/display/brightness`, Pi client).
 - Suite: 46 passing; app imports clean (47 routes).
+
+## Final state notes
+
+## Phase B — Live speaker manager (2026-09-24)
+
+Speakers are now fully UI-managed and apply **live** — no restart for
+add/remove/default. The store stays the single source of truth; every change
+is persisted there first, then applied to the live registry, then to the
+broker. `SECTION_APPLIES["speakers"]` flipped `restart → live`.
+
+- `app/services/config_store.py`: `add_speaker()` (single-default invariant: an
+  added default clears the previous), `remove_speaker()` (promotes the first
+  remaining speaker when the default is removed), `set_default_speaker()`; all
+  normalize names and persist atomically. `effective()` speakers view now
+  carries `"applies": "live"`.
+- `app/services/speakers_service.py`: construction extracted to
+  `_build_speaker()` (shared by boot-time `initialize_speakers` and the new
+  live path); new `add_speaker(entry)`, `remove_speaker(name)` (returns the
+  removed object), `set_default_name(name)`.
+- `app/services/speaker_broker_service.py`: new `handle_speaker_removed()` —
+  clients attached to a removed speaker are re-homed to the default speaker
+  (or detached when no default remains) and get a fresh context broadcast.
+- `app/playback_backends/chromecast.py`: module-level `discover_devices()`
+  scan over the persistent global discovery browser (blocking — callers go
+  through `asyncio.to_thread`), used by the picker; the connect path is
+  untouched.
+- **New `app/services/speaker_manager_service.py`** (`speaker_manager`
+  singleton): `discover()` (maps friendly names to store format, flags
+  already-configured devices), `add_speaker()` (construct live → persist;
+  rolls the live side back if the store write fails), `remove_speaker()`
+  (stop playback → disconnect backend → drop from registry → persist →
+  re-point default → re-home clients), `set_default()`; also owns
+  `sync_speaker_volume()` / `sync_all_speaker_volumes()` (moved from
+  `main.py`), so a speaker added live gets its real device volume pulled in
+  the background.
+- `app/routes/config_api.py`: `GET/POST /api/config/speakers`,
+  `DELETE /api/config/speakers/{name}`, `PUT /api/config/speakers/{name}/default`,
+  `GET /api/config/speakers/discovered` (mDNS scan off the event loop).
+- Web UI: new `components/kiosk/config/_speakers_card.html` (replaces the
+  Phase A placeholder card) — configured list with make-default/remove
+  buttons, "Scan network" → discovered picker with `added` badges, manual add
+  (Chromecast or MPV; the `audio_device` option slot for USB-DAC stays
+  reserved). Every action htmx-swaps the card fragment
+  (`/kiosk/config/speakers/*`); errors render inside the card.
+- `app/main.py`: volume sync delegated to the manager; the no-speakers boot
+  warning now points at the working UI.
+- **Tests added:** `tests/services/test_speaker_manager.py` (14: store
+  invariants, live registry, broker re-homing incl. detach-when-empty,
+  discovery mapping) + 3 API/htmx tests (add/remove lifecycle incl. 400/404
+  paths, discovered endpoint, card fragment flow). **Suite: 74 passing.**
+- **Test-isolation bug fixed** (pre-existing from Phase A):
+  `Config.CONFIG_FILE` is a class attr resolved at import, so the tests'
+  `monkeypatch.setenv("CONFIG_FILE", …)` never reached the store and route
+  tests could write the repo's real `data/config.json` (an artifact from
+  today's runs was created and removed). All config-api tests now patch
+  `app.config.config.CONFIG_FILE` to a tmp path.
+
+Notes: scan results collapse after an add (re-scan to pick more — v1
+simplicity); MPV speakers are added manually (no discovery); the
+`options.audio_device` schema slot stays reserved for the USB-DAC backburner.
 
 ## Final state notes
 
