@@ -10,13 +10,13 @@
         {% endif %}
     </div>
 
-    <!-- SPEAKERS: live speaker manager (Phase B) -->
-    {% include "components/kiosk/config/_speakers_card.html" %}
-
-    <!-- BLUETOOTH: pair/connect BT speakers (Phase C) -->
-    {% include "components/kiosk/config/_bluetooth_card.html" %}
-
     <div class="flex-grow-1 overflow-auto">
+        <!-- SPEAKERS: live speaker manager (Phase B) -->
+        {% include "components/kiosk/config/_speakers_card.html" %}
+
+        <!-- BLUETOOTH: pair/connect BT speakers (Phase C) -->
+        {% include "components/kiosk/config/_bluetooth_card.html" %}
+
         <form method="post" action="/kiosk/config/save/subsonic" class="card mb-3"
          hx-post="/kiosk/config/save/subsonic" hx-target="#config-panel" hx-swap="outerHTML">
             <div class="card-body">
