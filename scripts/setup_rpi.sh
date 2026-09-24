@@ -16,9 +16,13 @@ APP_UID="$(id -u)"
 echo "==> Jukeplayer setup on $(hostname) (user: ${APP_USER}, dir: ${APP_DIR})"
 
 # --- System packages (audio: mpv -> pipewire; BT: bluez + pipewire bt modules)
+# --no-install-recommends keeps this headless-Lite: no desktop/X stack, no
+# yt-dlp & friends. (mpv still links a few X11/Wayland *client* libs — a few
+# MB of shared libraries, not a desktop — needed by the package even for
+# audio-only use; mpv runs with force_window=no.)
 echo "==> Installing system packages (needs sudo)..."
 sudo apt-get update -qq
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     git python3 python3-venv python3-pip \
     mpv \
     pipewire pipewire-pulse pipewire-alsa wireplumber \
