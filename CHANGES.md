@@ -405,6 +405,15 @@ failures were invisible.
   reconnect the mpv stream may still need a play/pause from the UI to resume
   at position (the pause/play toggle re-attaches the stream — observed on the
   RPi); automatic resume is a possible future refinement.
+- **UI split (user request, 2026-09-24):** config page = setup, devices page
+  (`/kiosk/devices`) = runtime. BT connect/disconnect moved off the speakers
+  card onto the **device card** (same pattern as the ESP-client reboot): a
+  `btspeaker` Stimulus controller toggles the connection (POST
+  `/kiosk/devices/bt-toggle`, current sink state decides the action, event
+  stopped so it does not also switch playback). The device card shows the BT
+  state badge, the MAC and the battery % from BlueZ Battery1 when the device
+  exposes it. The speakers list keeps the state badge only (the speakers-card
+  bt-connect/bt-disconnect routes were removed). Suite: 115 passing.
 - Known follow-ups: USB BT dongle trial (user has ordered the ASUS USB-BT500,
   Realtek RTL8761B — onboard BCM43430 keeps dropping links; UGREEN BT 6.0
   chipsets reported needing out-of-tree patches, avoided), Wi-Fi power-save
