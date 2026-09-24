@@ -23,6 +23,10 @@ echo "==> Jukeplayer setup on $(hostname) (user: ${APP_USER}, dir: ${APP_DIR})"
 # --- System packages (audio: PulseAudio is the BT audio server — pipewire's
 # bluez monitor never registers A2DP endpoints on this Pi 3 / bluez 5.82
 # stack; see ledger "Phase C pre-work". mpv -> pulse -> bluez sink.)
+# - pulseaudio-module-bluetooth registers the A2DP endpoints with BlueZ
+# - pulseaudio-utils provides pactl (used by the BT card + output checks)
+# - bluez-firmware = onboard BCM43430 chip; firmware-realtek = USB BT dongles
+#   (ASUS USB-BT500 / RTL8761B)
 # --no-install-recommends keeps this headless-Lite: no desktop/X stack, no
 # yt-dlp & friends. (mpv still links a few X11/Wayland *client* libs — a few
 # MB of shared libraries, not a desktop — needed by the package even for
@@ -34,7 +38,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     mpv \
     pulseaudio pulseaudio-module-bluetooth pulseaudio-utils \
     bluez bluez-firmware rfkill \
-    alsa-utils curl
+    firmware-realtek
 
 # --- Bluetooth + audio server
 # rfkill: fresh images can ship hci0 soft-blocked (boot-time finding 2026-09-24)
