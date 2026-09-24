@@ -1,54 +1,88 @@
+"""Output readiness checks for the mpv backend.
+
+With per-speaker audio_device targeting (Phase C), mpv plays directly into
+its configured pulse sink — the *system default sink* is irrelevant. The
+checker therefore verifies the **targeted** sink exists (e.g. a BT speaker's
+`bluez_sink.<MAC>.a2dp_sink` while the device is connected) and stays out of
+the way otherwise.
+
+History: this used to gate playback on the default sink being Bluetooth —
+correct for the old follow-the-default-sink design, but it silently blocked
+every play once per-speaker sinks became the routing model (found 2026-09-24,
+RPi: BT playback dead with "Default sink is not Bluetooth … but mpv will use
+it" while the targeted BT sink was perfectly present).
+"""
+
 from __future__ import annotations
 
 import logging
 import os
-import shutil
 import subprocess
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class BluetoothAudioChecker:
-    """Checks the system default audio sink to see if it is a Bluetooth device."""
+    """Verifies that the sink a speaker targets actually exists in PulseAudio."""
 
-    def __init__(self, **kwargs):
-        pass
-
-    def check_ready(self) -> Dict:
-        sink_name, sink_error = self._default_sink_with_error()
-        if sink_name is None:
+    def check_ready(self, audio_device: Optional[str] = None) -> Dict:
+        if not audio_device:
             return {
                 "ready": True,
                 "configured": True,
-                "message": f"Default sink unknown: {sink_error}",
+                "message": "No audio_device override — mpv uses its default output",
             }
 
-        sink_is_bt = bool(sink_name and "bluez" in sink_name.lower())
-        if sink_is_bt:
+        # mpv device ids look like 'pulse/<sink name>' (or '<ao>/<id>'); the
+        # relevant pulse sink is the part after the slash.
+        sink_name = audio_device.split("/", 1)[1] if "/" in audio_device else audio_device
+        sink_is_bt = "bluez" in sink_name.lower()
+
+        try:
+            sinks = self._list_sinks()
+        except Exception as e:
+            # Cannot verify right now — do not block playback on a checker hiccup.
+            logger.debug(f"Sink list unavailable, letting mpv try anyway: {e}")
+            return {"ready": True, "configured": True, "sink": sink_name,
+                    "sink_is_bluetooth": sink_is_bt,
+                    "message": f"Could not verify sink ({e}) — letting mpv try"}
+
+        if sink_name in sinks:
             return {
                 "ready": True,
                 "configured": True,
-                "sink_is_bluetooth": True,
-                "message": "BT speaker connected as default sink",
+                "sink": sink_name,
+                "sink_is_bluetooth": sink_is_bt,
+                "message": f"Target sink present: {sink_name}",
             }
 
         return {
             "ready": False,
             "configured": True,
-            "sink_is_bluetooth": False,
-            "message": f"Default sink is not Bluetooth ({sink_name}) but mpv will use it",
+            "sink": sink_name,
+            "sink_is_bluetooth": sink_is_bt,
+            "message": f"Target sink not present (device disconnected?): {sink_name}",
         }
 
-    def _default_sink_with_error(self):
-        if not shutil.which("pactl"):
-            return None, "pactl not installed"
-        result = self._run_command("pactl get-default-sink")
-        sink = (result.stdout or "").strip()
-        if sink:
-            return sink, None
-        error = (result.stderr or "").strip() or f"pactl exit code {result.returncode}"
-        return None, error
+    def _list_sinks(self) -> List[str]:
+        """PulseAudio sink names (from `pactl list sinks short`). Raises when
+        pactl is unusable — the caller decides whether to block playback."""
+        if not os.path.exists(os.path.join(self._runtime_dir(), "pulse", "native")):
+            logger.debug("Pulse socket not present yet under %s", self._runtime_dir())
+        result = self._run_command("pactl list sinks short")
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or "pactl failed").strip() or "pactl failed")
+        sinks = []
+        for line in (result.stdout or "").splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 2 and parts[1]:
+                sinks.append(parts[1])
+        return sinks
+
+    @staticmethod
+    def _runtime_dir() -> str:
+        return os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 
     @staticmethod
     def _run_command(command: str) -> subprocess.CompletedProcess:

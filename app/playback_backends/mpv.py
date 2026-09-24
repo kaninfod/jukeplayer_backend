@@ -173,8 +173,8 @@ class MPVService(PlaybackBackend):
             return None
 
     def ensure_connected(self) -> dict:
-
-        status = self._bt_checker.check_ready()
+        audio_device = getattr(self.config, "MPV_AUDIO_DEVICE", "") or ""
+        status = self._bt_checker.check_ready(audio_device or None)
         return {"connected": status.get("ready", False), "reconnected": False}
 
     async def get_status(self) -> Optional[dict]:
@@ -211,7 +211,8 @@ class MPVService(PlaybackBackend):
             return None
 
     def get_output_readiness(self) -> Dict:
-        return self._bt_checker.check_ready()
+        audio_device = getattr(self.config, "MPV_AUDIO_DEVICE", "") or ""
+        return self._bt_checker.check_ready(audio_device or None)
 
     async def cleanup(self):
         try:
