@@ -9,7 +9,7 @@ import python_mpv_jsonipc as mpv
 
 from app.config import config
 from app.playback_backends.base import PlaybackBackend
-from app.playback_backends.bluetooth import BluetoothAudioChecker
+from app.services.bluetooth_service import BluetoothAudioChecker
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,22 @@ class MPVService(PlaybackBackend):
             mpv_kwargs["audio_device"] = audio_device
 
         self.player = mpv.MPV(**mpv_kwargs)
+
+        # Route mpv's internal log stream into the app logger — mpv-internal
+        # errors (e.g. write failures on a dead BT sink) were invisible before
+        # (mpv ran with --log-file=None and no log handler).
+        try:
+            self.player.request_log_levels(["info", "warn", "error", "fatal"])
+
+            def _mpv_log(level, prefix, text):
+                mapping = {"fatal": logging.CRITICAL, "error": logging.ERROR,
+                           "warn": logging.WARNING, "info": logging.INFO}
+                logger.log(mapping.get(level, logging.DEBUG),
+                           f"[mpv:{self.device_name}] {level}: {text}".strip())
+
+            self.player.log_handler = _mpv_log
+        except Exception as e:
+            logger.debug(f"Could not register mpv log handler: {e}")
 
         # Explicitly unmute MPV on startup
         try:
