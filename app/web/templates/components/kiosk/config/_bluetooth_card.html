@@ -32,7 +32,8 @@
         {% endif %}
         {% if managed_devices %}
         <small class="text-muted d-block mb-1"><i class="mdi mdi-speaker-multiple"></i>
-            {{ managed_devices }} device{{ 's' if managed_devices != 1 }} already added as speaker{{ 's' if managed_devices != 1 }} — managed in the Speakers card above.</small>
+            Already added as speaker{{ 's' if managed_devices != 1 }} (managed in the Speakers card above):
+            {{ managed_names | join(", ") }}</small>
         {% endif %}
 
         {% if devices %}

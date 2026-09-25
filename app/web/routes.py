@@ -298,6 +298,7 @@ def _bluetooth_card_context(message: str | None = None, error: str | None = None
                "devices": devices if devices is not None else bt.devices(),
                "scanned": scanned, "message": message, "error": error}
     managed = _managed_speaker_macs()
+    managed_names = []
     sinks = {s["name"] for s in bt.bluez_sinks()}
     devices = []
     hidden = 0
@@ -306,6 +307,7 @@ def _bluetooth_card_context(message: str | None = None, error: str | None = None
         mac = device["mac"]
         # devices with a speaker entry live in the Speakers card — hide here
         if mac in managed:
+            managed_names.append(device.get("name") or mac)
             managed_count += 1
             continue
         wanted = f"bluez_sink.{mac.replace(':', '_')}."
@@ -325,6 +327,7 @@ def _bluetooth_card_context(message: str | None = None, error: str | None = None
     context["devices"] = devices
     context["hidden_devices"] = hidden
     context["managed_devices"] = managed_count
+    context["managed_names"] = managed_names
     return context
 
 
