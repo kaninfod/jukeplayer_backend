@@ -20,33 +20,7 @@
             {{ details.clients|length }} {{ "Client connected" if details.clients|length == 1 else "Clients connected" }} 
         </small>
 
-        {% if details.bt_mac %}
-        <div class="mt-2 d-flex flex-column align-items-center gap-1">
-            <div class="d-flex gap-2 align-items-center">
-                <span class="badge rounded-pill {{ 'bg-success' if details.bt_connected else 'bg-light text-muted border' }} px-2">
-                    <i class="mdi mdi-bluetooth-{{ 'connect' if details.bt_connected else 'off' }} me-1"></i>
-                    {{ "BT connected" if details.connected else "BT disconnected" }}
-                </span>
-                {% if details.battery %}
-                <span class="badge rounded-pill bg-light text-muted border px-2" title="Device battery">
-                    <i class="mdi mdi-battery me-1"></i>{{ details.battery }}%
-                </span>
-                {% endif %}
-            </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary"
-                    data-controller="btspeaker"
-                    data-action="click->btspeaker#toggle:stop"
-                    data-btspeaker-speaker-name-param="{{ details.speaker_name|e }}"
-                    data-btspeaker-mac-param="{{ details.bt_mac|e }}"
-                    title="Connect/disconnect the Bluetooth device">
-                <i class="mdi {{ 'mdi-bluetooth-off' if details.bt_connected else 'mdi-bluetooth-connect' }}"></i>
-                {{ "Disconnect" if details.bt_connected else "Connect" }}
-            </button>
-            <small class="text-muted" style="font-size: 0.6rem;">{{ details.bt_mac|e }}</small>
-        </div>
-        {% endif %}
-
-        <div class="mt-3">
+        <div class="mt-3 d-flex flex-wrap justify-content-center align-items-center gap-1">
             {% if details.mediaplayer.status %}
             <span class="badge rounded-pill bg-success px-3">
                 <i class="mdi mdi-check-circle me-1"></i> {{ details.mediaplayer.status|e }}
@@ -57,6 +31,26 @@
             </span>
             {% endif %}
 
+            {% if details.bt_mac %}
+            <span class="badge rounded-pill {{ 'bg-success' if details.connected else 'bg-light text-muted border' }} px-2">
+                <i class="mdi mdi-bluetooth-{{ 'connect' if details.connected else 'off' }} me-1"></i>
+                {{ "BT connected" if details.connected else "BT disconnected" }}
+            </span>
+            {% if details.battery %}
+            <span class="badge rounded-pill bg-light text-muted border px-2" title="Device battery">
+                <i class="mdi mdi-battery me-1"></i>{{ details.battery }}%
+            </span>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-controller="btspeaker"
+                    data-action="click->btspeaker#toggle:stop"
+                    data-btspeaker-speaker-name-param="{{ details.speaker_name|e }}"
+                    data-btspeaker-mac-param="{{ details.bt_mac|e }}"
+                    title="Connect/disconnect the Bluetooth device">
+                <i class="mdi {{ 'mdi-bluetooth-off' if details.connected else 'mdi-bluetooth-connect' }}"></i>
+                {{ "Disconnect" if details.connected else "Connect" }}
+            </button>
+            {% endif %}
         </div>
     </div>
 </div>
