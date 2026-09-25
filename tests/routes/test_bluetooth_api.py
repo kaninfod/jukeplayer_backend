@@ -232,17 +232,29 @@ async def test_device_card_bt_controls(initialized_app):
         page = await client.get("/kiosk/devices")
         assert page.status_code == 200
         html = " ".join(page.text.split())
-        assert "BT connected" in html
+        # BT state pill is icon-only — no text inside the pill
+        connected_pill = ('<span class="badge rounded-pill bg-success px-2" title="BT connected">'
+                          ' <i class="mdi mdi-bluetooth-connect"></i> </span>')
+        assert connected_pill in html
+        # battery pill requires connected + a clear reading
         assert "42%" in html
+        # MAC address in small font below the pill group
         assert "10:94:97:0F:CB:BF" in html
 
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "boom_3"})
         assert resp.json()["connected"] is False
         page = await client.get("/kiosk/devices")
-        assert "BT disconnected" in " ".join(page.text.split())
+        html = " ".join(page.text.split())
+        disconnected_pill = ('<span class="badge rounded-pill bg-light text-muted border px-2"'
+                             ' title="BT disconnected"> <i class="mdi mdi-bluetooth-off"></i> </span>')
+        assert disconnected_pill in html
+        # disconnected → battery pill hidden even though a reading exists
+        assert "42%" not in html
 
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "boom_3"})
         assert resp.json()["connected"] is True
+        page = await client.get("/kiosk/devices")
+        assert "42%" in " ".join(page.text.split())
 
 
 @pytest.mark.asyncio
@@ -252,3 +264,23 @@ async def test_device_card_bt_toggle_without_bt_device(initialized_app):
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "living_room"})
         assert resp.status_code == 400
         assert "not a Bluetooth speaker" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_connect_form_lives_only_on_connect_page(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # full page load of /kiosk/system → menu only, no connect form (either include)
+        page = await client.get("/kiosk/system")
+        assert page.status_code == 200
+        assert "System Settings" in page.text
+        assert "connect-speaker-card" not in page.text
+
+        # SPA partial (htmx) → same: menu only, no form
+        partial = await client.get("/kiosk/system", headers={"HX-Request": "true"})
+        assert partial.status_code == 200
+        assert "connect-speaker-card" not in partial.text
+
+        # the connect form lives on its own page, reached from the menu card
+        connect_page = await client.get("/kiosk/system/connect")
+        assert connect_page.status_code == 200
+        assert 'id="connect-speaker-card"' in connect_page.text
