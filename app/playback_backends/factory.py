@@ -6,7 +6,6 @@ from typing import Dict, Optional
 
 from app.playback_backends.chromecast import get_chromecast_service
 from app.playback_backends.mpv import get_mpv_service
-from app.playback_backends.websocket import get_websocket_backend
 
 from app.core import PlayerStatus
 
@@ -91,7 +90,7 @@ async def switch_playback_backend_fac(player: "MediaPlayerService", backend: str
     previous_track_id = player.playlist_manager.current_track.track_id if player.playlist_manager.current_track else None
 
     target_backend = (backend or "").strip().lower()
-    if target_backend not in ("mpv", "chromecast", "streaming"):
+    if target_backend not in ("mpv", "chromecast"):
         return {
             "status": "error",
             "code": "invalid_backend",
@@ -101,14 +100,7 @@ async def switch_playback_backend_fac(player: "MediaPlayerService", backend: str
         }
 
     is_current_chromecast = "chromecast" in previous_backend_name.lower()
-    is_current_streaming = "websocket" in previous_backend_name.lower() or "streaming" in previous_backend_name.lower()
-    
-    if is_current_chromecast:
-        current_auth_backend = "chromecast"
-    elif is_current_streaming:
-        current_auth_backend = "streaming"
-    else:
-        current_auth_backend = "mpv"
+    current_auth_backend = "chromecast" if is_current_chromecast else "mpv"
 
     requested_device = (device_name or "").strip() or None
 

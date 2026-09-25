@@ -502,6 +502,15 @@ known code bug) + orphaned-log cleanup.
   data until the next subsonic save rewrites the section. `public_base_url`
   stays — the user still sees a use for it (absolute cover URLs / CSP host
   allowlist, currently dormant).
+- **Legacy websocket playback backend deleted (user decision, post-Phase D):**
+  `app/playback_backends/websocket.py` (a 194-line placeholder from an early
+  experiment — "future phases will add actual binary audio streaming" never
+  happened; ESP32 clients use the HTTP API, audio goes out via chromecast/
+  mpv). Removed with its whole trace: the unused `get_websocket_backend`
+  import in the factory and the unreachable `"streaming"` branches in
+  `switch_playback_backend_fac` (the store only ever carries chromecast/mpv
+  backends — `KNOWN_BACKENDS` — and nothing referenced the class). The
+  realtime channel in `app/websocket/` is unrelated and untouched.
 - Suite: **120 passed** (114 → 120: cast-target match tests + UUID route
   test; device-card assertions updated to the icon-only pill markup).
 
