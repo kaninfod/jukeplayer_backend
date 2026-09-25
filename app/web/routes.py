@@ -242,8 +242,11 @@ def _render_connect_card(request: Request, **ctx):
         name="components/kiosk/config/_connect_speaker_card.html", context=ctx)
 
 
-@router.get("/kiosk/system/connect")
-async def kiosk_connect_card(request: Request):
+@router.get("/kiosk/system/connect", response_class=HTMLResponse)
+async def kiosk_connect_page(request: Request):
+    """The Connect Speaker page: the scan/pair card as a full page (linked
+    from the System menu). The card's scan/pair buttons re-render the card in
+    place."""
     return _render_connect_card(request, **_connect_card_context())
 
 
