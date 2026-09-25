@@ -32,7 +32,7 @@
             <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">
                 <span class="small">{{ d.name }} <span class="text-muted">· {{ d.model }} · {{ d.host }}</span></span>
                 <button type="button" class="btn btn-sm btn-outline-primary"
-                        hx-post="/kiosk/system/connect/add-cc" hx-vals='{"name": "{{ d.name }}"}'
+                        hx-post="/kiosk/system/connect/add-cc" hx-vals='{"name": "{{ d.name }}", "uuid": "{{ d.uuid }}"}'
                         hx-target="#connect-speaker-card" hx-swap="outerHTML">
                     <i class="mdi mdi-plus"></i> Add
                 </button>

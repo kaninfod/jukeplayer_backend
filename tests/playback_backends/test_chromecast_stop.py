@@ -11,6 +11,7 @@ from app.playback_backends.chromecast import ChromecastService
 def make_service(device_name="kitchen"):
     svc = ChromecastService.__new__(ChromecastService)
     svc.device_name = device_name
+    svc.cast_uuid = None
     svc.cast = None
     svc.mc = None
     svc.status_listener = None
@@ -46,7 +47,8 @@ def test_connect_tries_only_the_target_device(monkeypatch):
 
     tried = []
     monkeypatch.setattr(svc, "_discover_chromecasts",
-                        lambda timeout=None, target_name=None: tried.append(target_name) or ([], None, {}))
+                        lambda timeout=None, target_name=None, target_uuid=None:
+                        tried.append((target_name, target_uuid)) or ([], None, {}))
 
     connect_calls = []
     import app.playback_backends.chromecast as cc
@@ -56,5 +58,5 @@ def test_connect_tries_only_the_target_device(monkeypatch):
     ok = svc.connect(device_name="kitchen")
 
     assert ok is False
-    assert tried == ["Kitchen"]  # only the target, never another room
+    assert tried == [("Kitchen", None)]  # only the target, never another room
     assert connect_calls == []   # never attempted a connection

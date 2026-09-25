@@ -8,6 +8,8 @@ Central music playback server for the Jukeplayer ecosystem.
 - WebSocket real-time updates for all clients (web, ESP32, Home Assistant)
 - Integration with Subsonic/Gonic music servers
 - Multi-room playback via per-speaker players (Chromecast, MPV/Bluetooth)
+- Speaker management from the web UI: live add/remove/rename, Chromecast
+  discovery, Bluetooth pairing (pair + trust + connect in one step)
 - Self-describing RFID/NFC cards (album id written on the card, no backend database)
 - Centralized syslog shipping (RFC3164, real PRI severity) + rotated local file log
 
@@ -19,15 +21,12 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Copy environment variables
-cp ../.env_dev.example .env_dev   # or create .env — see the example for every option
-
-# Edit the env file with your configuration:
-# - SUBSONIC_URL / SUBSONIC_USER / SUBSONIC_PASS
-# - PLAYBACK_DEVICES (e.g. living_room=chromecast,kitchen=chromecast,boom3=mpv)
-# - LOG_SERVER_HOST/PORT (syslog) and LOG_LEVEL
 ```
+
+The environment carries **bootstrap keys only** (see `deploy/env.rpi.example`
+for the canonical list — syslog host/port, `LOG_LEVEL`, file paths, docs
+toggle). All user configuration — Subsonic, speakers, MPV — lives in the JSON
+config store (`data/config.json`) and is edited from the web UI.
 
 ## Running
 
@@ -39,7 +38,8 @@ venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env_dev
 python run.py
 ```
 
-The server starts on `http://localhost:8000`.
+The server starts on `http://localhost:8000`. On first run, open
+`/kiosk/config` to set the music source and add speakers.
 
 API documentation is only exposed when `ENABLE_DOCS=true` (or `DEBUG_MODE=true`):
 `http://localhost:8000/docs`
@@ -60,6 +60,21 @@ API documentation is only exposed when `ENABLE_DOCS=true` (or `DEBUG_MODE=true`)
    (by `client_id`, by `device_name`, or to the default speaker).
 3. Players use a playback backend (Chromecast/MPV) and broadcast state changes
    back to all clients on that speaker.
+
+## Speaker management (web UI)
+
+Three surfaces, one job each:
+
+- **`/kiosk/config` — setup**: music source + the speaker list (rename,
+  default, remove; removing a BT speaker also forgets the pairing).
+- **`/kiosk/system` → Connect Speaker card**: add speakers — Chromecast
+  scan/add, Bluetooth pairing (pair + trust + connect + add automatically),
+  manual (advanced) form.
+- **`/kiosk/devices` — runtime**: connect/disconnect BT speakers, state and
+  battery pills, tap a card to switch playback.
+
+A 30s watchdog keeps the runtime flags (available/connected/battery) fresh and
+reconnects dropped BT speakers.
 
 ## API endpoints (main)
 

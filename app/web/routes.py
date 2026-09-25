@@ -291,7 +291,12 @@ async def kiosk_connect_add_cc(request: Request):
     form = await request.form()
     manager = get_service("speaker_manager")
     try:
-        entry = manager.add_speaker(name=str(form.get("name") or ""), backend="chromecast")
+        # store the discovered cast UUID so connect() matches robustly even
+        # when the friendly name's case/spacing doesn't (cast groups!)
+        cast_uuid = str(form.get("uuid") or "").strip()
+        options = {"cast_uuid": cast_uuid} if cast_uuid else {}
+        entry = manager.add_speaker(name=str(form.get("name") or ""), backend="chromecast",
+                                    options=options)
         resp = _render_connect_card(request, **_connect_card_context(
             message=f"Speaker added: {entry.get('display_name') or entry['name']}"))
         return _with_toast(resp, f"Speaker added: {entry.get('display_name') or entry['name']}")

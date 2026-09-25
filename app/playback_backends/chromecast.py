@@ -21,6 +21,24 @@ def _normalize_device_name(device_name: str) -> str:
     # Split by underscore, capitalize each word, join with spaces
     return ' '.join(word.capitalize() for word in device_name.lower().split('_'))
 
+
+def _target_matches(friendly_name: str, uuid: str,
+                    target_name: Optional[str], target_uuid: Optional[str]) -> bool:
+    """Does a discovered cast match what we are looking for?
+
+    UUID match first (exact — stored in speaker options at add time for
+    robust matching), then a case/whitespace-insensitive name match.
+    The name fold is what fixes cast GROUPS: the store name 'home_group'
+    normalizes to 'Home Group' while the device reports 'Home group', and
+    the old exact string compare made playback to groups impossible.
+    """
+    if target_uuid and str(uuid) == str(target_uuid):
+        return True
+    if not target_name:
+        return False
+    fold = lambda s: " ".join(str(s).split()).casefold()
+    return fold(friendly_name) == fold(target_name)
+
 def _get_global_browser():
     global _global_zeroconf, _global_browser
     if _global_zeroconf is None:
@@ -224,10 +242,13 @@ class ChromecastService(PlaybackBackend):
     Simplified Chromecast service using persistent global discovery.
     Timing values come from the config store's chromecast section.
     """
-    def __init__(self, device_name: Optional[str] = None, config_view=None):
+    def __init__(self, device_name: Optional[str] = None, config_view=None, options=None):
         import threading
         self.device_name = device_name
         self.config = config_view if config_view is not None else config
+        # cast UUID from speaker options (stored at add time) — robust matching
+        # that survives rename/case quirks in friendly names
+        self.cast_uuid = str((options or {}).get("cast_uuid") or "").strip() or None
         self.cast = None
         self.mc = None
         self.status_listener = None
@@ -247,7 +268,7 @@ class ChromecastService(PlaybackBackend):
         # Global discovery never cleans up on individual backend teardown
         pass
 
-    def _discover_chromecasts(self, timeout=None, target_name=None):
+    def _discover_chromecasts(self, timeout=None, target_name=None, target_uuid=None):
         """
         Discover Chromecasts on the network using a persistent background browser.
         Returns (devices, target_cast_info, name_to_cast_info)
@@ -272,7 +293,8 @@ class ChromecastService(PlaybackBackend):
                     'uuid': str(uuid)
                 })
                 name_to_cast_info[name] = cast_info
-                if target_name and name == target_name:
+                if (target_name or target_uuid) and _target_matches(
+                        name, str(uuid), target_name, target_uuid):
                     target_cast_info = cast_info
 
         logger.debug(f"Background discovery scan complete: found {len(devices)} Chromecast devices")
@@ -308,8 +330,10 @@ class ChromecastService(PlaybackBackend):
 
             try:
                 logger.info(f"Trying to connect to {normalized_device}...")
-                # Discover only the target device on the network
-                devices, target_cast_info, _ = self._discover_chromecasts(target_name=normalized_device)
+                # Discover only the target device on the network (UUID first
+                # when stored at add time, else case-insensitive name match)
+                devices, target_cast_info, _ = self._discover_chromecasts(
+                    target_name=normalized_device, target_uuid=self.cast_uuid)
 
                 if not target_cast_info:
                     logger.warning(f"Device '{normalized_device}' not found on network")
@@ -633,9 +657,10 @@ class ChromecastService(PlaybackBackend):
         await asyncio.to_thread(self.disconnect)
         self._cleanup_zeroconf()        
 
-def get_chromecast_service(device_name: Optional[str] = None) -> ChromecastService:
+def get_chromecast_service(device_name: Optional[str] = None, options: Optional[Dict] = None) -> ChromecastService:
     """Create a new ChromecastService instance for the specified device.
-    Each device gets its own independent service instance."""
+    Each device gets its own independent service instance. options carries
+    backend-specific speaker options (cast_uuid today)."""
     from app.core.service_container import get_service
     from app.services.config_store import chromecast_config_view
     try:
@@ -643,4 +668,4 @@ def get_chromecast_service(device_name: Optional[str] = None) -> ChromecastServi
     except Exception:
         from app.services.config_store import SimpleNamespace
         view = SimpleNamespace(CHROMECAST_DISCOVERY_TIMEOUT=3, CHROMECAST_WAIT_TIMEOUT=10)
-    return ChromecastService(device_name, config_view=view)
+    return ChromecastService(device_name, config_view=view, options=options)

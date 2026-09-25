@@ -11,8 +11,8 @@ to "New findings (running list)" at the bottom.
 | 0 | Dedicated RPi deployment (scripts, systemd, ops guide) | ✅ committed — RPi setup in progress by user |
 | A | JSON config store + effective-config view + /kiosk/system card | ✅ committed (dcafd79), 57/57 tests |
 | B | Live speaker manager (CC discovery picker, add/remove) | ✅ verified on RPi 2026-09-24 — scan, add (tv_lounge), store persistence, live apply; 74/74 tests |
-| C | Audio/BT card (pair/connect from the web UI) | ✅ Code done, 96/96 tests — pending test-env run |
-| D | Docs + final env trim | ⬜ |
+| C | Audio/BT card (pair/connect from the web UI) | ✅ shipped — verified on RPi hardware (clean install end-to-end); UI split + hardening rounds done |
+| D | Docs + final env trim (+ cast-group match fix) | ✅ completed — 120/120 tests; branch merge-ready |
 | — | USB-DAC output (MPV audio_device per speaker) | 🔒 backburner — schema slot reserved in Phase B |
 
 Design decisions (user-confirmed): JSON store · everything UI-managed incl.
@@ -439,10 +439,66 @@ failures were invisible.
   power-save off as a coexistence mitigation, watchdog auto-resume
   (reconnect works; playback still needs one play/pause tap after a drop).
 
+## Phase D — docs, env trim, cast-group match fix (2026-09-24, night)
+
+Closes the `feature/config-management` branch. Scope confirmed with the user:
+docs completion + final env trim + running-list item 8 folded in (the last
+known code bug) + orphaned-log cleanup.
+
+- **UI refinement (user spec, `7fbbe69`):** the BT state pill on device cards
+  is icon-only (green bluetooth-connect / grey bluetooth-off, no text); the
+  battery pill requires **connected AND a clear reading** (hidden otherwise —
+  the Boom's vendor-misreported 1% is already suppressed at the source); the
+  MAC renders in small font under the pill group (was only in a data
+  attribute). The connect-speaker form no longer embeds on `/kiosk/system`
+  (it was included twice there — above the menu and at the bottom of the menu
+  partial, duplicating `/kiosk/system/connect`); the form lives only on its
+  own page, reached from the Connect Speaker menu card.
+- **Cast-group match fix (running-list item 8):** the connect path compared
+  the normalized store name against the device's friendly name EXACTLY, so
+  cast groups ("Home group" vs store-normalized "Home Group") never matched
+  and playback to them always failed with "not found on network". Now:
+  `_target_matches()` — UUID-first (stored in speaker options at add time),
+  then a case/whitespace-insensitive name fold. Plumbing: speaker `options`
+  reach the chromecast backend via the factory (the mpv path already had
+  this); `add-cc` stores the discovered cast UUID in `options.cast_uuid`
+  (card hx-vals + route). Existing pre-Phase D entries keep working via the
+  name fold. Tests: `tests/playback_backends/test_chromecast_target_match.py`
+  (matching semantics, options extraction, connect pass-through) + a route
+  test for UUID storage; the old connect test's discovery monkeypatch
+  signature updated.
+- **Env trim:** `app/config.py` was already bootstrap-only (9 keys, all
+  verified in use); the deployment surface wasn't. `docker-compose.yml` lost
+  17 dead env lines (SERVER_HOST/SERVER_PORT — read by nobody, the Dockerfile
+  hardcodes host/port; SUBSONIC_*×6; PLAYBACK_BACKEND/PLAYBACK_DEVICES;
+  CHROMECAST_DEVICES/DEFAULT_CHROMECAST_DEVICE/discovery+wait timeouts;
+  HTTP_REQUEST_TIMEOUT; CORS_ALLOW_ORIGINS; ENABLE_HTTPS_REDIRECT;
+  PUBLIC_BASE_URL — all store-owned since the Phase A cutover). It keeps the
+  container runtime plumbing (PULSE_SERVER/PULSE_COOKIE/TZ) + bootstrap keys.
+  `deploy/env.rpi.example` rewritten to the final bootstrap-only form
+  (fulfils its own Phase-0-era promise). The env surface is documented as a
+  table in `docs/OPERATIONS.md` with a trim instruction for existing installs.
+- **Docs:** `docs/OPERATIONS.md` — web UI flow updated to the three-surface
+  split (config = setup, system/connect = add, devices = runtime), watchdog
+  + managed-names note, **Environment (bootstrap keys)** section, **BT500
+  dongle swap** procedure (ready for the hardware follow-up), new
+  troubleshooting entries (chip wedge dmesg signature, cast-group replay),
+  roadmap closed. `README.md` — setup section rewritten (the referenced
+  `.env_dev.example` no longer exists; bootstrap-only env + store-managed
+  config), features + speaker-management surfaces added.
+- **Housekeeping:** the orphaned 43MB root `jukebox.log` deleted
+  (`tmp_mpv.log` was already gone); the ledger's "safe to delete" note is
+  now executed. `logs/jukebox.log` (the live rotated log) is untouched.
+- **Tracker rows fixed:** Phase C marked hardware-verified (it still claimed
+  "96/96 — pending test-env run"), Phase D marked done.
+- Suite: **120 passed** (114 → 120: cast-target match tests + UUID route
+  test; device-card assertions updated to the icon-only pill markup).
+
 ## Final state notes
 
-- Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.
-- For the RPi deployment: rebuild the image (requirements changed), and note `ENABLE_DOCS` now defaults to false in compose.
+- ~~Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.~~
+  Done in Phase D: `jukebox.log` deleted, `tmp_mpv.log` was already gone.
+- For the RPi deployment: rebuild the image (requirements changed), and note `ENABLE_DOCS` now defaults to false in compose. The RPi `.env` should be trimmed to the bootstrap set (see `deploy/env.rpi.example` + OPERATIONS "Environment").
 - Test-env config still has `LOG_LEVEL=DEBUG` — consider INFO now that debug logging is opt-in.
 
 ## Test-env verification (Batch 1) — 2026-09-24
@@ -470,4 +526,4 @@ failures were invisible.
 5. ~~NOTIFICATION events go nowhere~~ — **resolved**: events removed entirely (Batch 3.5).
 6. ~~NFC-encode flow never persists an rfid→album mapping~~ — **moot**: DB removed (Batch 3.5); cards are self-describing.
 7. Startup eagerly connects to all Chromecasts + spawns MPV just to sync default volume 50 (`VolumeManager.__init__` → `sync_volume_from_backend`) — slow startup + log noise; candidate deferral in Batch 6.
-8. **Cast groups don't match by name** (found on RPi 2026-09-24): discovery surfaces cast GROUPS (e.g. "Home group"), but the connect path normalizes the store name `home_group` → `"Home Group"` while the device reports `"Home group"` — and the match is an exact string compare, so playback to such a speaker fails with "Device 'Home Group' not found on network". Exact-title-case names (Living Room, Bedroom, …) match fine. Fix plan: make the target match case/whitespace-insensitive (and consider storing the cast UUID in speaker options at add time for robust matching). Until then, adding a group works as a config entry but playback to it will not connect.
+8. ~~**Cast groups don't match by name** (found on RPi 2026-09-24): discovery surfaces cast GROUPS (e.g. "Home group"), but the connect path normalizes the store name `home_group` → `"Home Group"` while the device reports `"Home group"` — and the match is an exact string compare, so playback to such a speaker fails with "Device 'Home Group' not found on network". Exact-title-case names (Living Room, Bedroom, …) match fine. Fix plan: make the target match case/whitespace-insensitive (and consider storing the cast UUID in speaker options at add time for robust matching). Until then, adding a group works as a config entry but playback to it will not connect.~~ — **resolved** (Phase D): `_target_matches()` matches UUID-first (stored in `options.cast_uuid` at add time) with a case/whitespace-insensitive name fold; speaker options now reach the chromecast backend through the factory.

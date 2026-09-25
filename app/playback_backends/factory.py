@@ -28,7 +28,7 @@ def get_playback_backend_by_name(backend_name: str, device_name: str | None = No
         logger.warning("Unknown playback backend '%s', falling back to chromecast", backend)
 
     logger.info("Using Chromecast playback backend")
-    return get_chromecast_service(device_name)
+    return get_chromecast_service(device_name, options=options or {})
 
 
 def get_playback_backend():

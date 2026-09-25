@@ -202,6 +202,26 @@ async def test_connect_card_add_cc(initialized_app):
 
 
 @pytest.mark.asyncio
+async def test_connect_card_add_cc_stores_cast_uuid(initialized_app):
+    """The discovered cast UUID is stored in speaker options at add time so
+    connect() can match robustly (case/spacing quirks, cast groups)."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/kiosk/system/connect/add-cc",
+                                 data={"name": "Home group", "uuid": "uuid-abc-123"})
+        assert resp.status_code == 200
+        listing = await client.get("/api/config/speakers")
+        added = next(s for s in listing.json()["speakers"] if s["name"] == "home_group")
+        assert added["options"]["cast_uuid"] == "uuid-abc-123"
+
+        # without a uuid the options stay clean
+        resp = await client.post("/kiosk/system/connect/add-cc", data={"name": "Bedroom"})
+        assert resp.status_code == 200
+        listing = await client.get("/api/config/speakers")
+        plain = next(s for s in listing.json()["speakers"] if s["name"] == "bedroom")
+        assert plain["options"] == {}
+
+
+@pytest.mark.asyncio
 async def test_connect_card_manual(initialized_app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.post("/kiosk/system/connect/manual",
