@@ -1,0 +1,15 @@
+{% extends "layouts/kiosk_base.html" %}
+
+{% block title %}Jukeplayer — Connect Speaker{% endblock %}
+
+{% block kiosk_content %}
+    <div class="container py-3">
+        <div class="mb-3">
+            <a href="/kiosk/system" class="btn btn-sm btn-outline-secondary"
+               data-action="click->navigation#load">
+                <i class="mdi mdi-arrow-left"></i> Back to System
+            </a>
+        </div>
+        {% include 'components/kiosk/config/_connect_speaker_card.html' %}
+    </div>
+{% endblock %}

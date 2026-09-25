@@ -244,10 +244,12 @@ def _render_connect_card(request: Request, **ctx):
 
 @router.get("/kiosk/system/connect", response_class=HTMLResponse)
 async def kiosk_connect_page(request: Request):
-    """The Connect Speaker page: the scan/pair card as a full page (linked
-    from the System menu). The card's scan/pair buttons re-render the card in
-    place."""
-    return _render_connect_card(request, **_connect_card_context())
+    """The Connect Speaker page (linked from the System menu). The card's
+    scan/pair buttons re-render the card in place (htmx swaps)."""
+    if _is_htmx_request(request):
+        return _render_connect_card(request, **_connect_card_context())
+    return templates.TemplateResponse(request=request,
+        name="pages/kiosk/system_connect.html", context={"request": request, "config": config, "kiosk_mode": True})
 
 
 @router.get("/kiosk/system/connect/scan/cc")
