@@ -361,13 +361,42 @@ async def kiosk_bluetooth_pair(request: Request):
                 error=result["error"], scanned=True,
                 devices=await asyncio.to_thread(bt.scan)))
             return _with_toast(resp, result["error"], theme="error")
+
+        # The user's intent when pairing is to have the device as a speaker —
+        # add it automatically (skipped when an entry already exists).
+        info = await asyncio.to_thread(bt.info, mac)
+        device_name = info.get("name") or mac.replace(":", "_").lower()
+        message = f"Paired and connected: {result.get('name') or mac}"
+        if mac not in _managed_speaker_macs():
+            sink = await asyncio.to_thread(bt.sink_for_device, mac)
+            if sink:
+                try:
+                    entry = manager_add_as_speaker(bt, mac, device_name, sink)
+                    message += f" — added as speaker: {entry.get('display_name') or entry['name']}"
+                except ValueError:
+                    pass  # already configured
         resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-            message=f"Paired and connected: {result.get('name') or mac}", scanned=True,
+            message=message, scanned=True,
             devices=await asyncio.to_thread(bt.scan)))
-        return _with_toast(resp, f"Paired and connected: {result.get('name') or mac}")
+        return _with_toast(resp, message)
+    except ValueError as e:
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
     except Exception as e:
-        return _render_bluetooth_card(request, **_bluetooth_card_context(
+        logger.warning(f"Pairing failed: {e}")
+        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
             error=f"Pairing failed: {e}", scanned=True))
+        return _with_toast(resp, f"Pairing failed: {e}", theme="error")
+
+
+def manager_add_as_speaker(bt, mac: str, device_name: str, sink: str):
+    """Create the speaker entry for a freshly paired BT device."""
+    manager = get_service("speaker_manager")
+    return manager.add_speaker(
+        name=device_name, backend="mpv",
+        options={"audio_device": sink},
+        display_name=device_name,
+    )
 
 
 @router.post("/kiosk/config/bluetooth/connect")

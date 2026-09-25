@@ -267,3 +267,20 @@ async def test_device_card_bt_toggle_without_bt_device(initialized_app):
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "living_room"})
         assert resp.status_code == 400
         assert "no Bluetooth audio device" in resp.json()["detail"]
+
+@pytest.mark.asyncio
+async def test_pair_adds_speaker_automatically(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/kiosk/config/bluetooth/pair", data={"mac": "10:94:97:0F:CB:BF"})
+        assert resp.status_code == 200
+        listing = await client.get("/api/config/speakers")
+        speakers = listing.json()["speakers"]
+        added = next(s for s in speakers if s["name"] == "boom_3")
+        assert added["backend"] == "mpv"
+        assert added["options"]["audio_device"] == "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
+        assert added["display_name"] == "BOOM 3"
+        # pairing a device that already has a speaker entry does not duplicate
+        resp2 = await client.post("/kiosk/config/bluetooth/pair", data={"mac": "10:94:97:0F:CB:BF"})
+        assert resp2.status_code == 200
+        listing = await client.get("/api/config/speakers")
+        assert sum(1 for s in listing.json()["speakers"] if s["name"] == "boom_3") == 1
