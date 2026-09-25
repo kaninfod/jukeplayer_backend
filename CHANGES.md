@@ -413,7 +413,9 @@ failures were invisible.
   stopped so it does not also switch playback). The device card shows the BT
   state badge, the MAC and the battery % from BlueZ Battery1 when the device
   exposes it. The speakers list keeps the state badge only (the speakers-card
-  bt-connect/bt-disconnect routes were removed). Suite: 115 passing.
+  bt-connect/bt-disconnect routes were removed). The "Connect Speaker" page
+  moves to **kiosk/system** (the System menu's Info card, renamed). Suite:
+  115 passing.
 - **Clean install verified end-to-end (2026-09-24, ~18:30):** fresh Trixie image
   → clone → `setup_rpi.sh` → config-store restore → service start → both BT
   speakers paired via the card, both playing. Persistence was NOT broken:
