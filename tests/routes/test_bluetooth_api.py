@@ -219,7 +219,7 @@ async def test_bt_card_skips_managed_devices(initialized_app):
         await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
         card = await client.get("/kiosk/config/bluetooth/scan")
         text = card.text
-        assert "Already added as speaker (managed in the Speakers card above): BOOM 3" in text
+        assert "Already added as speaker (managed in the Speakers card above): BOOM 3" in " ".join(text.split())
         assert "10:94:97:0F:CB:BF" not in text  # no longer listed, no Add button
 
 
