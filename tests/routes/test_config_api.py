@@ -246,3 +246,59 @@ async def test_speakers_card_delete_removes_cc_from_store(monkeypatch, tmp_path,
         assert "Removed living_room" in resp.text
         with open(tmp_path / "config.json") as fh:
             assert json.load(fh)["speakers"] == []
+
+
+def _inject_esp_client(client_id="esp_test"):
+    """Register an ESP control client directly in the container for
+    /kiosk/configure/<id> render tests."""
+    from datetime import datetime
+    from app.core.service_container import get_service
+    from app.services.control_clients_service import ControlClient
+    svc = get_service("control_clients_service")
+    svc._clients[client_id] = ControlClient(
+        client_id=client_id, client_type="esp32", user_name="Test Wall",
+        capabilities=["tft"], connected_at=datetime.now(),
+        speaker_name="living_room",
+        config={"client": {"type": "esp32", "name": "Test Wall"}},
+        tft_refresh_splits=[2, 4, 8])
+    return svc._clients[client_id]
+
+
+@pytest.mark.asyncio
+async def test_configure_page_renders_card_layout(initialized_app):
+    """The tabbed configurator is gone — cards matching /kiosk/config, with
+    the data-config-path contract and the raw buffer intact."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        _inject_esp_client()
+
+        page = await client.get("/kiosk/configure/esp_test")
+        assert page.status_code == 200
+        html = " ".join(page.text.split())
+        # card idiom + a few card headings with icons
+        assert 'class="card mb-3"' in html
+        assert "mdi-wifi" in html and "mdi-nfc-variant" in html and "mdi-code-json" in html
+        # no bootstrap tabs anymore
+        assert "nav-tabs" not in html and "tab-pane" not in html
+        # the functional contract survives: structured fields + raw buffer + apply
+        assert 'data-config-path="wifi.ssid"' in html
+        assert 'data-config-path="hardware.tft.rotate_180"' in html
+        assert 'data-configure-target="raw"' in html
+        assert "Apply config" in html and "Apply + Reboot" in html
+        assert 'data-action="configure#apply"' in html
+        # back link moved into the header
+        assert "Back to clients" in html
+
+        # 404 for unknown clients
+        assert (await client.get("/kiosk/configure/nope")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_configure_page_htmx_partial(initialized_app):
+    """SPA navigation gets the same card layout as the partial."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        _inject_esp_client()
+        partial = await client.get("/kiosk/configure/esp_test",
+                                   headers={"HX-Request": "true"})
+        assert partial.status_code == 200
+        assert 'class="card mb-3"' in partial.text
+        assert 'data-configure-target="raw"' in partial.text
