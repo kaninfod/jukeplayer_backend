@@ -131,6 +131,18 @@ systemd unit).
 | `DEBUG_MODE` | `false` | debug tracing toggle |
 | `DOCS_URL` / `OPENAPI_URL` | `/docs`, `/openapi.json` | doc endpoint paths |
 
+| `ENABLE_DOCS` | `false` | expose `/docs` (also enabled by `DEBUG_MODE=true`) |
+| `DEBUG_MODE` | `false` | debug tracing toggle |
+| `DOCS_URL` / `OPENAPI_URL` | `/docs`, `/openapi.json` | doc endpoint paths |
+| `HTTP_PORT` | `8000` | web port the systemd unit binds (`--port ${HTTP_PORT}`). Set `80` to omit the port from URLs — the unit grants `CAP_NET_BIND_SERVICE` so an unprivileged user can bind it. |
+
+**Changing the HTTP port**: set `HTTP_PORT` in `.env`, then
+`sudo systemctl daemon-reload && sudo systemctl restart jukeplayer`.
+Units installed before this key existed need it added once — re-run
+`bash scripts/setup_rpi.sh`, or edit `/etc/systemd/system/jukeplayer.service`
+(`Environment=HTTP_PORT=…` + `--port ${HTTP_PORT}` + the `AmbientCapabilities`
+line) and `daemon-reload`.
+
 **Existing installs (pre-Phase D)**: if your `.env` still carries the old
 Subsonic/speaker/MPV keys, delete them — those values moved into the config
 store at the Phase A cutover and the app no longer reads them from the env.

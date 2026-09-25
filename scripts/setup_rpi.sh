@@ -108,7 +108,7 @@ echo
 echo "==> Setup complete."
 if [ "${ENV_EDITED}" = "0" ]; then
     echo "Next:"
-    echo "  1. nano ${APP_DIR}/.env      (set SUBSONIC_PASS etc.)"
+    echo "  1. nano ${APP_DIR}/.env      (bootstrap keys — HTTP_PORT to change the web port)"
     echo "  2. sudo systemctl start jukeplayer"
     echo "  3. Open http://$(hostname):8000/kiosk/config — set the Subsonic"
     echo "     password (masked field), then connect BT speakers via the"
