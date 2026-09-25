@@ -28,11 +28,14 @@ class SpeakerManagerService:
     """Orchestrates store persistence + live registry + broker on every
     speaker change. Registered as the `speaker_manager` singleton."""
 
-    def __init__(self, store, config_service, speakers_service, broker):
+    def __init__(self, store, config_service, speakers_service, broker, bluetooth_service=None):
         self.store = store
         self.config_service = config_service
         self.speakers = speakers_service
         self.broker = broker
+        self.bluetooth_service = bluetooth_service
+        # reconnect backoff state per MAC (BT watchdog)
+        self._reconnect_state: Dict[str, Dict[str, Any]] = {}
 
     # --- read --------------------------------------------------------------------
     def configured(self) -> List[Dict[str, Any]]:
@@ -123,6 +126,13 @@ class SpeakerManagerService:
             self.speakers.set_default_name(self.config_service.default_speaker_name())
         except ValueError:
             self.speakers.set_default_name(None)
+        # bluetooth delete semantics: forget the device entirely
+        # (Paired: no, Trusted: no, Connected: no)
+        if removed.type == "bluetooth" and getattr(removed, "bt_mac", None) and self.bluetooth_service:
+            try:
+                await asyncio.to_thread(self.bluetooth_service.forget, removed.bt_mac)
+            except Exception as e:
+                logger.warning(f"[SpeakerManager] Forget failed for {store_name}: {e}")
         if self.broker:
             await self.broker.handle_speaker_removed(removed)
         logger.info(f"[SpeakerManager] Removed speaker '{store_name}' — live, no restart")
@@ -149,7 +159,97 @@ class SpeakerManagerService:
         logger.info(f"[SpeakerManager] Display name for '{store_name}' set to '{display}'")
         return {"name": store_name, "display_name": display, "speakers": speakers}
 
-    # --- volume sync (shared with startup) -------------------------------------------
+    # --- runtime state + connect/disconnect (Phase C.2) --------------------------------
+    def update_speaker_states(self) -> Dict[str, Any]:
+        """One pass over the speaker registry: refresh available/connected flags
+        on every Speaker and reconnect BT speakers whose sink vanished mid-session.
+
+        - chromecast: available = discovered on the network (zeroconf pings);
+          connected = the cast socket is alive (true while playing)
+        - bluetooth: connected = pulse sink present; available = paired or connected
+        One updater, one cadence — no duplicate polling elsewhere."""
+        import time as _time
+        from app.playback_backends import chromecast as cc_mod
+        now = _time.monotonic()
+        reconnected = []
+        cc_names = None
+        try:
+            cc_names = {normalize_speaker_name(n) for n in cc_mod.discovered_names()}
+        except Exception as e:
+            logger.debug(f"[SpeakerManager] CC discovery unavailable: {e}")
+
+        for speaker in self.speakers.get_all_speakers().values():
+            if speaker.type == "chromecast":
+                if cc_names is not None:
+                    speaker.available = normalize_speaker_name(speaker.speaker_name) in cc_names
+                backend = getattr(speaker.mediaplayer, "playback_backend", None) if speaker.mediaplayer else None
+                conn = getattr(backend, "is_connected", None)
+                speaker.connected = bool(conn and conn())
+            elif speaker.type == "bluetooth" and self.bluetooth_service:
+                mac = getattr(speaker, "bt_mac", None)
+                if not mac:
+                    continue
+                state = self._reconnect_state.get(mac, {})
+                if now < state.get("not_before", 0):
+                    continue  # backing off after failed reconnects
+                sink = self.bluetooth_service.sink_for_device(mac)
+                bt_info = self.bluetooth_service.info(mac)
+                speaker.connected = sink is not None
+                speaker.available = bool(bt_info.get("paired")) or sink is not None
+                speaker.battery = self.bluetooth_service.battery_percent(mac, bt_info.get("uuids"))
+                if not sink and bt_info.get("paired"):
+                    logger.info(f"[SpeakerManager] '{speaker.speaker_name}' ({mac}) lost its sink — reconnecting …")
+                    result = self.bluetooth_service.connect(mac)
+                    if result["connected"]:
+                        speaker.connected = True
+                        speaker.available = True
+                        self._reconnect_state.pop(mac, None)
+                        reconnected.append(speaker.speaker_name)
+                        logger.info(f"[SpeakerManager] Reconnected '{speaker.speaker_name}' — resume playback from the UI if needed")
+                    else:
+                        attempts = state.get("attempts", 0) + 1
+                        delay = min(300.0, 30.0 * (2 ** min(attempts, 4)))
+                        self._reconnect_state[mac] = {"attempts": attempts, "not_before": now + delay,
+                                                      "error": result.get("error")}
+                        logger.warning(f"[SpeakerManager] Reconnect {mac} failed ({result.get('error')}) — retry in {delay:.0f}s")
+            else:
+                # local speakers (e.g. analog): available when configured
+                speaker.available = True
+        return {"reconnected": reconnected}
+
+    async def connect_speaker(self, name: str) -> Dict[str, Any]:
+        """Connect a speaker's device. Bluetooth: bluetoothctl connect.
+        (Chromecast speakers connect lazily on playback — no button.)"""
+        speaker = self.speakers.get_speaker(speaker_name=name)
+        if not speaker:
+            raise ValueError(f"Speaker '{name}' is not configured")
+        if speaker.type != "bluetooth":
+            raise ValueError(f"'{name}' is not a Bluetooth speaker (type: {speaker.type})")
+        if not self.bluetooth_service:
+            raise ValueError("Bluetooth tools unavailable")
+        mac = getattr(speaker, "bt_mac", None)
+        if not mac:
+            raise ValueError(f"'{name}' has no Bluetooth audio device")
+        result = await asyncio.to_thread(self.bluetooth_service.connect, mac)
+        speaker.connected = result["connected"]
+        if not result["connected"]:
+            raise ValueError(result.get("error") or "Connect failed")
+        return {"name": name, "connected": True}
+
+    async def disconnect_speaker(self, name: str) -> Dict[str, Any]:
+        speaker = self.speakers.get_speaker(speaker_name=name)
+        if not speaker:
+            raise ValueError(f"Speaker '{name}' is not configured")
+        if speaker.type != "bluetooth":
+            raise ValueError(f"'{name}' is not a Bluetooth speaker")
+        if not self.bluetooth_service:
+            raise ValueError("Bluetooth tools unavailable")
+        mac = getattr(speaker, "bt_mac", None)
+        result = await asyncio.to_thread(self.bluetooth_service.disconnect, mac)
+        speaker.connected = result["connected"]
+        return {"name": name, "connected": result["connected"]}
+
+    # --- volume sync (shared with startup) --------------------------------
     async def sync_speaker_volume(self, speaker) -> None:
         """Connect (if needed) and pull the device's real volume into app state."""
         player = speaker.mediaplayer

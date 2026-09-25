@@ -95,13 +95,11 @@ def _config_ui_context(saved_section: str | None = None) -> dict:
             "logging": scalars("logging"),
             "server": scalars("server"),
         },
-        "speakers": config_service.speakers(),
+        "speakers": _speakers_card_context()["speakers"],
         "system_env": {key: entry["value"] for key, entry in config_service.effective()["sections"]["system_env"]["keys"].items()},
         "saved_section": saved_section,
         "applies": "live" if saved_section == "logging" else "restart" if saved_section else None,
     }
-    # the bluetooth card include needs its own context on the full page
-    context.update(_bluetooth_card_context())
     return context
 
 
@@ -155,25 +153,30 @@ async def kiosk_config_save(section: str, request: Request):
 
 # Speakers card (Phase B): every action re-renders the card fragment.
 
-def _speakers_card_context(message: str | None = None, error: str | None = None,
-                           discovered=None, scanned: bool = False) -> dict:
-    from app.services.speaker_manager_service import normalize_speaker_name
-    from app.services.bluetooth_service import mac_from_sink_id
+def _speakers_card_context(message: str | None = None, error: str | None = None) -> dict:
+    """Unified speaker list (Chromecast + Bluetooth + local) — store entries
+    merged with the runtime flags from the Speaker registry."""
     manager = get_service("speaker_manager")
-    bt = _bt_service_or_none()
-    speakers = manager.configured()
-    for speaker in speakers:
-        mac = mac_from_sink_id((speaker.get("options") or {}).get("audio_device"))
-        if mac and bt:
-            try:
-                speaker["bt_mac"] = mac
-                speaker["bt_connected"] = bt.sink_for_device(mac) is not None
-            except Exception as e:
-                logger.debug(f"BT state lookup failed for {speaker.get('name')}: {e}")
+    speakers_service = get_service("speakers_service")
+    default_name = None
+    try:
+        default_name = get_service("config_service").default_speaker_name()
+    except Exception:
+        pass
+    speakers = []
+    for entry in manager.configured():
+        speaker = speakers_service.get_speaker(speaker_name=entry["name"])
+        speakers.append({
+            "name": entry["name"],
+            "display_name": entry.get("display_name") or "",
+            "is_default": entry.get("is_default", False),
+            "speaker_type": getattr(speaker, "type", "local") if speaker else "local",
+            "connected": bool(getattr(speaker, "connected", False)) if speaker else False,
+            "available": bool(getattr(speaker, "available", False)) if speaker else False,
+        })
     return {
         "speakers": speakers,
-        "discovered": discovered,
-        "scanned": scanned,
+        "default_name": default_name,
         "message": message,
         "error": error,
     }
@@ -193,36 +196,168 @@ def _render_speakers_card(request: Request, **ctx):
         name="components/kiosk/config/_speakers_card.html", context=ctx)
 
 
-@router.get("/kiosk/config/speakers/scan")
-async def kiosk_speakers_scan(request: Request):
+# --- Connect-a-new-speaker card (kiosk/system) --------------------------------
+# One card, two flows: Chromecast (scan → add) and Bluetooth (pairing-mode
+# scan → pair = pair+trust+connect+add-as-speaker). Managed speakers are
+# hidden from both lists with a names note.
+
+def _connect_card_context(message: str | None = None, error: str | None = None,
+                          cc_devices=None, cc_scanned: bool = False,
+                          bt_devices=None, bt_scanned: bool = False) -> dict:
+    bt = _bt_service_or_none()
+    manager = get_service("speaker_manager")
+    managed_names = [s.get("display_name") or s["name"] for s in manager.configured()]
+
+    cc_list = []
+    if cc_devices is not None:
+        cc_list = [d for d in cc_devices if not d.get("configured")]
+    bt_list = []
+    if bt_devices is not None:
+        managed_macs = set()
+        from app.services.bluetooth_service import mac_from_sink_id
+        for s in manager.configured():
+            mac = mac_from_sink_id((s.get("options") or {}).get("audio_device"))
+            if mac:
+                managed_macs.add(mac)
+        for d in bt_devices:
+            if d.get("mac") in managed_macs:
+                continue
+            name = (d.get("name") or "").strip()
+            if d.get("paired") or d.get("connected") or d.get("audio") or (name and name != d["mac"]):
+                bt_list.append(d)
+
+    return {
+        "managed_names": managed_names,
+        "cc_devices": cc_list,
+        "cc_scanned": cc_scanned,
+        "bt_devices": bt_list,
+        "bt_scanned": bt_scanned,
+        "message": message,
+        "error": error,
+    }
+
+
+def _render_connect_card(request: Request, **ctx):
+    return templates.TemplateResponse(request=request,
+        name="components/kiosk/config/_connect_speaker_card.html", context=ctx)
+
+
+@router.get("/kiosk/system/connect")
+async def kiosk_connect_card(request: Request):
+    return _render_connect_card(request, **_connect_card_context())
+
+
+@router.get("/kiosk/system/connect/scan/cc")
+async def kiosk_connect_scan_cc(request: Request):
     manager = get_service("speaker_manager")
     try:
         devices = await asyncio.to_thread(manager.discover)
+        resp = _render_connect_card(request, **_connect_card_context(
+            cc_devices=devices, cc_scanned=True))
+        return _with_toast(resp, f"Chromecast scan finished — {len(devices)} device{'s' if len(devices) != 1 else ''} found")
     except Exception as e:
-        logger.warning(f"Speaker scan failed: {e}")
-        resp = _render_speakers_card(request, **_speakers_card_context(
-            error=f"Scan failed: {e}", scanned=True))
+        logger.warning(f"CC scan failed: {e}")
+        resp = _render_connect_card(request, **_connect_card_context(
+            error=f"Chromecast scan failed: {e}", cc_scanned=True))
         return _with_toast(resp, f"Chromecast scan failed: {e}", theme="error")
-    resp = _render_speakers_card(request, **_speakers_card_context(discovered=devices, scanned=True))
-    return _with_toast(resp, f"Chromecast scan finished — {len(devices)} device{'s' if len(devices) != 1 else ''} found")
 
 
-@router.post("/kiosk/config/speakers/add")
-async def kiosk_speakers_add(request: Request):
+@router.get("/kiosk/system/connect/scan/bt")
+async def kiosk_connect_scan_bt(request: Request):
+    bt = _bt_service_or_none()
+    if bt is None:
+        resp = _render_connect_card(request, **_connect_card_context(
+            error="Bluetooth tools unavailable", bt_scanned=True))
+        return _with_toast(resp, "Bluetooth tools unavailable", theme="error")
+    try:
+        devices = await asyncio.to_thread(bt.scan)
+        resp = _render_connect_card(request, **_connect_card_context(
+            bt_devices=devices, bt_scanned=True))
+        return _with_toast(resp, f"Bluetooth scan finished — {len(devices)} device{'s' if len(devices) != 1 else ''} found")
+    except Exception as e:
+        logger.warning(f"BT scan failed: {e}")
+        resp = _render_connect_card(request, **_connect_card_context(
+            error=f"Bluetooth scan failed: {e}", bt_scanned=True))
+        return _with_toast(resp, f"Bluetooth scan failed: {e}", theme="error")
+
+
+@router.post("/kiosk/system/connect/add-cc")
+async def kiosk_connect_add_cc(request: Request):
+    form = await request.form()
+    manager = get_service("speaker_manager")
+    try:
+        entry = manager.add_speaker(name=str(form.get("name") or ""), backend="chromecast")
+        resp = _render_connect_card(request, **_connect_card_context(
+            message=f"Speaker added: {entry.get('display_name') or entry['name']}"))
+        return _with_toast(resp, f"Speaker added: {entry.get('display_name') or entry['name']}")
+    except ValueError as e:
+        resp = _render_connect_card(request, **_connect_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
+
+
+@router.post("/kiosk/system/connect/pair")
+async def kiosk_connect_pair(request: Request):
+    form = await request.form()
+    bt = _bt_service_or_none()
+    if bt is None:
+        resp = _render_connect_card(request, **_connect_card_context(error="Bluetooth tools unavailable"))
+        return _with_toast(resp, "Bluetooth tools unavailable", theme="error")
+    mac = str(form.get("mac") or "")
+    manager = get_service("speaker_manager")
+    try:
+        result = await asyncio.to_thread(bt.pair_and_connect, mac)
+        if result.get("error"):
+            resp = _render_connect_card(request, **_connect_card_context(
+                error=result["error"], bt_scanned=True, bt_devices=await asyncio.to_thread(bt.scan)))
+            return _with_toast(resp, result["error"], theme="error")
+        # pairing implies the speaker is wanted — add it automatically
+        info = await asyncio.to_thread(bt.info, mac)
+        device_name = info.get("name") or mac.replace(":", "_").lower()
+        message = f"Paired and connected: {result.get('name') or mac}"
+        sink = await asyncio.to_thread(bt.sink_for_device, mac)
+        if sink:
+            try:
+                entry = manager.add_speaker(name=device_name, backend="mpv",
+                                            options={"audio_device": sink},
+                                            display_name=device_name)
+                message += f" — added as speaker: {entry.get('display_name') or entry['name']}"
+                speaker_obj = get_service("speakers_service").get_speaker(speaker_name=entry["name"])
+                if speaker_obj:
+                    speaker_obj.available = True
+                    speaker_obj.connected = True   # pair_and_connect left the link up
+                    speaker_obj.battery = bt.battery_percent(mac, info.get("uuids"))
+            except ValueError:
+                pass  # already configured
+        resp = _render_connect_card(request, **_connect_card_context(
+            message=message, bt_scanned=True, bt_devices=await asyncio.to_thread(bt.scan)))
+        return _with_toast(resp, message)
+    except Exception as e:
+        logger.warning(f"Pairing failed: {e}")
+        resp = _render_connect_card(request, **_connect_card_context(
+            error=f"Pairing failed: {e}", bt_scanned=True))
+        return _with_toast(resp, f"Pairing failed: {e}", theme="error")
+
+
+@router.post("/kiosk/system/connect/manual")
+async def kiosk_connect_manual(request: Request):
     form = await request.form()
     manager = get_service("speaker_manager")
     try:
         entry = manager.add_speaker(
             name=str(form.get("name") or ""),
             backend=str(form.get("backend") or "chromecast"),
-            is_default=form.get("is_default") == "on",
-            display_name=str(form.get("display_name") or ""),
+            options={"audio_device": str(form.get("audio_device") or "")} if form.get("backend") == "mpv" else {},
+            display_name=str(form.get("display_name") or "") or None,
         )
-        return _render_speakers_card(request, **_speakers_card_context(
-            message=f"Added {entry.get('display_name') or entry['name']}"))
+        resp = _render_connect_card(request, **_connect_card_context(
+            message=f"Speaker added: {entry.get('display_name') or entry['name']}"))
+        return _with_toast(resp, f"Speaker added: {entry.get('display_name') or entry['name']}")
     except ValueError as e:
-        return _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        resp = _render_connect_card(request, **_connect_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
 
+
+@router.post("/kiosk/config/speakers/{name}/display")
 
 @router.post("/kiosk/config/speakers/{name}/display")
 async def kiosk_speakers_display(name: str, request: Request):
@@ -336,162 +471,21 @@ def _render_bluetooth_card(request: Request, **ctx):
         name="components/kiosk/config/_bluetooth_card.html", context=ctx)
 
 
-@router.get("/kiosk/config/bluetooth/scan")
-async def kiosk_bluetooth_scan(request: Request):
-    bt = get_service("bluetooth_service")
-    try:
-        devices = await asyncio.to_thread(bt.scan)
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(scanned=True, devices=devices))
-        return _with_toast(resp, f"Scan finished — {len(devices)} device{'s' if len(devices) != 1 else ''} found")
-    except Exception as e:
-        logger.warning(f"Bluetooth scan failed: {e}")
-        return _render_bluetooth_card(request, **_bluetooth_card_context(
-            error=f"Scan failed: {e}", scanned=True))
-
-
-@router.post("/kiosk/config/bluetooth/pair")
-async def kiosk_bluetooth_pair(request: Request):
-    form = await request.form()
-    bt = get_service("bluetooth_service")
-    mac = str(form.get("mac") or "")
-    try:
-        result = await asyncio.to_thread(bt.pair_and_connect, mac)
-        if result.get("error"):
-            resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-                error=result["error"], scanned=True,
-                devices=await asyncio.to_thread(bt.scan)))
-            return _with_toast(resp, result["error"], theme="error")
-
-        # The user's intent when pairing is to have the device as a speaker —
-        # add it automatically (skipped when an entry already exists).
-        info = await asyncio.to_thread(bt.info, mac)
-        device_name = info.get("name") or mac.replace(":", "_").lower()
-        message = f"Paired and connected: {result.get('name') or mac}"
-        if mac not in _managed_speaker_macs():
-            sink = await asyncio.to_thread(bt.sink_for_device, mac)
-            if sink:
-                try:
-                    entry = manager_add_as_speaker(bt, mac, device_name, sink)
-                    message += f" — added as speaker: {entry.get('display_name') or entry['name']}"
-                except ValueError:
-                    pass  # already configured
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-            message=message, scanned=True,
-            devices=await asyncio.to_thread(bt.scan)))
-        return _with_toast(resp, message)
-    except ValueError as e:
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(error=str(e)))
-        return _with_toast(resp, str(e), theme="error")
-    except Exception as e:
-        logger.warning(f"Pairing failed: {e}")
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-            error=f"Pairing failed: {e}", scanned=True))
-        return _with_toast(resp, f"Pairing failed: {e}", theme="error")
-
-
-def manager_add_as_speaker(bt, mac: str, device_name: str, sink: str):
-    """Create the speaker entry for a freshly paired BT device."""
-    manager = get_service("speaker_manager")
-    return manager.add_speaker(
-        name=device_name, backend="mpv",
-        options={"audio_device": sink},
-        display_name=device_name,
-    )
-
-
-@router.post("/kiosk/config/bluetooth/connect")
-async def kiosk_bluetooth_connect(request: Request):
-    form = await request.form()
-    bt = get_service("bluetooth_service")
-    mac = str(form.get("mac") or "")
-    try:
-        result = await asyncio.to_thread(bt.connect, mac)
-        if not result["connected"]:
-            resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-                error=result.get("error") or "Connect failed"))
-            return _with_toast(resp, result.get("error") or "Connect failed", theme="error")
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-            message=f"Connected: {mac}"))
-        return _with_toast(resp, f"Connected: {mac}")
-    except Exception as e:
-        return _render_bluetooth_card(request, **_bluetooth_card_context(error=f"Connect failed: {e}"))
-
-
-@router.post("/kiosk/config/bluetooth/disconnect")
-async def kiosk_bluetooth_disconnect(request: Request):
-    form = await request.form()
-    bt = get_service("bluetooth_service")
-    mac = str(form.get("mac") or "")
-    await asyncio.to_thread(bt.disconnect, mac)
-    resp = _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Disconnected: {mac}"))
-    return _with_toast(resp, f"Disconnected: {mac}")
-
-
-@router.post("/kiosk/config/bluetooth/forget")
-async def kiosk_bluetooth_forget(request: Request):
-    form = await request.form()
-    bt = get_service("bluetooth_service")
-    mac = str(form.get("mac") or "")
-    await asyncio.to_thread(bt.forget, mac)
-    resp = _render_bluetooth_card(request, **_bluetooth_card_context(message=f"Removed {mac}"))
-    return _with_toast(resp, f"Removed {mac}")
-
-
-@router.post("/kiosk/config/bluetooth/add-speaker")
-async def kiosk_bluetooth_add_speaker(request: Request):
-    """Create a speaker entry for a connected BT device: mpv backend +
-    options.audio_device = its pulse sink (verified format)."""
-    form = await request.form()
-    bt = get_service("bluetooth_service")
-    manager = get_service("speaker_manager")
-    mac = str(form.get("mac") or "")
-    try:
-        info = await asyncio.to_thread(bt.info, mac)
-        name = info.get("name") or mac.replace(":", "_").lower()
-        sink = await asyncio.to_thread(bt.sink_for_device, mac)
-        if not sink:
-            resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-                error=f"{info.get('name') or mac} is not connected — no audio sink available yet"))
-            return _with_toast(resp, "No audio sink — is the device still connected?", theme="error")
-        entry = manager.add_speaker(
-            name=name, backend="mpv",
-            options={"audio_device": sink},
-            display_name=str(form.get("display_name") or name),
-        )
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(
-            message=f"Speaker added: {entry.get('display_name') or entry['name']} ({entry['name']})"))
-        return _with_toast(resp, f"Speaker added: {entry.get('display_name') or entry['name']}")
-    except ValueError as e:
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(error=str(e)))
-        return _with_toast(resp, str(e), theme="error")
-    except Exception as e:
-        logger.warning(f"Add BT speaker failed: {e}")
-        resp = _render_bluetooth_card(request, **_bluetooth_card_context(error=f"Could not add speaker: {e}"))
-        return _with_toast(resp, f"Could not add speaker: {e}", theme="error")
-
-
 @router.post("/kiosk/devices/bt-toggle")
 async def kiosk_devices_bt_toggle(payload: dict = Body(...)):
     """Connect/disconnect a BT-backed speaker's device (from the device card).
     Current state decides the action: sink present → disconnect, else connect."""
-    from app.services.bluetooth_service import mac_from_sink_id
     name = str((payload or {}).get("name", "")).strip()
     manager = get_service("speaker_manager")
-    entry = next((s for s in manager.configured() if s["name"] == name), None)
-    mac = mac_from_sink_id((entry or {}).get("options", {}).get("audio_device")) if entry else None
-    if not mac:
-        raise HTTPException(status_code=400, detail=f"'{name}' has no Bluetooth audio device")
-    bt = _bt_service_or_none()
-    if bt is None:
-        raise HTTPException(status_code=500, detail="Bluetooth tools unavailable")
-    sink = await asyncio.to_thread(bt.sink_for_device, mac)
-    if sink:
-        await asyncio.to_thread(bt.disconnect, mac)
-        return {"name": name, "connected": False}
-    result = await asyncio.to_thread(bt.connect, mac)
-    if not result["connected"]:
-        raise HTTPException(status_code=502, detail=result.get("error") or "Connect failed")
-    return {"name": name, "connected": True}
+    speakers_service = get_service("speakers_service")
+    speaker_obj = speakers_service.get_speaker(speaker_name=name)
+    if not speaker_obj or speaker_obj.type != "bluetooth":
+        raise HTTPException(status_code=400, detail=f"'{name}' is not a Bluetooth speaker")
+    if speaker_obj.connected:
+        result = await manager.disconnect_speaker(name)
+    else:
+        result = await manager.connect_speaker(name)
+    return {"name": name, "connected": result["connected"]}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -522,22 +516,7 @@ async def kiosk_devices_partial(request: Request):
     
     speakers_service = get_service("speakers_service")
     context["speakers"] = speakers_service.to_dict()
-    # BT runtime info for BT-backed speakers (device card controls)
-    bt = _bt_service_or_none()
-    if bt:
-        from app.services.bluetooth_service import mac_from_sink_id
-        try:
-            store = {s["name"]: s for s in get_service("speaker_manager").configured()}
-            for name, details in context["speakers"].items():
-                entry = store.get(name)
-                mac = mac_from_sink_id((entry or {}).get("options", {}).get("audio_device")) if entry else None
-                if not mac:
-                    continue
-                details["bt_mac"] = mac
-                details["bt_connected"] = bt.sink_for_device(mac) is not None
-                details["bt_battery"] = bt.battery_percent(mac)
-        except Exception as e:
-            logger.debug(f"Device card BT enrichment failed: {e}")
+    # BT runtime info now lives on the Speaker flags (updated by the state pass)
     logger.info(f"Rendering devices partial with speakers: {list(context['speakers'].keys())}")
 
 

@@ -275,6 +275,9 @@ class BluetoothService:
         except subprocess.TimeoutExpired:
             logger.warning("Command timed out: %s", " ".join(args))
             return ""
+        except FileNotFoundError:
+            logger.warning("Bluetooth tool not available: %s", args[0])
+            return ""
 
     def _ctl(self, *args: str, timeout: float = 15.0) -> str:
         return self._run("bluetoothctl", *args, timeout=timeout)
@@ -440,9 +443,11 @@ class BluetoothService:
             logger.info(f"[BT] No pulse sink for {mac} (not connected?)")
         return sink
 
-    def battery_percent(self, mac: str) -> Optional[int]:
-        """Battery percentage from BlueZ's Battery1 interface (standard
-        Battery Service). Returns None when the device does not expose it."""
+    def battery_percent(self, mac: str, uuids: Optional[List[str]] = None) -> Optional[int]:
+        """Battery percentage from BlueZ's Battery1 interface. Returns None
+        when the device does not expose a CLEAR reading — Logitech devices
+        (fe61) route their vendor battery char through BlueZ's heuristic,
+        which misreports (BOOM 3 showed a bogus 1%)."""
         dev_path = f"/org/bluez/hci0/dev_{mac_to_underscored(mac)}"
         try:
             out = self._run("busctl", "get-property", "org.bluez", dev_path,
@@ -451,7 +456,14 @@ class BluetoothService:
             logger.debug(f"[BT] Battery lookup failed for {mac}: {e}")
             return None
         m = re.search(r"(-?\d+)", out)
-        return int(m.group(1)) if m else None
+        if not m:
+            return None
+        value = int(m.group(1))
+        if "0000fe61" in [u.lower() for u in (uuids or [])] and value <= 10:
+            logger.debug(f"[BT] Battery {value}% for {mac} looks like the Logitech "
+                         f"vendor-char misreport — not a clear reading")
+            return None
+        return value
 
     def auto_connect_trusted(self) -> None:
         """Best-effort startup reconnect (design decision #3): attempt connect
@@ -470,50 +482,3 @@ class BluetoothService:
                         logger.info(f"[BluetoothService] Auto-connected {device['name']} ({device['mac']})")
                 except Exception as e:
                     logger.warning(f"[BluetoothService] Auto-connect failed for {device['mac']}: {e}")
-
-    def watchdog_tick(self) -> Dict[str, Any]:
-        """One BT watchdog pass (Phase C hardening): for every BT-backed
-        speaker in the store, verify its pulse sink is present; reconnect
-        paired devices whose sink vanished mid-session (the shared BT chip
-        drops links without app-visible errors — see ledger "BT hardening").
-        Per-MAC backoff after failed attempts so a powered-off speaker does
-        not get hammered every interval."""
-        import time as _time
-        from app.core.service_container import get_service
-        from app.services.bluetooth_service import mac_from_sink_id  # self module
-
-        try:
-            speakers = get_service("config_service").speakers()
-        except Exception as e:
-            logger.debug(f"[BT watchdog] pass skipped: {e}")
-            return {"checked": 0, "reconnected": [], "skipped": "store unavailable"}
-
-        now = _time.monotonic()
-        reconnected = []
-        checked = 0
-        for entry in speakers:
-            mac = mac_from_sink_id((entry.get("options") or {}).get("audio_device"))
-            if not mac:
-                continue
-            state = self._watchdog_state.get(mac, {})
-            if now < state.get("not_before", 0):
-                continue  # backing off after previous failures
-            if self.sink_for_device(mac):
-                continue  # healthy: sink present
-            info = self.info(mac)
-            if not info["paired"]:
-                logger.debug(f"[BT watchdog] {mac} not paired — skipping (was it forgotten?)")
-                continue
-            logger.info(f"[BT watchdog] '{entry.get('name')}' ({mac}) lost its sink — reconnecting …")
-            result = self.connect(mac)
-            if result["connected"]:
-                logger.info(f"[BT watchdog] Reconnected {mac} — resume playback from the UI if the track does not pick up automatically")
-                self._watchdog_state.pop(mac, None)
-                reconnected.append(mac)
-            else:
-                attempts = state.get("attempts", 0) + 1
-                delay = min(300.0, 30.0 * (2 ** min(attempts, 4)))
-                self._watchdog_state[mac] = {"attempts": attempts, "not_before": now + delay,
-                                             "error": result.get("error")}
-                logger.warning(f"[BT watchdog] Reconnect {mac} failed ({result.get('error')}) — retry in {delay:.0f}s")
-        return {"checked": checked + len(speakers), "reconnected": reconnected}

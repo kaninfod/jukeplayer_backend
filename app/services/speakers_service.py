@@ -7,12 +7,18 @@ import uuid
 logger = logging.getLogger(__name__)
 class Speaker:
     def __init__(self, speaker_id: str, name: str, backend: str, mediaplayer: object,
-                 display_name: str = ""):
+                 display_name: str = "", speaker_type: str = "local"):
         self.speaker_name = name
         self.speaker_id = speaker_id
         self.mediaplayer = mediaplayer
         self.backend = backend
         self.display_name = str(display_name or "").strip()
+        # runtime state flags (updated by SpeakerManagerService.update_speaker_states)
+        self.type = speaker_type            # chromecast | bluetooth | local
+        self.available = False              # reachable: on the network / known to bluez
+        self.connected = False              # active audio link
+        self.bt_mac = None                  # MAC for bluetooth-backed speakers
+        self.battery = None                 # battery % (bluetooth, when clearly reported)
         self.clients = set()
 
     def to_dict(self):
@@ -25,6 +31,11 @@ class Speaker:
             "display_name": self.display_name,
             "speaker_id": self.speaker_id,
             "backend": self.backend,
+            "type": self.type,
+            "available": self.available,
+            "connected": self.connected,
+            "bt_mac": self.bt_mac,
+            "battery": self.battery,
             "clients": list(self.clients),
             "mediaplayer": {
                 "status": context.get("status"),
@@ -68,9 +79,22 @@ class SpeakersService:
             playback_backend=backend,
             device_name=device_name
         )
+        # type from backend + options: BT speakers are mpv-backed with a bluez sink
+        from app.services.bluetooth_service import mac_from_sink_id
+        audio_device = (entry.get("options") or {}).get("audio_device") or ""
+        bt_mac = mac_from_sink_id(audio_device)
+        if backend_name == "chromecast":
+            speaker_type = "chromecast"
+        elif bt_mac:
+            speaker_type = "bluetooth"
+        else:
+            speaker_type = "local"
         logger.info(f"[SpeakersService]  Created MediaPlayerService for device: {device_name}")
-        return Speaker(str(uuid.uuid4()), device_name, backend_name, mediaplayer,
-                       display_name=str(entry.get("display_name") or ""))
+        speaker = Speaker(str(uuid.uuid4()), device_name, backend_name, mediaplayer,
+                          display_name=str(entry.get("display_name") or ""),
+                          speaker_type=speaker_type)
+        speaker.bt_mac = bt_mac
+        return speaker
 
     def add_speaker(self, entry: dict) -> Speaker:
         """Live speaker add (Phase B): construct and register without a restart.

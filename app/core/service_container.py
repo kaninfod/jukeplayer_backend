@@ -95,6 +95,7 @@ def create_speaker_manager_service(container):
         config_service=container.get('config_service'),
         speakers_service=container.get('speakers_service'),
         broker=container.get('speaker_broker_service'),
+        bluetooth_service=container.get('bluetooth_service'),
     )
 
 def create_bluetooth_service(container):

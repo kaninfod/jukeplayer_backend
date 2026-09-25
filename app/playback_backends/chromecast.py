@@ -31,6 +31,19 @@ def _get_global_browser():
     return _global_browser
 
 
+def discovered_names() -> set:
+    """Friendly names currently visible to the persistent discovery browser
+    (no network wait — reads the browser's service cache). Used for the
+    'available' flag on chromecast speakers."""
+    browser = _get_global_browser()
+    names = set()
+    for _uuid, cast_info in browser.services.items():
+        name = getattr(cast_info, "friendly_name", None)
+        if name:
+            names.add(name)
+    return names
+
+
 def discover_devices(timeout: Optional[float] = None) -> List[Dict]:
     """One scan of the persistent global discovery browser (blocking, network
     I/O — call off the event loop). Returns

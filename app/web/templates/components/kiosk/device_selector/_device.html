@@ -14,7 +14,7 @@
         {% endif %}
 
         <small class="text-muted text-uppercase fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">
-            {{ details.backend|e }}
+            {{ (details.type or details.backend)|capitalize|e }}
         </small>
         <small class="text-muted text-uppercase fw-bold" style="font-size: 0.65rem; letter-spacing: 0.5px;">
             {{ details.clients|length }} {{ "Client connected" if details.clients|length == 1 else "Clients connected" }} 
@@ -25,11 +25,11 @@
             <div class="d-flex gap-2 align-items-center">
                 <span class="badge rounded-pill {{ 'bg-success' if details.bt_connected else 'bg-light text-muted border' }} px-2">
                     <i class="mdi mdi-bluetooth-{{ 'connect' if details.bt_connected else 'off' }} me-1"></i>
-                    {{ "BT connected" if details.bt_connected else "BT disconnected" }}
+                    {{ "BT connected" if details.connected else "BT disconnected" }}
                 </span>
-                {% if details.bt_battery %}
+                {% if details.battery %}
                 <span class="badge rounded-pill bg-light text-muted border px-2" title="Device battery">
-                    <i class="mdi mdi-battery me-1"></i>{{ details.bt_battery }}%
+                    <i class="mdi mdi-battery me-1"></i>{{ details.battery }}%
                 </span>
                 {% endif %}
             </div>

@@ -47,9 +47,18 @@ def stack(tmp_path, monkeypatch):
     speakers = SpeakersService()
 
     def fake_build(entry):
-        return Speaker(f"id-{entry['name']}", entry["name"], entry.get("backend", "chromecast"),
-                       FakePlayer(entry["name"]),
-                       display_name=entry.get("display_name", ""))
+        audio_device = (entry.get("options") or {}).get("audio_device") or ""
+        backend_name = entry.get("backend", "chromecast")
+        from app.services.bluetooth_service import mac_from_sink_id
+        bt_mac = mac_from_sink_id(audio_device)
+        speaker_type = ("chromecast" if backend_name == "chromecast"
+                        else "bluetooth" if bt_mac else "local")
+        speaker = Speaker(f"id-{entry['name']}", entry["name"], backend_name,
+                          FakePlayer(entry["name"]),
+                          display_name=entry.get("display_name", ""),
+                          speaker_type=speaker_type)
+        speaker.bt_mac = bt_mac
+        return speaker
 
     monkeypatch.setattr(speakers, "_build_speaker", fake_build)
     broker = SimpleNamespace(handle_speaker_removed=AsyncMock())
@@ -290,3 +299,105 @@ async def test_broker_resolves_display_form_device_names(mock_event_bus):
     assert broker.resolve_speaker(device_name="OPENRUN PRO 2 BY SHOKZ") is headphones
     assert broker.resolve_speaker(device_name="openrun_pro_2_by_shokz") is headphones
     assert broker.resolve_speaker(device_name="Openrun Pro 2 By Shokz") is headphones
+
+# --- state pass (watchdog) ----------------------------------------------------
+
+class StubBTState:
+    """BluetoothService double for state-pass tests."""
+    def __init__(self, sink_by_mac, paired_by_mac, connect_ok=True):
+        self.sink_by_mac = sink_by_mac
+        self.paired_by_mac = paired_by_mac
+        self.connect_ok = connect_ok
+        self.connect_calls = []
+
+    def sink_for_device(self, mac):
+        return self.sink_by_mac.get(mac)
+
+    def info(self, mac):
+        return {"paired": self.paired_by_mac.get(mac, False), "connected": False,
+                "name": mac, "uuids": ["0000110b-0000-1000-8000-00805f9b34fb"]}
+
+    def connect(self, mac):
+        self.connect_calls.append(mac)
+        return {"mac": mac, "connected": self.connect_ok, "error": None if self.connect_ok else "not reachable"}
+
+    def battery_percent(self, mac, uuids=None):
+        return 42
+
+    def forget(self, mac):
+        pass
+
+
+def state_manager(stack, monkeypatch, bt_stub, discovered=None):
+    """Manager with a stubbed bluetooth service + patched CC discovery."""
+    from app.services.speaker_manager_service import SpeakerManagerService
+    from app.playback_backends import chromecast as cc
+    monkeypatch.setattr(cc, "discovered_names",
+                        lambda: discovered if discovered is not None else set())
+    return SpeakerManagerService(
+        store=stack.store, config_service=stack.config,
+        speakers_service=stack.speakers, broker=stack.broker,
+        bluetooth_service=bt_stub)
+
+
+BOOM_BT = {"name": "boom_3",
+           "options": {"audio_device": "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"}}
+
+
+def test_state_pass_reconnects_lost_bt_speaker(stack, monkeypatch):
+    stack.manager.add_speaker("boom_3", backend="mpv",
+                              options={"audio_device": "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"})
+    bt = StubBTState({"10:94:97:0F:CB:BF": None},  # sink gone
+                     {"10:94:97:0F:CB:BF": True}, connect_ok=True)
+    manager = state_manager(stack, monkeypatch, bt)
+    result = manager.update_speaker_states()
+    assert bt.connect_calls == ["10:94:97:0F:CB:BF"]
+    assert result["reconnected"] == ["boom_3"]
+    speaker = stack.speakers.get_speaker(speaker_name="boom_3")
+    assert speaker.connected is True
+    assert speaker.available is True
+    assert speaker.battery == 42
+
+
+def test_state_pass_skips_connected_bt_speaker(stack, monkeypatch):
+    stack.manager.add_speaker("boom_3", backend="mpv",
+                              options={"audio_device": "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"})
+    bt = StubBTState({"10:94:97:0F:CB:BF": "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"},
+                     {"10:94:97:0F:CB:BF": True}, connect_ok=True)
+    manager = state_manager(stack, monkeypatch, bt)
+    manager.update_speaker_states()
+    assert bt.connect_calls == []
+    speaker = stack.speakers.get_speaker(speaker_name="boom_3")
+    assert speaker.connected is True
+    assert speaker.available is True
+
+
+def test_state_pass_backs_off_after_failures(stack, monkeypatch):
+    stack.manager.add_speaker("boom_3", backend="mpv",
+                              options={"audio_device": "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"})
+    bt = StubBTState({"10:94:97:0F:CB:BF": None}, {"10:94:97:0F:CB:BF": True}, connect_ok=False)
+    manager = state_manager(stack, monkeypatch, bt)
+    manager.update_speaker_states()
+    assert bt.connect_calls == ["10:94:97:0F:CB:BF"]
+    manager.update_speaker_states()
+    assert bt.connect_calls == ["10:94:97:0F:CB:BF"]      # backoff: no second attempt
+    bt._reconnect_hint = True
+    manager._reconnect_state["10:94:97:0F:CB:BF"]["not_before"] = 0
+    manager.update_speaker_states()
+    assert len(bt.connect_calls) == 2
+
+
+def test_state_pass_marks_cc_available(stack, monkeypatch):
+    stack.manager.add_speaker("Living Room", backend="chromecast", display_name="Living Room Speaker")
+    store_name = stack.store.section("speakers")[0]["name"]
+    bt = StubBTState({}, {}, connect_ok=True)
+    manager = state_manager(stack, monkeypatch, bt, discovered={"Living Room"})
+    manager.update_speaker_states()
+    speaker = stack.speakers.get_speaker(speaker_name=store_name)
+    assert speaker.type == "chromecast"
+    assert speaker.available is True          # discovered on the network
+    assert speaker.connected is True          # fixture backend reports connected
+
+
+def entry_name():
+    return "living_room_speaker"

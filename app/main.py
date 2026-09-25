@@ -173,24 +173,20 @@ async def startup_event():
     speaker_manager = global_container.get('speaker_manager')
     asyncio.create_task(speaker_manager.sync_all_speaker_volumes())
 
-    # Step 5: BT watchdog — every interval, verify that BT-backed speakers
-    # still have their pulse sink; reconnect paired devices whose link dropped
-    # mid-session (the shared BT chip hangs/drops without app-visible errors).
-    async def reconnect_bluetooth():
-        await asyncio.to_thread(global_container.get('bluetooth_service').auto_connect_trusted)
-
-    async def bt_watchdog():
-        bluetooth_service = global_container.get('bluetooth_service')
-        interval = getattr(bluetooth_service, "WATCHDOG_INTERVAL", 30.0)
+    # Step 5: speaker state watchdog — every interval, refresh available/
+    # connected flags on every Speaker and reconnect BT speakers whose link
+    # dropped mid-session (the shared BT chip hangs without app-visible errors).
+    async def speaker_state_watchdog():
+        speaker_manager = global_container.get('speaker_manager')
+        interval = 30.0
         while True:
-            await asyncio.sleep(interval)
             try:
-                await asyncio.to_thread(bluetooth_service.watchdog_tick)
+                await asyncio.to_thread(speaker_manager.update_speaker_states)
             except Exception as e:
-                logging.warning(f"[BT watchdog] pass failed: {e}")
+                logging.warning(f"[speaker watchdog] pass failed: {e}")
+            await asyncio.sleep(interval)
 
-    asyncio.create_task(reconnect_bluetooth())
-    asyncio.create_task(bt_watchdog())
+    asyncio.create_task(speaker_state_watchdog())
 
     import getpass, os
     logger.info(f"Running as user: {getpass.getuser()}")

@@ -59,7 +59,7 @@ class StubBT:
     def forget(self, mac):
         return {"mac": mac, "removed": True}
 
-    def battery_percent(self, mac):
+    def battery_percent(self, mac, uuids=None):
         return 42 if mac == "10:94:97:0F:CB:BF" else None
 
     def auto_connect_trusted(self):
@@ -160,102 +160,87 @@ async def test_bluetooth_sinks_api(initialized_app):
 
 
 @pytest.mark.asyncio
-async def test_bluetooth_card_add_speaker(initialized_app):
+async def test_connect_card_renders_and_pair_adds_speaker(initialized_app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.post("/kiosk/config/bluetooth/add-speaker",
-                                 data={"mac": "10:94:97:0F:CB:BF", "display_name": "Boom in the Gym"})
-        assert resp.status_code == 200
-        assert "Boom in the Gym" in resp.text
-        assert 'id="bluetooth-card"' in resp.text
+        card = await client.get("/kiosk/system/connect")
+        assert card.status_code == 200
+        assert 'id="connect-speaker-card"' in card.text
+
+        scan = await client.get("/kiosk/system/connect/scan/bt")
+        assert scan.status_code == 200
+        assert "BOOM 3" in scan.text
+
+        pair = await client.post("/kiosk/system/connect/pair", data={"mac": "10:94:97:0F:CB:BF"})
+        assert pair.status_code == 200
+        assert "Paired and connected" in pair.text
+        assert "added as speaker" in pair.text
 
         listing = await client.get("/api/config/speakers")
-        speakers = listing.json()["speakers"]
-        added = next(s for s in speakers if s["display_name"] == "Boom in the Gym")
+        added = next(s for s in listing.json()["speakers"] if s["name"] == "boom_3")
         assert added["backend"] == "mpv"
         assert added["options"]["audio_device"] == "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
 
 
 @pytest.mark.asyncio
-async def test_bluetooth_card_duplicate_rejected(initialized_app):
+async def test_connect_card_managed_note(initialized_app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
-        dup = await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
-        assert dup.status_code == 200
-        assert "already configured" in dup.text
+        await client.post("/kiosk/system/connect/pair", data={"mac": "10:94:97:0F:CB:BF"})
+        scan = await client.get("/kiosk/system/connect/scan/bt")
+        text = " ".join(scan.text.split())
+        assert "Already added as speaker (managed in the Speakers card): BOOM 3" in text
+        assert "10:94:97:0F:CB:BF" not in text   # hidden from the pair list
 
 
 @pytest.mark.asyncio
-async def test_config_page_renders_bluetooth_card(initialized_app):
+async def test_connect_card_add_cc(initialized_app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/kiosk/system/connect/add-cc", data={"name": "Living Room"})
+        assert resp.status_code == 200
+        listing = await client.get("/api/config/speakers")
+        added = next(s for s in listing.json()["speakers"] if s["name"] == "living_room")
+        assert added["backend"] == "chromecast"
+
+
+@pytest.mark.asyncio
+async def test_connect_card_manual(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/kiosk/system/connect/manual",
+                                 data={"name": "dac_test", "backend": "mpv", "audio_device": ""})
+        assert resp.status_code == 200
+        listing = await client.get("/api/config/speakers")
+        added = next(s for s in listing.json()["speakers"] if s["name"] == "dac_test")
+        assert added["backend"] == "mpv"
+
+
+@pytest.mark.asyncio
+async def test_speakers_card_shows_type_and_state(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/system/connect/pair", data={"mac": "10:94:97:0F:CB:BF"})
         page = await client.get("/kiosk/config")
-        assert page.status_code == 200
-        html = page.text
-        for needle in ('id="bluetooth-card"', "BOOM 3", "Bluetooth"):
-            assert needle in html
-
-
-@pytest.mark.asyncio
-async def test_bluetooth_card_hides_unnamed_non_audio_devices(initialized_app):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        card = await client.get("/kiosk/config/bluetooth/scan")
-        assert card.status_code == 200
-        text = card.text
-        # the paired BOOM 3 is visible…
-        assert "BOOM 3" in text
-        # …while the unnamed non-audio beacon is hidden with a count
-        assert "non-audio device" in text
-        assert "11:22:33:44:55:66" not in text
-        # the JSON API still returns everything (filtering is a UI concern)
-        scan = await client.get("/api/bluetooth/scan?seconds=5")
-        macs = [d["mac"] for d in scan.json()["devices"]]
-        assert macs == ["10:94:97:0F:CB:BF", "11:22:33:44:55:66"]
-
-
-@pytest.mark.asyncio
-async def test_bt_card_skips_managed_devices(initialized_app):
-    """A device with a speaker entry lives in the Speakers card — the BT card
-    hides it and points at the Speakers card instead."""
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
-        card = await client.get("/kiosk/config/bluetooth/scan")
-        text = card.text
-        assert "Already added as speaker (managed in the Speakers card above): BOOM 3" in " ".join(text.split())
-        assert "10:94:97:0F:CB:BF" not in text  # no longer listed, no Add button
-
-
-@pytest.mark.asyncio
-async def test_speakers_card_shows_bt_state_without_buttons(initialized_app):
-    """BT connect/disconnect moved to the device card — the config-page
-    speakers list keeps the state badge only."""
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
-        card = await client.get("/kiosk/config/speakers/scan")
-        assert card.status_code == 200
-        assert "BT connected" in card.text
-        assert "bt-connect" not in card.text
-        assert "bt-disconnect" not in card.text
+        html = " ".join(page.text.split())
+        assert "Bluetooth" in html
+        assert "BOOM 3" in html
+        # the BT connect/disconnect buttons moved to the device page
+        assert "bt-connect" not in html and "bt-disconnect" not in html
 
 
 @pytest.mark.asyncio
 async def test_device_card_bt_controls(initialized_app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post("/kiosk/config/bluetooth/add-speaker", data={"mac": "10:94:97:0F:CB:BF"})
+        await client.post("/kiosk/system/connect/pair", data={"mac": "10:94:97:0F:CB:BF"})
 
         page = await client.get("/kiosk/devices")
         assert page.status_code == 200
-        html = page.text
+        html = " ".join(page.text.split())
         assert "BT connected" in html
-        assert "42%" in html                      # battery from bluez Battery1
-        assert "10:94:97:0F:CB:BF" in html        # mac on the card
+        assert "42%" in html
+        assert "10:94:97:0F:CB:BF" in html
 
-        # toggle from the device card: disconnect → badge flips
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "boom_3"})
-        assert resp.status_code == 200
         assert resp.json()["connected"] is False
         page = await client.get("/kiosk/devices")
-        assert "BT disconnected" in page.text
+        assert "BT disconnected" in " ".join(page.text.split())
 
-        # and back
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "boom_3"})
         assert resp.json()["connected"] is True
 
@@ -266,21 +251,4 @@ async def test_device_card_bt_toggle_without_bt_device(initialized_app):
         await client.post("/api/config/speakers", json={"name": "living_room"})
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "living_room"})
         assert resp.status_code == 400
-        assert "no Bluetooth audio device" in resp.json()["detail"]
-
-@pytest.mark.asyncio
-async def test_pair_adds_speaker_automatically(initialized_app):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.post("/kiosk/config/bluetooth/pair", data={"mac": "10:94:97:0F:CB:BF"})
-        assert resp.status_code == 200
-        listing = await client.get("/api/config/speakers")
-        speakers = listing.json()["speakers"]
-        added = next(s for s in speakers if s["name"] == "boom_3")
-        assert added["backend"] == "mpv"
-        assert added["options"]["audio_device"] == "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
-        assert added["display_name"] == "BOOM 3"
-        # pairing a device that already has a speaker entry does not duplicate
-        resp2 = await client.post("/kiosk/config/bluetooth/pair", data={"mac": "10:94:97:0F:CB:BF"})
-        assert resp2.status_code == 200
-        listing = await client.get("/api/config/speakers")
-        assert sum(1 for s in listing.json()["speakers"] if s["name"] == "boom_3") == 1
+        assert "not a Bluetooth speaker" in resp.json()["detail"]

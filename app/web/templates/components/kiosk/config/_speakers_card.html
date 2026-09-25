@@ -1,13 +1,11 @@
 <div class="card mb-3 flex-shrink-0" id="speakers-card">
     <div class="card-body py-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="text-muted mb-0"><i class="mdi mdi-speaker-multiple"></i> Speakers
-                <span class="badge text-bg-success ms-2">applies live</span></h6>
-            <button type="button" class="btn btn-sm btn-outline-primary"
-                    hx-get="/kiosk/config/speakers/scan"
-                    hx-target="#speakers-card" hx-swap="outerHTML">
-                <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-radar"></i> Scan network
-            </button>
+            <h6 class="text-muted mb-0"><i class="mdi mdi-speaker-multiple"></i> Speakers</h6>
+            <a href="/kiosk/system" class="btn btn-sm btn-outline-primary"
+               data-action="click->navigation#load">
+                <i class="mdi mdi-plus"></i> Connect a new speaker
+            </a>
         </div>
 
         {% if message %}
@@ -25,12 +23,21 @@
                 <span>
                     <i class="mdi mdi-speaker"></i> {{ label }}
                     {% if s.display_name %}<small class="text-muted ms-1">({{ s.name }})</small>{% endif %}
-                    <span class="badge text-bg-secondary ms-1">{{ s.backend }}</span>
-                    {% if s.is_default %}<span class="badge text-bg-primary ms-1">default</span>{% endif %}
-                    {% if s.bt_mac %}
-                    {% if s.bt_connected %}<span class="badge text-bg-success ms-1">BT connected</span>
-                    {% else %}<span class="badge text-bg-light border ms-1">BT disconnected</span>{% endif %}
+                    {% if s.speaker_type == 'chromecast' %}
+                    <span class="badge text-bg-info ms-1"><i class="mdi mdi-cast me-1"></i>Chromecast</span>
+                    {% elif s.speaker_type == 'bluetooth' %}
+                    <span class="badge text-bg-info ms-1"><i class="mdi mdi-bluetooth"></i>Bluetooth</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary ms-1">Audio</span>
                     {% endif %}
+                    {% if s.connected %}
+                    <span class="badge text-bg-success ms-1">Connected</span>
+                    {% elif s.available %}
+                    <span class="badge text-bg-info ms-1">Available</span>
+                    {% else %}
+                    <span class="badge text-bg-light border text-muted ms-1">Unavailable</span>
+                    {% endif %}
+                    {% if s.is_default %}<span class="badge text-bg-primary ms-1">default</span>{% endif %}
                 </span>
                 <span class="btn-group btn-group-sm">
                     <button type="button" class="btn btn-outline-secondary" title="Edit display name"
@@ -48,7 +55,7 @@
                     {% endif %}
                     <button type="button" class="btn btn-outline-danger" title="Remove speaker"
                             hx-post="/kiosk/config/speakers/{{ s.name }}/remove"
-                            hx-confirm="Remove speaker '{{ label }}'? Its attached clients move to the default speaker."
+                            hx-confirm="Remove speaker '{{ label }}'?{% if s.type == 'bluetooth' %} The Bluetooth pairing is removed too (Paired: no, Trusted: no).{% endif %}"
                             hx-target="#speakers-card" hx-swap="outerHTML">
                         <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-delete"></i>
                     </button>
@@ -57,58 +64,7 @@
             {% endfor %}
         </ul>
         {% else %}
-        <small class="text-muted d-block mb-2">No speakers configured yet — scan the network or add one manually below.</small>
+        <small class="text-muted d-block mb-2">No speakers configured yet — use "Connect a new speaker" on the System page.</small>
         {% endif %}
-
-        {% if scanned %}
-        <h6 class="text-muted small mt-2 mb-1"><i class="mdi mdi-access-point"></i> Discovered Chromecasts</h6>
-        {% if discovered %}
-        <ul class="list-group list-group-flush mb-2">
-            {% for d in discovered %}
-            <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">
-                <span class="small">
-                    {{ d.name }} <span class="text-muted">· {{ d.model }} · {{ d.host }}</span>
-                    {% if d.configured %}<span class="badge text-bg-success ms-1">added</span>{% endif %}
-                </span>
-                {% if not d.configured %}
-                <button type="button" class="btn btn-sm btn-outline-primary"
-                        hx-post="/kiosk/config/speakers/add"
-                        hx-vals='{"name": "{{ d.name }}", "backend": "chromecast", "display_name": "{{ d.name }}"}'
-                        hx-target="#speakers-card" hx-swap="outerHTML">
-                    <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-plus"></i> Add
-                </button>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <small class="text-muted">None found — check the device is powered on and on the same network.</small>
-        {% endif %}
-        {% endif %}
-
-        <form class="row g-2 align-items-end mt-1"
-              hx-post="/kiosk/config/speakers/add" hx-target="#speakers-card" hx-swap="outerHTML">
-            <div class="col-sm-4">
-                <input type="text" name="name" class="form-control form-control-sm" placeholder="Name (e.g. living_room)" required>
-            </div>
-            <div class="col-sm-3">
-                <input type="text" name="display_name" class="form-control form-control-sm" placeholder="Display name (optional)">
-            </div>
-            <div class="col-sm-2">
-                <select name="backend" class="form-select form-select-sm">
-                    <option value="chromecast">Chromecast</option>
-                    <option value="mpv">MPV (local device)</option>
-                </select>
-            </div>
-            <div class="col-sm-1">
-                <div class="form-check">
-                    <input type="checkbox" name="is_default" value="on" class="form-check-input" id="spk-default-check" title="Set as default">
-                    <label class="form-check-label small text-muted" for="spk-default-check">Def.</label>
-                </div>
-            </div>
-            <div class="col-sm-2">
-                <button type="submit" class="btn btn-sm btn-primary w-100"><span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-plus"></i> Add manually</button>
-            </div>
-        </form>
     </div>
 </div>
