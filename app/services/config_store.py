@@ -28,8 +28,6 @@ SECTION_DEFAULTS: Dict[str, Any] = {
         "password": "",
         "client": "JukeboxPi",
         "api_version": "1.16.1",
-        "proxy_basic_user": "",
-        "proxy_basic_pass": "",
     },
     # list of {"name", "backend": chromecast|mpv, "options": {}, "is_default": bool}
     "speakers": [],
@@ -331,8 +329,6 @@ class SubsonicConfigAdapter:
         self.SUBSONIC_PASS = sub.get("password") or ""
         self.SUBSONIC_CLIENT = sub.get("client") or "JukeboxPi"
         self.SUBSONIC_API_VERSION = sub.get("api_version") or "1.16.1"
-        self.SUBSONIC_PROXY_BASIC_USER = sub.get("proxy_basic_user") or ""
-        self.SUBSONIC_PROXY_BASIC_PASS = sub.get("proxy_basic_pass") or ""
         self.HTTP_REQUEST_TIMEOUT = int(config_service.store.section("server").get("http_request_timeout", 10))
         self.PUBLIC_BASE_URL = str(config_service.server().get("public_base_url") or "").rstrip("/")
 

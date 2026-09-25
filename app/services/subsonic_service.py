@@ -29,9 +29,6 @@ class SubsonicService:
         self.password = getattr(self.config, "SUBSONIC_PASS", "123jukepi")
         self.client = getattr(self.config, "SUBSONIC_CLIENT", "jukebox")
         self.api_version = getattr(self.config, "SUBSONIC_API_VERSION", "1.16.1")
-        # Optional Basic Auth at proxy (NPM) for all Subsonic requests
-        self.basic_user = getattr(self.config, "SUBSONIC_PROXY_BASIC_USER", "")
-        self.basic_pass = getattr(self.config, "SUBSONIC_PROXY_BASIC_PASS", "")
         logger.info(f"SubsonicService initialized with dependency injection for {self.base_url} as {self.username}")
 
     def _api_params(self) -> Dict[str, str]:
@@ -55,14 +52,11 @@ class SubsonicService:
             params.update(extra_params)
         url = f"{self.base_url}/rest/{endpoint}"
         logger.debug(f"SubsonicService: Requesting {url}")
-        auth = None
-        if self.basic_user and self.basic_pass:
-            auth = (self.basic_user, self.basic_pass)
 
         last_transient_exc = None
         for attempt in range(retries + 1):
             try:
-                resp = requests.get(url, params=params, timeout=self.config.HTTP_REQUEST_TIMEOUT, auth=auth)
+                resp = requests.get(url, params=params, timeout=self.config.HTTP_REQUEST_TIMEOUT)
                 resp.raise_for_status()  # Raises HTTPError for bad status codes
                 return resp
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:

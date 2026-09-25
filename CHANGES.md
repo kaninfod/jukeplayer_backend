@@ -491,6 +491,17 @@ known code bug) + orphaned-log cleanup.
   now executed. `logs/jukebox.log` (the live rotated log) is untouched.
 - **Tracker rows fixed:** Phase C marked hardware-verified (it still claimed
   "96/96 — pending test-env run"), Phase D marked done.
+- **Proxy Basic Auth removed (user decision, post-Phase D):** the
+  `proxy_basic_user`/`proxy_basic_pass` store keys and their entire code
+  trace are gone — they existed only for the era when the music server sat
+  behind a Basic-Auth-ing reverse proxy (NPM) while exposed publicly, which
+  will not happen again. Removed: subsonic store defaults + adapter mapping,
+  the `auth=` attachment in `_api_request`, the save-route keys, the config
+  form's proxy fields, and the seed template. Existing stores that still
+  carry the keys: `update_section` ignores unknown keys, so they are inert
+  data until the next subsonic save rewrites the section. `public_base_url`
+  stays — the user still sees a use for it (absolute cover URLs / CSP host
+  allowlist, currently dormant).
 - Suite: **120 passed** (114 → 120: cast-target match tests + UUID route
   test; device-card assertions updated to the icon-only pill markup).
 

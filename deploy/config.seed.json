@@ -5,9 +5,7 @@
     "user": "jukebox",
     "password": "",
     "client": "JukeboxPi",
-    "api_version": "1.16.1",
-    "proxy_basic_user": "",
-    "proxy_basic_pass": ""
+    "api_version": "1.16.1"
   },
   "speakers": [
     {"name": "living_room", "backend": "chromecast", "options": {}, "is_default": true},

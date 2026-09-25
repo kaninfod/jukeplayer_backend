@@ -125,7 +125,7 @@ async def kiosk_config_save(section: str, request: Request):
     try:
         if section == "subsonic":
             values = {key: (form.get(key) or "") for key in
-                      ("url", "user", "client", "api_version", "proxy_basic_user", "proxy_basic_pass")}
+                      ("url", "user", "client", "api_version")}
             if form.get("password"):
                 values["password"] = form.get("password")
             store.update_section("subsonic", values)
