@@ -222,3 +222,43 @@ async def test_output_switch_unknown_speaker_is_an_error(initialized_app):
 
         resp = await client.post("/api/output/switch", json={"speaker": "ghost"})
         assert resp.json()["status"] == "error"
+
+
+def test_websocket_route_handler_is_importable():
+    """Regression: the routes rewrite dropped the websocket_status_handler
+    import — the app started fine, every HTTP route worked, but the FIRST
+    WebSocket connection raised NameError and every client was rejected
+    (500 on /ws/mediaplayer/events). The name must resolve at call time."""
+    from app.routes import mediaplayer as mp_routes
+    from app.websocket.mediaplayer_ws import websocket_status_handler
+
+    assert mp_routes.websocket_status_handler is websocket_status_handler
+
+
+def test_websocket_handshake_registers_client(monkeypatch, tmp_path):
+    """A real WebSocket handshake must be accepted and answer the
+    register_client protocol — the path every client (web, ESP32, HA) uses."""
+    import asyncio
+
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr("app.config.config.CONFIG_FILE", str(tmp_path / "config.json"))
+    from app.core import event_bus as module_bus
+    module_bus._handlers.clear()
+    asyncio.run(startup_event())
+
+    with TestClient(app) as ws_client:
+        with ws_client.websocket_connect("/ws/mediaplayer/events?detail=full") as ws:
+            ws.send_json({
+                "type": "register_client",
+                "payload": {
+                    "client_type": "home_assistant",
+                    "client_name": "Test HA",
+                    "capabilities": ["websocket_status"],
+                    "device_id": "living_room",
+                },
+            })
+            response = ws.receive_json()
+            assert response["type"] == "register_response"
+            assert response["payload"]["status"] == "success"
+            assert response["payload"]["client_id"]

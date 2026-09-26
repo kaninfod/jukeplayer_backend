@@ -17,6 +17,7 @@ import logging
 
 from app.core import Event, EventType, event_bus
 from app.core.service_container import get_service
+from app.websocket.mediaplayer_ws import websocket_status_handler
 from fastapi import APIRouter, Query, WebSocket
 from pydantic import BaseModel
 
