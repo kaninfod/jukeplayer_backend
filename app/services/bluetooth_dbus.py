@@ -167,6 +167,27 @@ class BlueZDbus:
                 self._connect_error or "BlueZ D-Bus unavailable (system bus not connected)"
             )
 
+    def _raise_if_unconnected(self) -> None:
+        if self._bus is None:
+            raise RuntimeError(
+                self._connect_error or "BlueZ D-Bus unavailable (system bus not connected)"
+            )
+
+    # --- sync bridge ----------------------------------------------------------------
+    def call(self, coro_fn: Callable[[], Any], timeout: float = 30.0) -> Any:
+        """Run a coroutine on the D-Bus loop and block for the result.
+
+        This is the one bridge between the sync facade (routes call via
+        asyncio.to_thread; some template contexts call directly) and the
+        async dbus-fast world."""
+        self.ensure()
+        fut = asyncio.run_coroutine_threadsafe(coro_fn(), self._loop)
+        try:
+            return fut.result(timeout=timeout)
+        except TimeoutError:
+            fut.cancel()
+            raise RuntimeError(f"BlueZ D-Bus call timed out after {timeout:.0f}s")
+
     def _run(self) -> None:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -175,7 +196,7 @@ class BlueZDbus:
             loop.run_until_complete(self._connect())
         except Exception as e:
             logger.error(f"[BT-dbus] connect failed: {e}")
-            self._connect_error = str(e)
+            self._connect_error = f"BlueZ D-Bus unavailable: {e}"
             self._started.set()
             return
         self._started.set()

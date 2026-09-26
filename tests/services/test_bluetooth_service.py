@@ -271,3 +271,16 @@ def test_device_path_uses_adapter():
     fake_dbus = BlueZDbus.__new__(BlueZDbus)
     fake_dbus._adapter_path = "/org/bluez/hci1"
     assert fake_dbus._device_path(BOOM_MAC) == "/org/bluez/hci1/dev_10_94_97_0F_CB_BF"
+
+
+def test_bridge_exists_and_surfaces_connect_failure():
+    """Regression: the real client shipped without the sync `call` bridge —
+    the fake satisfied the facade tests while every real call raised
+    AttributeError ('BlueZDbus' object has no attribute 'call') and no
+    client could pair, scan or toggle. The bridge must exist and surface
+    connect failures as RuntimeError (no system BlueZ on this machine)."""
+    import asyncio
+
+    client = BlueZDbus()
+    with pytest.raises(RuntimeError, match="D-Bus|BlueZ"):
+        client.call(lambda: asyncio.sleep(0), timeout=2.0)
