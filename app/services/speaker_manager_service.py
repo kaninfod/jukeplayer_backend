@@ -198,6 +198,12 @@ class SpeakerManagerService:
                 speaker.available = bool(bt_info.get("paired")) or sink is not None
                 speaker.battery = self.bluetooth_service.battery_percent(mac, bt_info.get("uuids"))
                 if not sink and bt_info.get("paired"):
+                    if getattr(speaker, "user_disconnected", False):
+                        # user handover: the speaker was deliberately handed
+                        # to another device — auto-reconnect paused until the
+                        # user presses Connect (marker persists in the store)
+                        logger.debug(f"[SpeakerManager] '{speaker.speaker_name}' in user handover — auto-reconnect paused")
+                        continue
                     logger.info(f"[SpeakerManager] '{speaker.speaker_name}' ({mac}) lost its sink — reconnecting …")
                     result = self.bluetooth_service.connect(mac)
                     if result["connected"]:
@@ -232,6 +238,8 @@ class SpeakerManagerService:
             raise ValueError(f"'{name}' has no Bluetooth audio device")
         result = await asyncio.to_thread(self.bluetooth_service.connect, mac)
         speaker.connected = result["connected"]
+        # explicit connect clears the user-handover marker (store + live flag)
+        self._set_user_disconnected(name, False)
         if not result["connected"]:
             raise ValueError(result.get("error") or "Connect failed")
         return {"name": name, "connected": True}
@@ -247,7 +255,24 @@ class SpeakerManagerService:
         mac = getattr(speaker, "bt_mac", None)
         result = await asyncio.to_thread(self.bluetooth_service.disconnect, mac)
         speaker.connected = result["connected"]
+        # user intent: this speaker was deliberately handed over — pause the
+        # watchdog auto-reconnect until the user connects again (persisted)
+        self._set_user_disconnected(name, True)
+        logger.info(f"[SpeakerManager] '{name}' disconnected by user — auto-reconnect paused (handover)")
         return {"name": name, "connected": result["connected"]}
+
+    def _set_user_disconnected(self, name: str, flag: bool) -> None:
+        """Persist the user-handover marker (speaker option) and mirror it on
+        the live Speaker object. Store writes happen only on explicit user
+        actions (disconnect/connect) — never in the 30s state pass."""
+        speaker = self.speakers.get_speaker(speaker_name=name)
+        if speaker:
+            speaker.user_disconnected = flag
+        try:
+            self.store.set_speaker_option(normalize_speaker_name(name),
+                                          "bt_user_disconnected", flag)
+        except Exception as e:
+            logger.warning(f"[SpeakerManager] could not persist handover flag for '{name}': {e}")
 
     # --- volume sync (shared with startup) --------------------------------
     async def sync_speaker_volume(self, speaker) -> None:

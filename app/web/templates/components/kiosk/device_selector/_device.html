@@ -36,6 +36,12 @@
                   title="{{ 'BT connected' if details.connected else 'BT disconnected' }}">
                 <i class="mdi mdi-bluetooth-{{ 'connect' if details.connected else 'off' }}"></i>
             </span>
+            {% if details.user_disconnected %}
+            <span class="badge text-bg-warning px-2"
+                  title="User handover: auto-reconnect paused — press Connect to take this speaker back">
+                <i class="mdi mdi-bluetooth-transfer me-1"></i>Handover
+            </span>
+            {% endif %}
             {% if details.connected and details.battery %}
             <span class="badge rounded-pill bg-light text-muted border px-2" title="Device battery">
                 <i class="mdi mdi-battery me-1"></i>{{ details.battery }}%

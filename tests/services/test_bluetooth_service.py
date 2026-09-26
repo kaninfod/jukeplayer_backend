@@ -244,27 +244,6 @@ def test_sink_for_device_via_pactl(monkeypatch):
 
 # --- startup reconnect ----------------------------------------------------------------
 
-def test_auto_connect_skips_unpaired_and_connected():
-    fake = FakeBlueZDbus(devices=[
-        boom_device(paired=False),                    # unpaired → skip
-        boom_device(connected=True, mac="AA:BB:CC:00:00:01"),  # already up → skip
-        boom_device(),                                # paired + disconnected → connect
-    ])
-    service = make_service(fake)
-    connect_calls = []
-    service.connect = lambda mac: connect_calls.append(mac) or {"connected": True}
-    service.auto_connect_trusted()
-    assert connect_calls == [BOOM_MAC]
-
-
-def test_auto_connect_tolerates_transport_failure():
-    fake = FakeBlueZDbus()
-    fake._devices = None  # forces an exception inside devices()
-    service = make_service(fake)
-    service.devices = lambda: (_ for _ in ()).throw(RuntimeError("bus down"))
-    service.auto_connect_trusted()  # must not raise
-
-
 # --- the real dbus client (no connection — pure helpers) --------------------------------
 
 def test_device_path_uses_adapter():

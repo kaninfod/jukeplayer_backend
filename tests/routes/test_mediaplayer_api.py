@@ -262,3 +262,27 @@ def test_websocket_handshake_registers_client(monkeypatch, tmp_path):
             assert response["type"] == "register_response"
             assert response["payload"]["status"] == "success"
             assert response["payload"]["client_id"]
+
+@pytest.mark.asyncio
+async def test_device_card_shows_handover_pill(initialized_app):
+    """A flagged BT speaker renders the handover pill (auto-reconnect paused)."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        _inject_speaker("living_room", default=True)
+        from app.services.speakers_service import Speaker
+        from unittest.mock import MagicMock
+        ss = _get_service("speakers_service")
+        boom = Speaker(name="boom_3", speaker_id="boom_3", mediaplayer=MagicMock(),
+                       backend="mpv", speaker_type="bluetooth")
+        boom.bt_mac = "10:94:97:0F:CB:BF"
+        boom.user_disconnected = True
+        ss._speakers["boom_3"] = boom
+
+        page = await client.get("/kiosk/devices")
+        assert page.status_code == 200
+        assert "Handover" in page.text
+        assert "bluetooth-transfer" in page.text
+
+        # unflagged speakers do not carry the pill
+        boom.user_disconnected = False
+        page = await client.get("/kiosk/devices")
+        assert "Handover" not in page.text

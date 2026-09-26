@@ -239,22 +239,3 @@ class BluetoothService:
                          f"vendor-char misreport — not a clear reading")
             return None
         return value
-
-    # --- startup reconnect -------------------------------------------------------------
-    def auto_connect_trusted(self) -> None:
-        """Best-effort startup reconnect (design decision #3): attempt connect
-        for every known device that is paired but disconnected, so a
-        powered-on Boom is picked up after a reboot."""
-        try:
-            devices = self.devices()
-        except Exception as e:
-            logger.warning(f"[BluetoothService] startup connect skipped: {e}")
-            return
-        for device in devices:
-            if device.get("paired") and not device.get("connected") and device.get("a2dp_sink"):
-                try:
-                    result = self.connect(device["mac"])
-                    if result["connected"]:
-                        logger.info(f"[BluetoothService] Auto-connected {device['name']} ({device['mac']})")
-                except Exception as e:
-                    logger.warning(f"[BluetoothService] Auto-connect failed for {device['mac']}: {e}")
