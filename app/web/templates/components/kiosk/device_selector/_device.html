@@ -32,16 +32,11 @@
             {% endif %}
 
             {% if details.bt_mac %}
-            <span class="badge rounded-pill {{ 'bg-success' if details.connected else 'bg-light text-muted border' }} px-2"
-                  title="{{ 'BT connected' if details.connected else 'BT disconnected' }}">
+            {% set bt_pill_class = 'bg-success' if details.connected else ('text-bg-warning' if details.user_disconnected else 'bg-light text-muted border') %}
+            {% set bt_pill_title = 'BT connected' if details.connected else ('Handover: auto-reconnect paused — press Connect to take this speaker back' if details.user_disconnected else 'BT disconnected') %}
+            <span class="badge rounded-pill {{ bt_pill_class }} px-2" title="{{ bt_pill_title }}">
                 <i class="mdi mdi-bluetooth-{{ 'connect' if details.connected else 'off' }}"></i>
             </span>
-            {% if details.user_disconnected %}
-            <span class="badge text-bg-warning px-2"
-                  title="User handover: auto-reconnect paused — press Connect to take this speaker back">
-                <i class="mdi mdi-bluetooth-transfer me-1"></i>Handover
-            </span>
-            {% endif %}
             {% if details.connected and details.battery %}
             <span class="badge rounded-pill bg-light text-muted border px-2" title="Device battery">
                 <i class="mdi mdi-battery me-1"></i>{{ details.battery }}%
