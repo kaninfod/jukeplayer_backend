@@ -1,183 +1,273 @@
-"""Tests for the BluetoothService (Phase C): parsers + command flows with
-stubbed subprocess output."""
+"""Tests for the BluetoothService facade over the BlueZ D-Bus layer.
+
+The facade contract (same shapes as the bluetoothctl era) is what the
+connect card, device cards, /api/bluetooth routes, and the watchdog
+consume — these tests lock it with a fake dbus layer (no real BlueZ).
+"""
+import pytest
+from unittest.mock import MagicMock
+
+from dbus_fast import Variant
+
+from app.services.bluetooth_dbus import BlueZDbus
 from app.services.bluetooth_service import (
     BluetoothService,
     is_audio_device,
     mac_from_sink_id,
-    mac_to_underscored,
-    parse_devices,
-    parse_info,
-    parse_pactl_sinks,
-    parse_scan_attributes,
     pulse_sink_for_mac,
 )
 
-def test_mac_from_sink_id():
-    assert mac_from_sink_id("pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink") == "10:94:97:0F:CB:BF"
-    assert mac_from_sink_id("pulse/alsa_output.stereo") is None
-    assert mac_from_sink_id(None) is None
-    assert mac_from_sink_id("") is None
-
-# --- parsers -----------------------------------------------------------------
-
-def test_parse_devices_dedupes_and_uppercases():
-    output = """[NEW] Device 10:94:97:0f:cb:bf BOOM 3
-[CHG] Device 10:94:97:0f:cb:bf Alias: BOOM 3
-Device 78:BD:BC:E0:55:D1 [TV] UE32J6275
-Device 10:94:97:0F:CB:BF BOOM 3"""
-    devices = parse_devices(output)
-    assert devices == [
-        {"mac": "10:94:97:0F:CB:BF", "name": "BOOM 3"},
-        {"mac": "78:BD:BC:E0:55:D1", "name": "[TV] UE32J6275"},
-    ]
+BOOM_MAC = "10:94:97:0F:CB:BF"
+BOOM_UUIDS = ["0000110b-0000-1000-8000-00805f9b34fb"]
 
 
-def test_parse_info_flags_and_a2dp_uuid():
-    output = """Device 10:94:97:0F:CB:BF (public)
-        Name: BOOM 3
-        Alias: BOOM 3
-        Paired: yes
-        Trusted: yes
-        Connected: no
-        UUID: Audio Sink                (0000110b-0000-1000-8000-00805f9b34fb)
-        UUID: A/V Remote Control Target (0000110c-0000-1000-8000-00805f9b34fb)"""
-    info = parse_info(output)
-    assert info["name"] == "BOOM 3"
-    assert info["paired"] is True
-    assert info["trusted"] is True
-    assert info["connected"] is False
-    assert info["a2dp_sink"] is True
+# --- helpers -------------------------------------------------------------------
+
+def make_service(fake_dbus):
+    svc = BluetoothService.__new__(BluetoothService)
+    svc._dbus = fake_dbus
+    svc._watchdog_state = {}
+    return svc
 
 
-def test_parse_info_defaults():
-    info = parse_info("Device AA:BB:CC:DD:EE:FF")
-    assert info == {"paired": False, "bonded": False, "trusted": False,
-                    "connected": False, "name": "", "a2dp_sink": False,
-                    "class": None, "icon": "", "audio": False, "uuids": []}
+class FakeBlueZDbus:
+    """Sync stand-in for the async BlueZDbus: the facade's bridge runs the
+    closures directly, so plain callables are enough here."""
+
+    def __init__(self, devices=None, battery=None, fail_pair=False):
+        self._devices = devices or []
+        self._battery = battery
+        self._fail_pair = fail_pair
+        self.discovery_started = False
+        self.discovery_stopped = False
+        self.connect_calls = []
+
+    def call(self, fn, timeout=30.0):
+        return fn()
+
+    # async API (sync fakes — the closures just call these)
+    def status(self):
+        return {"powered": True, "controller": "AA:BB:CC:DD:EE:FF"}
+
+    def devices(self):
+        return list(self._devices)
+
+    def device_info(self, mac):
+        for d in self._devices:
+            if d["mac"] == mac.strip().upper():
+                return dict(d)
+        return {"mac": mac.strip().upper(), "paired": False, "bonded": False,
+                "trusted": False, "connected": False, "name": "", "a2dp_sink": False,
+                "class": None, "icon": "", "uuids": [], "audio": False}
+
+    def scan_window(self, seconds):
+        self.discovery_started = True
+        self.discovery_stopped = True
+        return list(self._devices)
+
+    def pair_and_connect(self, mac):
+        if self._fail_pair:
+            return {"mac": mac, "paired": False, "trusted": False, "connected": False,
+                    "error": "Pairing rejected by the device"}
+        return {"mac": mac, "paired": True, "trusted": True, "connected": True,
+                "error": None}
+
+    def connect(self, mac):
+        target = mac.strip().upper()
+        for d in self._devices:
+            if d["mac"] == target:
+                d["connected"] = True
+                return {"mac": mac, "connected": True, "paired": d["paired"], "error": None}
+        return {"mac": mac, "connected": False, "paired": False,
+                "error": "Device not known to BlueZ"}
+
+    def disconnect(self, mac):
+        return {"mac": mac, "connected": False}
+
+    def forget(self, mac):
+        return {"mac": mac, "removed": True}
+
+    def battery(self, mac):
+        return self._battery
 
 
-def test_parse_info_class_icon_audio():
-    output = """Device 10:94:97:0F:CB:BF (public)
-        Name: BOOM 3
-        Class: 0x00240414 (2360340)
-        Icon: audio-card
-        Paired: yes"""
-    info = parse_info(output)
-    assert info["class"] == 0x240414
-    assert info["icon"] == "audio-card"
-    assert info["audio"] is True
+def boom_device(**overrides):
+    device = {"mac": BOOM_MAC, "name": "BOOM 3", "paired": True, "bonded": True,
+              "trusted": True, "connected": False, "uuids": list(BOOM_UUIDS),
+              "a2dp_sink": True, "class": 0x240404, "icon": "audio-card",
+              "audio": True}
+    device.update(overrides)
+    return device
 
 
-def test_is_audio_device():
-    # audio icon → audio
-    assert is_audio_device({"icon": "audio-card"}) is True
-    # CoD major class 4 (audio/video) → audio
-    assert is_audio_device({"class": 0x240414}) is True
-    assert is_audio_device({"class": 0x000204}) is False  # major 2 = phone
-    # unknown class/icon → not audio (may still be shown if named)
-    assert is_audio_device({}) is False
+# --- device dicts from D-Bus properties ------------------------------------------
+
+def test_device_from_ifaces_unwraps_variants():
+    """BlueZ properties arrive Variant-wrapped; the device dict must match the
+    old info() shape exactly."""
+    ifaces = {"org.bluez.Device1": {
+        "Address": Variant("s", BOOM_MAC),
+        "Alias": Variant("s", "BOOM 3"),
+        "Paired": Variant("b", True),
+        "Bonded": Variant("b", True),
+        "Trusted": Variant("b", True),
+        "Connected": Variant("b", False),
+        "UUIDs": Variant("as", BOOM_UUIDS),
+        "Icon": Variant("s", "audio-card"),
+        "Class": Variant("u", 0x240404),
+    }}
+    device = BlueZDbus._device_from_ifaces("/org/bluez/hci0/dev_X", ifaces)
+
+    assert device["mac"] == BOOM_MAC
+    assert device["name"] == "BOOM 3"
+    assert device["paired"] is True and device["bonded"] is True
+    assert device["trusted"] is True and device["connected"] is False
+    assert device["a2dp_sink"] is True
+    assert device["audio"] is True
+    # exact contract: the old info() keys
+    assert set(device.keys()) == {"mac", "name", "paired", "bonded", "trusted",
+                                  "connected", "uuids", "a2dp_sink", "class",
+                                  "icon", "audio"}
 
 
-def test_parse_scan_attributes_class_and_icon():
-    text = """[CHG] Device 10:94:97:0F:CB:BF Class: 0x00240414 (2360340)
-[CHG] Device 10:94:97:0F:CB:BF Icon: audio-card
-[NEW] Device 78:98:68:00:00:00 78-98-68-00-00-00
-[CHG] Device 78:98:68:00:00:00 RSSI: -80"""
-    attrs = parse_scan_attributes(text)
-    assert attrs["10:94:97:0F:CB:BF"] == {"class": 0x240414, "icon": "audio-card"}
-    assert attrs["78:98:68:00:00:00"] == {"class": None, "icon": ""}
+def test_is_audio_device_by_icon_and_class():
+    assert is_audio_device({"icon": "audio-card"})
+    assert is_audio_device({"icon": "", "class": 0x240404})
+    assert not is_audio_device({"icon": "phone", "class": 0x7a020c})
+    assert not is_audio_device({"icon": "", "class": None})
 
 
-def test_parse_pactl_sinks():
-    output = ("0\talsa_output.platform-3f00b840.mailbox.stereo-fallback\tmodule-alsa-card.c\ts16le 2ch 44100Hz\tSUSPENDED\n"
-              "1\tbluez_sink.10_94_97_0F_CB_BF.a2dp_sink\tmodule-bluez5-device.c\ts16le 2ch 44100Hz\tSUSPENDED")
-    sinks = parse_pactl_sinks(output)
-    assert sinks[1]["name"] == "bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
-    assert sinks[1]["state"] == "SUSPENDED"
+# --- facade: lifecycle -------------------------------------------------------------
 
-
-def test_pulse_sink_for_mac():
-    sinks = [{"index": "1", "name": "bluez_sink.10_94_97_0F_CB_BF.a2dp_sink", "state": "SUSPENDED"}]
-    assert pulse_sink_for_mac(sinks, "10:94:97:0F:CB:BF") == "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
-    assert pulse_sink_for_mac(sinks, "AA:BB:CC:DD:EE:FF") is None
-    assert mac_to_underscored("10:94:97:0f:cb:bf") == "10_94_97_0F_CB_BF"
-
-
-# --- service flows (subprocess stubbed) --------------------------------------
-
-def make_service(monkeypatch, outputs):
-    """BluetoothService with canned _run/_ctl outputs by command tuple."""
-    service = BluetoothService()
-
-    def fake_run(*args, timeout=15.0):
-        return outputs.get(args, "")
-
-    monkeypatch.setattr(BluetoothService, "_run", staticmethod(fake_run))
-    return service
-
-
-def test_devices_parses_flags(monkeypatch):
-    outputs = {
-        ("bluetoothctl", "devices"): "Device 10:94:97:0F:CB:BF BOOM 3",
-        ("bluetoothctl", "info", "10:94:97:0F:CB:BF"): "Name: BOOM 3\nPaired: yes\nTrusted: yes\nConnected: no\nUUID: Audio Sink (0000110b-0000-1000-8000-00805f9b34fb)",
-    }
-    service = make_service(monkeypatch, outputs)
+def test_devices_shape(initialized_fake=None):
+    fake = FakeBlueZDbus(devices=[boom_device()])
+    service = make_service(fake)
     devices = service.devices()
     assert len(devices) == 1
-    device = devices[0]
-    assert device["mac"] == "10:94:97:0F:CB:BF"
-    assert device["name"] == "BOOM 3"
-    assert device["paired"] is True
-    assert device["trusted"] is True
-    assert device["connected"] is False
-    assert device["a2dp_sink"] is True
+    assert devices[0]["mac"] == BOOM_MAC
+    assert devices[0]["paired"] is True
+    assert devices[0]["a2dp_sink"] is True
 
 
-def test_pair_and_connect_success(monkeypatch):
-    outputs = {
-        ("bluetoothctl", "pair", "10:94:97:0F:CB:BF"): "Attempting to pair with 10:94:97:0F:CB:BF\nPairing successful",
-        ("bluetoothctl", "trust", "10:94:97:0F:CB:BF"): "Changing 10:94:97:0F:CB:BF trust succeeded",
-        ("bluetoothctl", "connect", "10:94:97:0F:CB:BF"): "Connection successful",
-        ("bluetoothctl", "info", "10:94:97:0F:CB:BF"): "Name: BOOM 3\nPaired: yes\nTrusted: yes\nConnected: yes\nUUID: Audio Sink (0000110b-0000-1000-8000-00805f9b34fb)",
-    }
-    service = make_service(monkeypatch, outputs)
-    result = service.pair_and_connect("10:94:97:0F:CB:BF")
+def test_scan_runs_discovery_window():
+    fake = FakeBlueZDbus(devices=[boom_device()])
+    service = make_service(fake)
+    result = service.scan(seconds=0.01)
+    assert fake.discovery_started and fake.discovery_stopped
+    assert result[0]["mac"] == BOOM_MAC
+
+
+def test_pair_and_connect_success():
+    fake = FakeBlueZDbus(devices=[boom_device(connected=True, paired=True,
+                                                bonded=True, trusted=True)])
+    service = make_service(fake)
+    result = service.pair_and_connect(BOOM_MAC)
     assert result["paired"] is True
     assert result["trusted"] is True
     assert result["connected"] is True
     assert result["error"] is None
 
 
-def test_pair_failure_reports_error(monkeypatch):
-    outputs = {
-        ("bluetoothctl", "pair", "AA:BB:CC:DD:EE:FF"): "Failed to pair: org.bluez.Error.AuthenticationRejected",
-        ("bluetoothctl", "info", "AA:BB:CC:DD:EE:FF"): "Name: X\nPaired: no",
-    }
-    service = make_service(monkeypatch, outputs)
+def test_pair_failure_reports_error():
+    fake = FakeBlueZDbus()
+    fake._fail_pair = True
+    service = make_service(fake)
     result = service.pair_and_connect("AA:BB:CC:DD:EE:FF")
     assert result["paired"] is False
-    assert "Failed to pair" in result["error"]
+    assert "Pairing rejected" in result["error"]
 
 
-def test_sink_for_device(monkeypatch):
-    outputs = {
-        ("pactl", "list", "sinks", "short"):
-            "1\tbluez_sink.10_94_97_0F_CB_BF.a2dp_sink\tmodule-bluez5-device.c\ts16le 2ch 44100Hz\tSUSPENDED",
-    }
-    service = make_service(monkeypatch, outputs)
-    assert service.sink_for_device("10:94:97:0F:CB:BF") == "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
+def test_connect_reports_state():
+    fake = FakeBlueZDbus(devices=[boom_device(connected=True)])
+    service = make_service(fake)
+    result = service.connect(BOOM_MAC)
+    assert result["connected"] is True and result["error"] is None
+
+
+def test_connect_unknown_device_fails_cleanly():
+    fake = FakeBlueZDbus()
+    service = make_service(fake)
+    result = service.connect(BOOM_MAC)
+    assert result["connected"] is False
+    assert "not known" in result["error"]
+
+
+def test_forget_reports_removed():
+    fake = FakeBlueZDbus(devices=[boom_device()])
+    service = make_service(fake)
+    assert service.forget(BOOM_MAC)["removed"] is True
+
+
+# --- battery (fe61 misreport filter survives the port) ------------------------------
+
+def test_battery_reads_clear_value():
+    fake = FakeBlueZDbus(devices=[boom_device()], battery=70)
+    service = make_service(fake)
+    assert service.battery_percent(BOOM_MAC, uuids=[]) == 70
+
+
+def test_battery_fe61_misreport_is_suppressed():
+    fake = FakeBlueZDbus(devices=[boom_device()], battery=1)
+    service = make_service(fake)
+    assert service.battery_percent(BOOM_MAC,
+                                   uuids=["0000fe61-0000-1000-8000-00805f9b34fb"]) is None
+    # a device WITHOUT the fe61 vendor uuid keeps its low reading
+    assert service.battery_percent(BOOM_MAC, uuids=BOOM_UUIDS) == 1
+
+
+def test_battery_none_when_no_battery_interface():
+    fake = FakeBlueZDbus(devices=[boom_device()], battery=None)
+    service = make_service(fake)
+    assert service.battery_percent(BOOM_MAC, uuids=BOOM_UUIDS) is None
+
+
+# --- pulse layer (pactl) -------------------------------------------------------------
+
+def test_pulse_sink_for_mac_and_inverse():
+    sinks = [{"name": "bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"}]
+    assert pulse_sink_for_mac(sinks, BOOM_MAC) == "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
+    assert mac_from_sink_id("pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink") == BOOM_MAC
+    assert mac_from_sink_id("alsa_output.pci-0000_00_1f.3.analog-stereo") is None
+    assert pulse_sink_for_mac(sinks, "AA:BB:CC:DD:EE:FF") is None
+
+
+def test_sink_for_device_via_pactl(monkeypatch):
+    fake = FakeBlueZDbus()
+    service = make_service(fake)
+    monkeypatch.setattr(BluetoothService, "_pactl",
+                        staticmethod(lambda timeout=10.0:
+                                     "1\tbluez_sink.10_94_97_0F_CB_BF.a2dp_sink\tmodule\t"
+                                     "s16le 2ch 44100Hz\tSUSPENDED"))
+    assert service.sink_for_device(BOOM_MAC) == "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
     assert service.sink_for_device("AA:BB:CC:DD:EE:FF") is None
 
 
-def test_auto_connect_skips_unpaired(monkeypatch):
-    """Only paired-but-disconnected A2DP devices get a connect attempt."""
-    calls = []
-    outputs = {
-        ("bluetoothctl", "devices"): "Device 10:94:97:0F:CB:BF BOOM 3",
-        ("bluetoothctl", "info", "10:94:97:0F:CB:BF"): "Name: BOOM 3\nPaired: yes\nConnected: no\nUUID: Audio Sink (0000110b-0000-1000-8000-00805f9b34fb)",
-    }
-    service = make_service(monkeypatch, outputs)
-    monkeypatch.setattr(BluetoothService, "connect",
-                        lambda self, mac: calls.append(mac) or {"connected": True})
+# --- startup reconnect ----------------------------------------------------------------
+
+def test_auto_connect_skips_unpaired_and_connected():
+    fake = FakeBlueZDbus(devices=[
+        boom_device(paired=False),                    # unpaired → skip
+        boom_device(connected=True, mac="AA:BB:CC:00:00:01"),  # already up → skip
+        boom_device(),                                # paired + disconnected → connect
+    ])
+    service = make_service(fake)
+    connect_calls = []
+    service.connect = lambda mac: connect_calls.append(mac) or {"connected": True}
     service.auto_connect_trusted()
-    assert calls == ["10:94:97:0F:CB:BF"]
+    assert connect_calls == [BOOM_MAC]
+
+
+def test_auto_connect_tolerates_transport_failure():
+    fake = FakeBlueZDbus()
+    fake._devices = None  # forces an exception inside devices()
+    service = make_service(fake)
+    service.devices = lambda: (_ for _ in ()).throw(RuntimeError("bus down"))
+    service.auto_connect_trusted()  # must not raise
+
+
+# --- the real dbus client (no connection — pure helpers) --------------------------------
+
+def test_device_path_uses_adapter():
+    fake_dbus = BlueZDbus.__new__(BlueZDbus)
+    fake_dbus._adapter_path = "/org/bluez/hci1"
+    assert fake_dbus._device_path(BOOM_MAC) == "/org/bluez/hci1/dev_10_94_97_0F_CB_BF"

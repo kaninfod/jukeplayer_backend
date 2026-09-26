@@ -1,13 +1,14 @@
-"""Bluetooth device management + mpv output readiness (Phase C).
+"""Bluetooth device management + mpv output readiness.
 
-This module is the SINGLE home for Bluetooth/system interactions:
-- `BluetoothService` — blocking wrapper around `bluetoothctl` (system D-Bus,
-  works as the app user, no sudo) and `pactl` (PulseAudio sink discovery) for
-  the BT card. Methods block on network/radio I/O; routes call them via
-  `asyncio.to_thread`.
+Single home for Bluetooth/system interactions:
+- `BluetoothService` — the sync facade over `app.services.bluetooth_dbus.BlueZDbus`
+  (async BlueZ over D-Bus via dbus-fast, pinned to its own event-loop thread).
+  Same public API as the bluetoothctl-wrapper era — only the transport changed:
+  direct `org.bluez` calls (ObjectManager, Adapter1, Device1, Battery1, agent)
+  instead of subprocesses + regex-parsed stdout.
 - `BluetoothAudioChecker` — verifies that the sink an mpv speaker targets
-  actually exists in PulseAudio (used by the mpv playback backend; imported
-  by app/playback_backends/mpv.py via the playback_backends.bluetooth shim).
+  actually exists in PulseAudio (pactl). Sinks are PulseAudio objects, not
+  BlueZ objects — this layer is not affected by the D-Bus port.
 
 Audio-server context (see ledger): the Pi runs **PulseAudio +
 pulseaudio-module-bluetooth** — pipewire's bluez monitor never registers A2DP
@@ -21,117 +22,15 @@ import re
 import subprocess
 from typing import Any, Dict, List, Optional
 
+from app.services.bluetooth_dbus import (  # noqa: F401  (re-exports)
+    A2DP_SINK_UUID,
+    BlueZDbus,
+    is_audio_device,
+)
+
 logger = logging.getLogger(__name__)
 
-# A2DP Audio Sink service UUID (the profile we care about for speakers)
-A2DP_SINK_UUID = "0000110b-0000-1000-8000-00805f9b34fb"
-
-_MAC_RE = re.compile(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})")
-_DEVICE_LINE_RE = re.compile(r"^(?:\[NEW\]\s+)?Device\s+([0-9A-Fa-f:]{17})\s+(.+)$")
-_CONTROLLER_RE = re.compile(r"Controller\s+([0-9A-Fa-f:]{17})")
-_UUID_RE = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
-_CLASS_RE = re.compile(r"Class:\s*0x([0-9A-Fa-f]+)")
-_ICON_RE = re.compile(r"Icon:\s*(\S+)")
-
-# CoD major device class 4 == Audio/Video
-COD_MAJOR_AUDIO = 4
-
-
-def is_audio_device(info: Dict[str, Any]) -> bool:
-    """Heuristic: does this device look like an audio device? Uses the
-    bluetoothctl Icon (audio-card/…) and the Class of Device major class
-    (4 = Audio/Video). Unknown-class devices with a real name may still be
-    audio — the UI keeps those visible."""
-    icon = str(info.get("icon") or "")
-    if icon.startswith("audio"):
-        return True
-    cod = info.get("class")
-    if cod is not None:
-        return ((int(cod) >> 8) & 0x1F) == COD_MAJOR_AUDIO
-    return False
-
-
-def parse_devices(output: str) -> List[Dict[str, str]]:
-    """Parse `bluetoothctl devices` output → [{"mac", "name"}]."""
-    devices = []
-    seen = set()
-    for line in output.splitlines():
-        match = _DEVICE_LINE_RE.match(line.strip())
-        if not match:
-            continue
-        mac, name = match.group(1).upper(), match.group(2).strip()
-        if mac in seen:
-            continue
-        seen.add(mac)
-        devices.append({"mac": mac, "name": name})
-    return devices
-
-
-def parse_info(output: str) -> Dict[str, Any]:
-    """Parse `bluetoothctl info <MAC>` output → flags + name + uuids."""
-    info: Dict[str, Any] = {"paired": False, "bonded": False, "trusted": False,
-                            "connected": False, "name": "", "a2dp_sink": False,
-                            "class": None, "icon": ""}
-    uuids = []
-    for line in output.splitlines():
-        line = line.strip()
-        if line.startswith("Name:"):
-            info["name"] = line.split(":", 1)[1].strip()
-        elif line.startswith("Paired:"):
-            info["paired"] = "yes" in line
-        elif line.startswith("Trusted:"):
-            info["trusted"] = "yes" in line
-        elif line.startswith("Connected:"):
-            info["connected"] = "yes" in line
-        elif line.startswith("Bonded:"):
-            info["bonded"] = "yes" in line
-        elif line.startswith("Class:"):
-            cm = _CLASS_RE.search(line)
-            if cm:
-                info["class"] = int(cm.group(1), 16)
-        elif line.startswith("Icon:"):
-            im = _ICON_RE.search(line)
-            if im:
-                info["icon"] = im.group(1)
-        elif line.startswith("UUID:"):
-            m = _UUID_RE.search(line)
-            if m:
-                uuids.append(m.group(1).lower())
-    info["uuids"] = uuids
-    info["a2dp_sink"] = A2DP_SINK_UUID in uuids
-    info["audio"] = is_audio_device(info)
-    return info
-
-
-def parse_pactl_sinks(output: str) -> List[Dict[str, str]]:
-    """Parse `pactl list sinks short` → [{"index", "name", "state"}]."""
-    sinks = []
-    for line in output.splitlines():
-        parts = line.split("\t")
-        if len(parts) >= 5:
-            sinks.append({"index": parts[0], "name": parts[1], "state": parts[-1].strip()})
-    return sinks
-
-
-def parse_scan_attributes(text: str) -> Dict[str, Dict[str, Any]]:
-    """Collect Class/Icon attributes from a scan session's [CHG]/[NEW]
-    Device lines → {MAC: {"class": int|None, "icon": str}}."""
-    attrs: Dict[str, Dict[str, Any]] = {}
-    for line in text.splitlines():
-        line = line.strip()
-        m = re.match(r"(?:\[NEW\]\s+|\[CHG\]\s+)?Device\s+([0-9A-Fa-f:]{17})\s+(.+)$", line)
-        if not m:
-            continue
-        mac = m.group(1).upper()
-        rest = m.group(2)
-        entry = attrs.setdefault(mac, {"class": None, "icon": ""})
-        cm = _CLASS_RE.search(rest)
-        if cm:
-            entry["class"] = int(cm.group(1), 16)
-        im = _ICON_RE.search(rest)
-        if im:
-            entry["icon"] = im.group(1)
-    return attrs
+_SINK_MAC_RE = re.compile(r"bluez_sink\.([0-9A-Fa-f_]{17})\.")
 
 
 def mac_to_underscored(mac: str) -> str:
@@ -149,9 +48,6 @@ def pulse_sink_for_mac(sinks: List[Dict[str, str]], mac: str) -> Optional[str]:
     return None
 
 
-_SINK_MAC_RE = re.compile(r"bluez_sink\.([0-9A-Fa-f_]{17})\.")
-
-
 def mac_from_sink_id(sink_id: Optional[str]) -> Optional[str]:
     """Inverse of pulse_sink_for_mac: extract the device MAC (colons) from an
     mpv audio-device id like 'pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink'.
@@ -160,14 +56,6 @@ def mac_from_sink_id(sink_id: Optional[str]) -> Optional[str]:
         return None
     m = _SINK_MAC_RE.search(sink_id)
     return m.group(1).replace("_", ":").upper() if m else None
-
-
-def _first_error_line(output: str) -> str:
-    for line in output.splitlines():
-        line = line.strip()
-        if line.startswith("Failed") or "failed" in line.lower() or "error" in line.lower():
-            return line
-    return (output.strip()[:200] or "Command failed")
 
 
 class BluetoothAudioChecker:
@@ -250,187 +138,74 @@ class BluetoothAudioChecker:
 
 
 class BluetoothService:
-    """Blocking wrapper around bluetoothctl + pactl for the BT card. Callers
-    run these methods via asyncio.to_thread (they wait on network/radio I/O)."""
+    """Sync facade over the BlueZ D-Bus layer. Callers run these methods via
+    `asyncio.to_thread` (they wait on radio I/O); some template contexts call
+    them synchronously — both work: `BlueZDbus` owns a private event loop and
+    the facade blocks on futures posted to it."""
 
     SCAN_SECONDS = 12.0
     WATCHDOG_INTERVAL = 30.0
 
     def __init__(self):
+        self._dbus = BlueZDbus()
         # watchdog backoff state per MAC: {"attempts": n, "not_before": ts}
         self._watchdog_state: Dict[str, Dict[str, Any]] = {}
 
-    # --- subprocess plumbing ---------------------------------------------------
+    # --- transport over D-Bus (same shapes as the bluetoothctl era) ---------------
+    def status(self) -> Dict[str, Any]:
+        return self._dbus.call(self._dbus.status, timeout=8.0)
+
+    def info(self, mac: str) -> Dict[str, Any]:
+        return self._dbus.call(lambda: self._dbus.device_info(mac), timeout=10.0)
+
+    def devices(self, timeout: float = 10.0) -> List[Dict[str, Any]]:
+        return self._dbus.call(self._dbus.devices, timeout=timeout)
+
+    def scan(self, seconds: Optional[float] = None) -> List[Dict[str, Any]]:
+        """BR/EDR-only discovery window (SetDiscoveryFilter keeps the BLE
+        beacons out). Same result shape as the bluetoothctl era."""
+        window = float(seconds or self.SCAN_SECONDS)
+        return self._dbus.call(lambda: self._dbus.scan_window(window),
+                               timeout=window + 20.0)
+
+    def pair_and_connect(self, mac: str) -> Dict[str, Any]:
+        """The card's one-click flow: pair → trust → connect."""
+        return self._dbus.call(lambda: self._dbus.pair_and_connect(mac), timeout=90.0)
+
+    def connect(self, mac: str) -> Dict[str, Any]:
+        return self._dbus.call(lambda: self._dbus.connect(mac), timeout=30.0)
+
+    def disconnect(self, mac: str) -> Dict[str, Any]:
+        return self._dbus.call(lambda: self._dbus.disconnect(mac), timeout=20.0)
+
+    def forget(self, mac: str) -> Dict[str, Any]:
+        return self._dbus.call(lambda: self._dbus.forget(mac), timeout=15.0)
+
+    # --- pulse integration (unchanged) ----------------------------------------------
     @staticmethod
-    def _run(*args: str, timeout: float = 15.0) -> str:
+    def _pactl(timeout: float = 10.0) -> str:
         try:
             result = subprocess.run(
-                list(args),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                timeout=timeout,
-                text=True,
+                ["pactl", "list", "sinks", "short"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                timeout=timeout, text=True,
             )
             return result.stdout or ""
         except subprocess.TimeoutExpired:
-            logger.warning("Command timed out: %s", " ".join(args))
+            logger.warning("pactl timed out")
             return ""
         except FileNotFoundError:
-            logger.warning("Bluetooth tool not available: %s", args[0])
+            logger.warning("pactl not available")
             return ""
 
-    def _ctl(self, *args: str, timeout: float = 15.0) -> str:
-        return self._run("bluetoothctl", *args, timeout=timeout)
-
-    # --- adapter / devices ------------------------------------------------------
-    def status(self) -> Dict[str, Any]:
-        show = self._run("bluetoothctl", "show", timeout=5.0)
-        powered = None
-        controller = None
-        for line in show.splitlines():
-            line = line.strip()
-            m = _CONTROLLER_RE.match(line)
-            if m and controller is None:
-                controller = m.group(1).upper()
-            if line.startswith("Powered:"):
-                powered = "yes" in line
-        return {"powered": powered, "controller": controller}
-
-    def info(self, mac: str) -> Dict[str, Any]:
-        return parse_info(self._ctl("info", mac, timeout=8.0))
-
-    def devices(self, timeout: float = 8.0) -> List[Dict[str, Any]]:
-        output = self._ctl("devices", timeout=timeout)
-        devices = []
-        for entry in parse_devices(output):
-            devices.append({**entry, **self.info(entry["mac"])})
-        return devices
-
-    def scan(self, seconds: Optional[float] = None) -> List[Dict[str, Any]]:
-        """Open a scan window (keeping one bluetoothctl session alive so bluez
-        keeps discovering), restricted to BR/EDR (classic) transport so the
-        BLE-beacon junk nearby stays out of the list. Collects every device
-        seen with its flags + Class/Icon attributes."""
-        seconds = float(seconds or self.SCAN_SECONDS)
-        logger.info(f"[BT] Scan started ({seconds:.0f}s window, BR/EDR only)")
-
-        import time
-        proc = subprocess.Popen(
-            ["bluetoothctl"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        text = ""
-        try:
-            time.sleep(0.5)
-            assert proc.stdin
-            # BR/EDR-only discovery: LE beacons are not audio devices
-            proc.stdin.write("menu scan\ntransport bredr\nback\nscan on\n")
-            proc.stdin.flush()
-            time.sleep(seconds)
-            proc.stdin.write("scan off\ndevices\n")
-            proc.stdin.flush()
-            time.sleep(1.0)
-            proc.stdin.write("quit\n")
-            proc.stdin.flush()
-            try:
-                text, _ = proc.communicate(timeout=10.0)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                text = proc.communicate()[0] or ""
-        except Exception:
-            proc.kill()
-            proc.wait()
-            raise
-
-        logger.debug(f"[BT] Scan session collected {len(text.splitlines())} output lines")
-        attrs = parse_scan_attributes(text)
-        devices = []
-        seen = set()
-        for entry in parse_devices(text):
-            if entry["mac"] in seen:
-                continue
-            seen.add(entry["mac"])
-            device = {**entry, **self.info(entry["mac"])}
-            extra = attrs.get(entry["mac"], {})
-            if extra.get("class") is not None:
-                device["class"] = extra["class"]
-            if extra.get("icon"):
-                device["icon"] = extra["icon"]
-            device["audio"] = is_audio_device(device)
-            devices.append(device)
-        audio = sum(1 for d in devices if d["audio"])
-        logger.info(f"[BT] Scan finished: {len(devices)} device{'s' if len(devices) != 1 else ''} found "
-                    f"({audio} audio) in {seconds:.0f}s")
-        for d in devices:
-            logger.debug(f"[BT]   {d['mac']} name='{d.get('name', '')}' audio={d['audio']} "
-                         f"paired={d.get('paired')} connected={d.get('connected')}")
-        return devices
-
-    # --- mutations ----------------------------------------------------------------
-    def pair_and_connect(self, mac: str) -> Dict[str, Any]:
-        """The card's one-click flow: pair → trust → connect."""
-        logger.info(f"[BT] Pairing started for {mac} (bondable on → pair → trust → connect)")
-        # Ensure the adapter bonds during pairing — transparent re-pairing
-        # (bluez 5.82 kernel-side path) completes without persistent keys,
-        # leaving the pairing non-durable (found 2026-09-24, RPi).
-        self._ctl("bondable", "on", timeout=10.0)
-        result: Dict[str, Any] = {"mac": mac, "paired": False, "trusted": False,
-                                  "connected": False, "error": None}
-        pair_out = self._ctl("pair", mac, timeout=30.0)
-        result["paired"] = "Pairing successful" in pair_out or self.info(mac)["paired"]
-        if not result["paired"]:
-            result["error"] = _first_error_line(pair_out) or "Pairing failed"
-            logger.warning(f"[BT] Pairing {mac} failed: {result['error']}")
-            return result
-        logger.info(f"[BT] Pairing {mac}: paired")
-        result["trusted"] = "trust succeeded" in self._ctl("trust", mac, timeout=10.0)
-        logger.info(f"[BT] Pairing {mac}: trusted={result['trusted']}")
-        logger.info(f"[BT] Connecting {mac} …")
-        connect_out = self._ctl("connect", mac, timeout=25.0)
-        info = self.info(mac)
-        result["connected"] = info["connected"]
-        if not info["connected"]:
-            result["error"] = _first_error_line(connect_out) or "Connect failed"
-            logger.warning(f"[BT] Connect {mac} failed: {result['error']}")
-        else:
-            logger.info(f"[BT] Pairing {mac}: connected (name='{info.get('name')}')")
-        if not info["bonded"]:
-            logger.warning(f"[BT] Pairing {mac} completed WITHOUT bonding — link keys "
-                           f"will not persist across restarts (is the adapter bondable?)")
-        return result
-
-    def connect(self, mac: str) -> Dict[str, Any]:
-        logger.info(f"[BT] Connecting {mac} …")
-        connect_out = self._ctl("connect", mac, timeout=25.0)
-        info = self.info(mac)
-        if not info["connected"]:
-            error = _first_error_line(connect_out) or "Connect failed"
-            logger.warning(f"[BT] Connect {mac} failed: {error}")
-            return {"mac": mac, "connected": False, "paired": info["paired"], "error": error}
-        logger.info(f"[BT] Connected {mac} ({info.get('name')})")
-        return {"mac": mac, "connected": True, "paired": info["paired"], "error": None}
-
-    def disconnect(self, mac: str) -> Dict[str, Any]:
-        logger.info(f"[BT] Disconnecting {mac} …")
-        self._ctl("disconnect", mac, timeout=15.0)
-        connected = self.info(mac)["connected"]
-        logger.info(f"[BT] Disconnect {mac}: connected={connected}")
-        return {"mac": mac, "connected": connected}
-
-    def forget(self, mac: str) -> Dict[str, Any]:
-        logger.info(f"[BT] Forgetting {mac} …")
-        self._ctl("remove", mac, timeout=10.0)
-        removed = not self.info(mac)["paired"]
-        logger.info(f"[BT] Forget {mac}: removed={removed}")
-        return {"mac": mac, "removed": removed}
-
-    # --- pulse integration ------------------------------------------------------------
     def bluez_sinks(self) -> List[Dict[str, str]]:
-        output = self._run("pactl", "list", "sinks", "short", timeout=10.0)
-        sinks = [s for s in parse_pactl_sinks(output) if s["name"].startswith("bluez_sink.")]
+        output = self._pactl(timeout=10.0)
+        sinks = []
+        for line in output.splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 2 and parts[1].startswith("bluez_sink."):
+                sinks.append({"index": parts[0], "name": parts[1],
+                              "state": parts[-1].strip() if len(parts) >= 5 else ""})
         logger.debug(f"[BT] PulseAudio bluez sinks: {[s['name'] for s in sinks]}")
         return sinks
 
@@ -443,28 +218,29 @@ class BluetoothService:
             logger.info(f"[BT] No pulse sink for {mac} (not connected?)")
         return sink
 
+    # --- battery ------------------------------------------------------------------
     def battery_percent(self, mac: str, uuids: Optional[List[str]] = None) -> Optional[int]:
         """Battery percentage from BlueZ's Battery1 interface. Returns None
         when the device does not expose a CLEAR reading — Logitech devices
         (fe61) route their vendor battery char through BlueZ's heuristic,
         which misreports (BOOM 3 showed a bogus 1%)."""
-        dev_path = f"/org/bluez/hci0/dev_{mac_to_underscored(mac)}"
         try:
-            out = self._run("busctl", "get-property", "org.bluez", dev_path,
-                            "org.bluez.Battery1", "Percentage", timeout=6.0)
+            value = self._dbus.call(lambda: self._dbus.battery(mac), timeout=8.0)
         except Exception as e:
             logger.debug(f"[BT] Battery lookup failed for {mac}: {e}")
             return None
-        m = re.search(r"(-?\d+)", out)
-        if not m:
+        if value is None:
             return None
-        value = int(m.group(1))
-        if "0000fe61" in [u.lower() for u in (uuids or [])] and value <= 10:
+        # Prefix check: BlueZ reports full UUIDs ("0000fe61-0000-1000-..."),
+        # so a bare-string list membership never matched — the old filter
+        # silently never fired.
+        if any("0000fe61" in (u or "").lower() for u in (uuids or [])) and value <= 10:
             logger.debug(f"[BT] Battery {value}% for {mac} looks like the Logitech "
                          f"vendor-char misreport — not a clear reading")
             return None
         return value
 
+    # --- startup reconnect -------------------------------------------------------------
     def auto_connect_trusted(self) -> None:
         """Best-effort startup reconnect (design decision #3): attempt connect
         for every known device that is paired but disconnected, so a
