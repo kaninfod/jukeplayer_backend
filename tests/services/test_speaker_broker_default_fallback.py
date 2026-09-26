@@ -88,9 +88,14 @@ def test_resolve_speaker_priority_client_then_device_then_default():
     assert broker.resolve_speaker(client_id="c1") is kitchen
     # 2. device_name wins when no client context
     assert broker.resolve_speaker(device_name="kitchen") is kitchen
-    # 3. Default speaker when nothing else matches
+    # 3. Default speaker when nothing else matches (flagged default)
+    speakers_service._default_name = "living_room"
     assert broker.resolve_speaker() is living_room
-    # 4. Unknown client falls back to default
+    # 3b. Without a flag, the first configured speaker is the fallback default
+    speakers_service._default_name = None
+    assert broker.resolve_speaker() is kitchen
+    # 4. Unknown client falls back to the flagged default
+    speakers_service._default_name = "living_room"
     assert broker.resolve_speaker(client_id="ghost") is living_room
     # 5. Nothing configured -> None
     empty_broker = SpeakerBrokerService(control_clients, SpeakersService(), EventBus())

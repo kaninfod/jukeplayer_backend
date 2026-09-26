@@ -4,68 +4,79 @@ from __future__ import annotations
 import logging
 from typing import Dict, Optional
 
-from app.config import config
 from app.playback_backends.chromecast import get_chromecast_service
 from app.playback_backends.mpv import get_mpv_service
-from app.playback_backends.websocket import get_websocket_backend
 
 from app.core import PlayerStatus
 
 logger = logging.getLogger(__name__)
 
 
-def get_playback_backend_by_name(backend_name: str, device_name: str | None = None):
+def get_playback_backend_by_name(backend_name: str, device_name: str | None = None,
+                                 options: Optional[Dict] = None):
+    """Create a playback backend for a speaker. Backend-specific options come
+    from the config store's speaker entry (mpv options today; chromecast
+    options reserved)."""
     backend = (backend_name or "chromecast").strip().lower()
 
     if backend == "mpv":
         logger.info("Using MPV playback backend")
-        return get_mpv_service()
-    
-    # if backend == "streaming":
-    #     logger.info("Using WebSocket streaming playback backend")
-    #     return get_websocket_backend()
+        return get_mpv_service(device_name=device_name, options=options or {})
 
     if backend != "chromecast":
-        logger.warning("Unknown PLAYBACK_BACKEND '%s', falling back to chromecast", backend)
+        logger.warning("Unknown playback backend '%s', falling back to chromecast", backend)
 
     logger.info("Using Chromecast playback backend")
-    return get_chromecast_service(device_name or config.DEFAULT_CHROMECAST_DEVICE)
+    return get_chromecast_service(device_name, options=options or {})
 
 
 def get_playback_backend():
-    return get_playback_backend_by_name(config.PLAYBACK_BACKEND)
+    """Fallback default: the first configured speaker's backend (or chromecast)."""
+    from app.core.service_container import get_service
+    try:
+        config_service = get_service("config_service")
+        speakers = config_service.speakers()
+        if speakers:
+            return get_playback_backend_by_name(
+                speakers[0].get("backend", "chromecast"),
+                device_name=speakers[0]["name"],
+                options=speakers[0].get("options") or {})
+    except Exception as e:
+        logger.warning("Could not resolve a default backend from the store: %s", e)
+    return get_chromecast_service(None)
 
 
 def get_available_output_devices():
-    """
-    Returns a list of all available output devices (Chromecast, MPV/Bluetooth, WebSocket) for selection in UI/API.
-    Each device is a dict: {"backend": ..., "device": ..., "name": ...}
-    """
+    """Configured output devices from the config store, for selection in UI/API.
+    Each device: {"backend", "device", "name"}."""
+    from app.core.service_container import get_service
     devices = []
-    # Chromecast devices from config
-    for cc_name in (config.CHROMECAST_DEVICES or []):
-        name = cc_name.strip()
-        if name:
+    try:
+        config_service = get_service("config_service")
+        for entry in config_service.speakers():
             devices.append({
-                "backend": "chromecast",
-                "device": name,
-                "name": name
+                "backend": entry.get("backend", "chromecast"),
+                "device": entry.get("options", {}).get("device_name") or entry["name"],
+                "name": entry["name"],
+                "display": entry.get("display_name") or entry["name"],
             })
-    # MPV/Bluetooth device (if configured)
-    mpv_name = getattr(config, "MPV_DEVICE_NAME", None) or "MPV Device"
-    devices.append({
-        "backend": "mpv",
-        "device": mpv_name,
-        "name": mpv_name
-    })
-
-    # WebSocket streaming backend (always available)
-    devices.append({
-        "backend": "streaming",
-        "device": "ESP32",
-        "name": "ESP32 (Streaming)"
-    })
+    except Exception as e:
+        logger.warning("Could not read speakers from config store: %s", e)
     return devices
+
+
+def _store_options_for(device_name: Optional[str]) -> Optional[Dict]:
+    """Speaker options from the config store, for backend construction."""
+    if not device_name:
+        return None
+    from app.core.service_container import get_service
+    try:
+        for entry in get_service("config_service").speakers():
+            if entry["name"] == device_name.strip().lower():
+                return entry.get("options") or {}
+    except Exception:
+        pass
+    return None
 
 
 async def switch_playback_backend_fac(player: "MediaPlayerService", backend: str, device_name: Optional[str] = None) -> Dict:
@@ -79,7 +90,7 @@ async def switch_playback_backend_fac(player: "MediaPlayerService", backend: str
     previous_track_id = player.playlist_manager.current_track.track_id if player.playlist_manager.current_track else None
 
     target_backend = (backend or "").strip().lower()
-    if target_backend not in ("mpv", "chromecast", "streaming"):
+    if target_backend not in ("mpv", "chromecast"):
         return {
             "status": "error",
             "code": "invalid_backend",
@@ -89,14 +100,7 @@ async def switch_playback_backend_fac(player: "MediaPlayerService", backend: str
         }
 
     is_current_chromecast = "chromecast" in previous_backend_name.lower()
-    is_current_streaming = "websocket" in previous_backend_name.lower() or "streaming" in previous_backend_name.lower()
-    
-    if is_current_chromecast:
-        current_auth_backend = "chromecast"
-    elif is_current_streaming:
-        current_auth_backend = "streaming"
-    else:
-        current_auth_backend = "mpv"
+    current_auth_backend = "chromecast" if is_current_chromecast else "mpv"
 
     requested_device = (device_name or "").strip() or None
 
@@ -154,7 +158,8 @@ async def switch_playback_backend_fac(player: "MediaPlayerService", backend: str
             except Exception as dc_error:
                 logger.warning("Failed to cleanly disconnect from previous Chromecast: %s", dc_error)
 
-        new_backend = get_playback_backend_by_name(target_backend, device_name=requested_device)
+        new_backend = get_playback_backend_by_name(target_backend, device_name=requested_device,
+                                                   options=_store_options_for(requested_device))
         player.playback_backend = new_backend
         player.volume_manager.playback_backend = new_backend
 

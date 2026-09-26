@@ -1,0 +1,70 @@
+<div class="card mb-3 flex-shrink-0" id="speakers-card">
+    <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="text-muted mb-0"><i class="mdi mdi-speaker-multiple"></i> Speakers</h6>
+            <a href="/kiosk/system" class="btn btn-sm btn-outline-primary"
+               data-action="click->navigation#load">
+                <i class="mdi mdi-plus"></i> Connect a new speaker
+            </a>
+        </div>
+
+        {% if message %}
+        <div class="alert alert-success py-1 px-2 my-2 small mb-0">{{ message }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="alert alert-danger py-1 px-2 my-2 small mb-0">{{ error }}</div>
+        {% endif %}
+
+        {% if speakers %}
+        <ul class="list-group list-group-flush mb-2">
+            {% for s in speakers %}
+            {% set label = s.display_name or s.name %}
+            <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">
+                <span>
+                    <i class="mdi mdi-speaker"></i> {{ label }}
+                    {% if s.display_name %}<small class="text-muted ms-1">({{ s.name }})</small>{% endif %}
+                    {% if s.speaker_type == 'chromecast' %}
+                    <span class="badge text-bg-info ms-1"><i class="mdi mdi-cast me-1"></i>Chromecast</span>
+                    {% elif s.speaker_type == 'bluetooth' %}
+                    <span class="badge text-bg-info ms-1"><i class="mdi mdi-bluetooth"></i>Bluetooth</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary ms-1">Audio</span>
+                    {% endif %}
+                    {% if s.connected %}
+                    <span class="badge text-bg-success ms-1">Connected</span>
+                    {% elif s.available %}
+                    <span class="badge text-bg-info ms-1">Available</span>
+                    {% else %}
+                    <span class="badge text-bg-light border text-muted ms-1">Unavailable</span>
+                    {% endif %}
+                    {% if s.is_default %}<span class="badge text-bg-primary ms-1">default</span>{% endif %}
+                </span>
+                <span class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary" title="Edit display name"
+                            hx-prompt="Display name for {{ s.name }} (empty = show technical name)"
+                            hx-post="/kiosk/config/speakers/{{ s.name }}/display"
+                            hx-target="#speakers-card" hx-swap="outerHTML">
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-pencil"></i>
+                    </button>
+                    {% if not s.is_default %}
+                    <button type="button" class="btn btn-outline-secondary" title="Make default"
+                            hx-post="/kiosk/config/speakers/{{ s.name }}/default"
+                            hx-target="#speakers-card" hx-swap="outerHTML">
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-star-outline"></i>
+                    </button>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline-danger" title="Remove speaker"
+                            hx-post="/kiosk/config/speakers/{{ s.name }}/remove"
+                            hx-confirm="Remove speaker '{{ label }}'?{% if s.type == 'bluetooth' %} The Bluetooth pairing is removed too (Paired: no, Trusted: no).{% endif %}"
+                            hx-target="#speakers-card" hx-swap="outerHTML">
+                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-delete"></i>
+                    </button>
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <small class="text-muted d-block mb-2">No speakers configured yet — use "Connect a new speaker" on the System page.</small>
+        {% endif %}
+    </div>
+</div>

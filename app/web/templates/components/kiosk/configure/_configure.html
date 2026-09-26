@@ -21,173 +21,237 @@
 </div>
 {%- endmacro %}
 
+{# ESP client configurator — card styling matching /kiosk/config (one topic per
+   card). Replaces the old tabbed layout; purely presentational: the configure
+   Stimulus controller reads every [data-config-path] in the component (all
+   fields now live in the DOM at once) and merges them into the raw buffer. #}
 <div class="kiosk-component-container h-100 d-flex flex-column p-4"
      data-controller="configure"
      data-configure-client-id-value="{{ client_id }}">
-    <div class="mb-3 flex-shrink-0">
-        <h3 class="kiosk-artist mb-1"><i class="mdi mdi-cog"></i> Configure {{ client_name }}</h3>
-        <small class="text-muted">{{ client_id }}</small>
+    <div class="mb-3 flex-shrink-0 d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="kiosk-artist mb-1"><i class="mdi mdi-cog"></i> Configure {{ client_name }}</h3>
+            <small class="text-muted">{{ client_id }}</small>
+        </div>
+        <a href="/kiosk/clients" class="btn btn-sm btn-outline-secondary"
+           data-action="click->navigation#load">← Back to clients</a>
     </div>
 
-    <ul class="nav nav-tabs flex-shrink-0" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-general" type="button" role="tab">General</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-network" type="button" role="tab">Network</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-logging" type="button" role="tab">Logging</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hardware" type="button" role="tab">Hardware</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-raw" type="button" role="tab">Raw JSON</button></li>
-    </ul>
+    <div class="flex-grow-1 overflow-auto">
 
-    <div class="tab-content flex-grow-1 overflow-auto pt-3">
-
-        <!-- GENERAL -->
-        <div class="tab-pane fade show active" id="tab-general" role="tabpanel">
-            <h6 class="text-muted mt-1">Client</h6>
-            <div class="row g-3">
-                {{ field('client.type', 'Client type', config | config_get('client.type', 'esp32'), 'col-md-4', readonly=True) }}
-                {{ field('client.name', 'Client name', config | config_get('client.name'), 'col-md-4') }}
-            </div>
-            <h6 class="text-muted mt-4">Connected speaker</h6>
-            <div class="row g-3">
-                {{ field('client.device_id', 'Speaker ID', config | config_get('client.device_id'), 'col-md-4') }}
-            </div>
-            <h6 class="text-muted mt-4">Backend</h6>
-            <div class="row g-3">
-                {{ field('backend.ip', 'Backend IP', config | config_get('backend.ip'), 'col-md-4') }}
-                {{ field('backend.port', 'Port', config | config_get('backend.port', 8001), 'col-md-2', 'number') }}
-                {{ field('server.timeout_ms', 'Timeout (ms)', config | config_get('server.timeout_ms', 5000), 'col-md-3', 'number') }}
-            </div>
-            <div class="mt-3">
-                <label class="form-label small text-muted">Capabilities</label>
-                <div>{% for cap in config | config_get('capabilities', []) %}<span class="badge bg-info text-dark me-1">{{ cap }}</span>{% endfor %}</div>
+        <!-- CLIENT -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-chip"></i> Client</h6>
+                <div class="row g-3">
+                    {{ field('client.type', 'Client type', config | config_get('client.type', 'esp32'), 'col-md-4', readonly=True) }}
+                    {{ field('client.name', 'Client name', config | config_get('client.name'), 'col-md-4') }}
+                </div>
+                <div class="mt-3">
+                    <label class="form-label small text-muted">Capabilities</label>
+                    <div>{% for cap in config | config_get('capabilities', []) %}<span class="badge bg-info text-dark me-1">{{ cap }}</span>{% endfor %}</div>
+                </div>
             </div>
         </div>
 
-        <!-- NETWORK -->
-        <div class="tab-pane fade" id="tab-network" role="tabpanel">
-            <h6 class="text-muted mt-1">WiFi</h6>
-            <div class="row g-3">
-                {{ field('wifi.ssid', 'SSID', config | config_get('wifi.ssid'), 'col-md-4') }}
-                {{ field('wifi.password', 'Password', config | config_get('wifi.password'), 'col-md-4', 'password') }}
+        <!-- CONNECTED SPEAKER -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-speaker"></i> Connected speaker</h6>
+                <div class="row g-3">
+                    {{ field('client.device_id', 'Speaker ID', config | config_get('client.device_id'), 'col-md-4') }}
+                </div>
             </div>
-            <h6 class="text-muted mt-4">MQTT</h6>
-            {{ switch('mqtt.enabled', 'Enabled', config | config_get('mqtt.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('mqtt.broker', 'Broker', config | config_get('mqtt.broker')) }}
-                {{ field('mqtt.port', 'Port', config | config_get('mqtt.port', 1883), 'col-md-2', 'number') }}
-                {{ field('mqtt.user', 'User', config | config_get('mqtt.user')) }}
-                {{ field('mqtt.password', 'Password', config | config_get('mqtt.password'), 'col-md-3', 'password') }}
+        </div>
+
+        <!-- BACKEND -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-lan"></i> Backend</h6>
+                <div class="row g-3">
+                    {{ field('backend.ip', 'Backend IP', config | config_get('backend.ip'), 'col-md-4') }}
+                    {{ field('backend.port', 'Port', config | config_get('backend.port', 8001), 'col-md-2', 'number') }}
+                    {{ field('server.timeout_ms', 'Timeout (ms)', config | config_get('server.timeout_ms', 5000), 'col-md-3', 'number') }}
+                </div>
             </div>
-            <h6 class="text-muted mt-4">WebREPL</h6>
-            {{ switch('webrepl.enabled', 'Enabled', config | config_get('webrepl.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('webrepl.password', 'Password', config | config_get('webrepl.password')) }}
+        </div>
+
+        <!-- WIFI -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-wifi"></i> WiFi</h6>
+                <div class="row g-3">
+                    {{ field('wifi.ssid', 'SSID', config | config_get('wifi.ssid'), 'col-md-4') }}
+                    {{ field('wifi.password', 'Password', config | config_get('wifi.password'), 'col-md-4', 'password') }}
+                </div>
+            </div>
+        </div>
+
+        <!-- MQTT -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-broadcast"></i> MQTT</h6>
+                {{ switch('mqtt.enabled', 'Enabled', config | config_get('mqtt.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('mqtt.broker', 'Broker', config | config_get('mqtt.broker')) }}
+                    {{ field('mqtt.port', 'Port', config | config_get('mqtt.port', 1883), 'col-md-2', 'number') }}
+                    {{ field('mqtt.user', 'User', config | config_get('mqtt.user')) }}
+                    {{ field('mqtt.password', 'Password', config | config_get('mqtt.password'), 'col-md-3', 'password') }}
+                </div>
+            </div>
+        </div>
+
+        <!-- WEBREPL -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-console"></i> WebREPL</h6>
+                {{ switch('webrepl.enabled', 'Enabled', config | config_get('webrepl.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('webrepl.password', 'Password', config | config_get('webrepl.password')) }}
+                </div>
             </div>
         </div>
 
         <!-- LOGGING -->
-        <div class="tab-pane fade" id="tab-logging" role="tabpanel">
-            <h6 class="text-muted mt-1">General</h6>
-            <div class="row g-3">
-                {{ select('logging.level', 'Level', ['DEBUG', 'INFO', 'WARN', 'ERROR'], config | config_get('logging.level', 'DEBUG')) }}
-                {{ field('logging.utc_offset_s', 'UTC offset (s)', config | config_get('logging.utc_offset_s', 0), 'col-md-3', 'number') }}
-            </div>
-            <h6 class="text-muted mt-4">Console</h6>
-            {{ switch('logging.console.enabled', 'Enabled', config | config_get('logging.console.enabled', false)) }}
-            <h6 class="text-muted mt-4">Syslog</h6>
-            {{ switch('logging.syslog.enabled', 'Enabled', config | config_get('logging.syslog.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('logging.syslog.host', 'Host', config | config_get('logging.syslog.host')) }}
-                {{ field('logging.syslog.port', 'Port', config | config_get('logging.syslog.port', 514), 'col-md-2', 'number') }}
-                {{ field('logging.syslog.facility', 'Facility', config | config_get('logging.syslog.facility', 'local0'), 'col-md-2') }}
-                {{ field('logging.syslog.boot_buffer_lines', 'Boot buffer', config | config_get('logging.syslog.boot_buffer_lines', 200), 'col-md-2', 'number') }}
-            </div>
-            <div class="row g-3 mt-1">
-                {{ field('logging.syslog.hostname', 'Hostname (RFC host field)', config | config_get('logging.syslog.hostname')) }}
-                {{ field('logging.syslog.tag', 'Tag (app field)', config | config_get('logging.syslog.tag')) }}
-            </div>
-            <h6 class="text-muted mt-4">File</h6>
-            {{ switch('logging.file.enabled', 'Enabled', config | config_get('logging.file.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('logging.file.path', 'Path', config | config_get('logging.file.path', 'jukeplayer.log')) }}
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-2"><i class="mdi mdi-text-box-outline"></i> Logging</h6>
+                <div class="row g-3">
+                    {{ select('logging.level', 'Level', ['DEBUG', 'INFO', 'WARN', 'ERROR'], config | config_get('logging.level', 'DEBUG')) }}
+                    {{ field('logging.utc_offset_s', 'UTC offset (s)', config | config_get('logging.utc_offset_s', 0), 'col-md-3', 'number') }}
+                </div>
+                <h6 class="text-muted mt-3 mb-2 small">Console</h6>
+                {{ switch('logging.console.enabled', 'Enabled', config | config_get('logging.console.enabled', false)) }}
+                <h6 class="text-muted mt-3 mb-2 small">Syslog</h6>
+                {{ switch('logging.syslog.enabled', 'Enabled', config | config_get('logging.syslog.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('logging.syslog.host', 'Host', config | config_get('logging.syslog.host')) }}
+                    {{ field('logging.syslog.port', 'Port', config | config_get('logging.syslog.port', 514), 'col-md-2', 'number') }}
+                    {{ field('logging.syslog.facility', 'Facility', config | config_get('logging.syslog.facility', 'local0'), 'col-md-2') }}
+                    {{ field('logging.syslog.boot_buffer_lines', 'Boot buffer', config | config_get('logging.syslog.boot_buffer_lines', 200), 'col-md-2', 'number') }}
+                </div>
+                <div class="row g-3 mt-1">
+                    {{ field('logging.syslog.hostname', 'Hostname (RFC host field)', config | config_get('logging.syslog.hostname')) }}
+                    {{ field('logging.syslog.tag', 'Tag (app field)', config | config_get('logging.syslog.tag')) }}
+                </div>
+                <h6 class="text-muted mt-3 mb-2 small">File</h6>
+                {{ switch('logging.file.enabled', 'Enabled', config | config_get('logging.file.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('logging.file.path', 'Path', config | config_get('logging.file.path', 'jukeplayer.log')) }}
+                </div>
             </div>
         </div>
 
-        <!-- HARDWARE -->
-        <div class="tab-pane fade" id="tab-hardware" role="tabpanel">
-            <h6 class="text-muted mt-1">SPI bus</h6>
-            <div class="row g-3">
-                {{ field('hardware.spi.spi_unit', 'Unit', config | config_get('hardware.spi.spi_unit', 1), 'col-md-2', 'number') }}
-            </div>
-            <div class="row g-3 mt-1">
-                {{ field('hardware.spi.sck', 'SCK', config | config_get('hardware.spi.sck'), 'col-md-2', 'number') }}
-                {{ field('hardware.spi.mosi', 'MOSI', config | config_get('hardware.spi.mosi'), 'col-md-2', 'number') }}
-                {{ field('hardware.spi.miso', 'MISO', config | config_get('hardware.spi.miso'), 'col-md-2', 'number') }}
-            </div>
-
-            <h6 class="text-muted mt-4">Display</h6>
-            {{ switch('hardware.tft.enabled', 'Enabled', config | config_get('hardware.tft.enabled', true)) }}
-            <div class="row g-3 mt-1">
-                {{ select('hardware.tft.driver', 'Driver', ['st7735r', 'ili9488'], config | config_get('hardware.tft.driver')) }}
-                {{ field('hardware.tft.width', 'Width', config | config_get('hardware.tft.width'), 'col-md-2', 'number') }}
-                {{ field('hardware.tft.height', 'Height', config | config_get('hardware.tft.height'), 'col-md-2', 'number') }}
-                {{ field('hardware.tft.baudrate', 'Baudrate', config | config_get('hardware.tft.baudrate', 16000000), 'col-md-2', 'number') }}
-                {% if refresh_splits %}
-                {{ select('hardware.tft.refresh_split', 'Refresh split', refresh_splits, config | config_get('hardware.tft.refresh_split', 4), 'col-md-2', numeric=True) }}
-                {% else %}
-                {{ field('hardware.tft.refresh_split', 'Refresh split', config | config_get('hardware.tft.refresh_split', 4), 'col-md-2', 'number') }}
-                {% endif %}
-                {{ field('hardware.tft.backlight_idle_s', 'Backlight idle (s)', config | config_get('hardware.tft.backlight_idle_s', 0), 'col-md-2', 'number') }}
-                <div class="col-md-3 form-check form-switch mt-4 ms-2">
-                    <input class="form-check-input" type="checkbox" role="switch" id="f-hardware-tft-rot180" data-config-path="hardware.tft.rotate_180" {% if config | config_get('hardware.tft.rotate_180', false) %}checked{% endif %}>
-                    <label class="form-check-label small" for="f-hardware-tft-rot180">Rotate 180°</label>
+        <!-- SPI BUS -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-memory"></i> SPI bus</h6>
+                <div class="row g-3">
+                    {{ field('hardware.spi.spi_unit', 'Unit', config | config_get('hardware.spi.spi_unit', 1), 'col-md-2', 'number') }}
+                </div>
+                <div class="row g-3 mt-1">
+                    {{ field('hardware.spi.sck', 'SCK', config | config_get('hardware.spi.sck'), 'col-md-2', 'number') }}
+                    {{ field('hardware.spi.mosi', 'MOSI', config | config_get('hardware.spi.mosi'), 'col-md-2', 'number') }}
+                    {{ field('hardware.spi.miso', 'MISO', config | config_get('hardware.spi.miso'), 'col-md-2', 'number') }}
                 </div>
             </div>
+        </div>
 
-            <h6 class="text-muted mt-4">NFC reader</h6>
-            {{ switch('hardware.nfc_reader.enabled', 'Enabled', config | config_get('hardware.nfc_reader.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('hardware.nfc_reader.cs', 'CS', config | config_get('hardware.nfc_reader.cs'), 'col-md-2', 'number') }}
-                {{ field('hardware.nfc_reader.baudrate', 'Baudrate', config | config_get('hardware.nfc_reader.baudrate', 4000000), 'col-md-2', 'number') }}
-                {{ field('hardware.nfc_reader.irq', 'IRQ', config | config_get('hardware.nfc_reader.irq'), 'col-md-2', 'number') }}
-                {{ field('hardware.nfc_reader.reset', 'Reset', config | config_get('hardware.nfc_reader.reset'), 'col-md-2', 'number') }}
+        <!-- DISPLAY (TFT) -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-monitor"></i> Display (TFT)</h6>
+                {{ switch('hardware.tft.enabled', 'Enabled', config | config_get('hardware.tft.enabled', true)) }}
+                <div class="row g-3 mt-1">
+                    {{ select('hardware.tft.driver', 'Driver', ['st7735r', 'ili9488'], config | config_get('hardware.tft.driver')) }}
+                    {{ field('hardware.tft.width', 'Width', config | config_get('hardware.tft.width'), 'col-md-2', 'number') }}
+                    {{ field('hardware.tft.height', 'Height', config | config_get('hardware.tft.height'), 'col-md-2', 'number') }}
+                    {{ field('hardware.tft.baudrate', 'Baudrate', config | config_get('hardware.tft.baudrate', 16000000), 'col-md-2', 'number') }}
+                    {% if refresh_splits %}
+                    {{ select('hardware.tft.refresh_split', 'Refresh split', refresh_splits, config | config_get('hardware.tft.refresh_split', 4), 'col-md-2', numeric=True) }}
+                    {% else %}
+                    {{ field('hardware.tft.refresh_split', 'Refresh split', config | config_get('hardware.tft.refresh_split', 4), 'col-md-2', 'number') }}
+                    {% endif %}
+                    {{ field('hardware.tft.backlight_idle_s', 'Backlight idle (s)', config | config_get('hardware.tft.backlight_idle_s', 0), 'col-md-2', 'number') }}
+                    <div class="col-md-3 form-check form-switch mt-4 ms-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="f-hardware-tft-rot180" data-config-path="hardware.tft.rotate_180" {% if config | config_get('hardware.tft.rotate_180', false) %}checked{% endif %}>
+                        <label class="form-check-label small" for="f-hardware-tft-rot180">Rotate 180°</label>
+                    </div>
+                </div>
             </div>
+        </div>
 
-            <h6 class="text-muted mt-4">Encoder</h6>
-            {{ switch('hardware.encoder.enabled', 'Enabled', config | config_get('hardware.encoder.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('hardware.encoder.clk', 'CLK', config | config_get('hardware.encoder.clk'), 'col-md-2', 'number') }}
-                {{ field('hardware.encoder.dt', 'DT', config | config_get('hardware.encoder.dt'), 'col-md-2', 'number') }}
-                {{ field('hardware.encoder.sw', 'SW', config | config_get('hardware.encoder.sw'), 'col-md-2', 'number') }}
+        <!-- NFC READER -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-nfc-variant"></i> NFC reader</h6>
+                {{ switch('hardware.nfc_reader.enabled', 'Enabled', config | config_get('hardware.nfc_reader.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('hardware.nfc_reader.cs', 'CS', config | config_get('hardware.nfc_reader.cs'), 'col-md-2', 'number') }}
+                    {{ field('hardware.nfc_reader.baudrate', 'Baudrate', config | config_get('hardware.nfc_reader.baudrate', 4000000), 'col-md-2', 'number') }}
+                    {{ field('hardware.nfc_reader.irq', 'IRQ', config | config_get('hardware.nfc_reader.irq'), 'col-md-2', 'number') }}
+                    {{ field('hardware.nfc_reader.reset', 'Reset', config | config_get('hardware.nfc_reader.reset'), 'col-md-2', 'number') }}
+                </div>
             </div>
+        </div>
 
-            <h6 class="text-muted mt-4">Buttons</h6>
-            {{ switch('hardware.buttons.enabled', 'Enabled', config | config_get('hardware.buttons.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('hardware.buttons.debounce_ms', 'Debounce (ms)', config | config_get('hardware.buttons.debounce_ms', 100), 'col-md-2', 'number') }}
+        <!-- ROTARY ENCODER -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-adjust"></i> Encoder</h6>
+                {{ switch('hardware.encoder.enabled', 'Enabled', config | config_get('hardware.encoder.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('hardware.encoder.clk', 'CLK', config | config_get('hardware.encoder.clk'), 'col-md-2', 'number') }}
+                    {{ field('hardware.encoder.dt', 'DT', config | config_get('hardware.encoder.dt'), 'col-md-2', 'number') }}
+                    {{ field('hardware.encoder.sw', 'SW', config | config_get('hardware.encoder.sw'), 'col-md-2', 'number') }}
+                </div>
             </div>
+        </div>
 
-            <h6 class="text-muted mt-4">Watchdog</h6>
-            {{ switch('hardware.watchdog.enabled', 'Enabled', config | config_get('hardware.watchdog.enabled', false)) }}
-            <div class="row g-3 mt-1">
-                {{ field('hardware.watchdog.timeout_s', 'Timeout (s)', config | config_get('hardware.watchdog.timeout_s', 8), 'col-md-2', 'number') }}
+        <!-- BUTTONS -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-gesture-tap"></i> Buttons</h6>
+                {{ switch('hardware.buttons.enabled', 'Enabled', config | config_get('hardware.buttons.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('hardware.buttons.debounce_ms', 'Debounce (ms)', config | config_get('hardware.buttons.debounce_ms', 100), 'col-md-2', 'number') }}
+                </div>
+            </div>
+        </div>
+
+        <!-- WATCHDOG -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-3"><i class="mdi mdi-timer"></i> Watchdog</h6>
+                {{ switch('hardware.watchdog.enabled', 'Enabled', config | config_get('hardware.watchdog.enabled', false)) }}
+                <div class="row g-3 mt-1">
+                    {{ field('hardware.watchdog.timeout_s', 'Timeout (s)', config | config_get('hardware.watchdog.timeout_s', 8), 'col-md-2', 'number') }}
+                </div>
             </div>
         </div>
 
         <!-- RAW JSON -->
-        <div class="tab-pane fade" id="tab-raw" role="tabpanel">
-            <small class="text-muted d-block mb-2">Live preview of what will be sent — hand-edit here for keys not covered by the tabs. Structured edits overwrite this buffer.</small>
-            <textarea data-configure-target="raw" class="form-control font-monospace kiosk-config-raw"
-                      rows="30" spellcheck="false">{{ config_json }}</textarea>
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <h6 class="text-muted mb-2"><i class="mdi mdi-code-json"></i> Raw JSON</h6>
+                <small class="text-muted d-block mb-2">Live preview of what will be sent — hand-edit here for keys not covered by the cards above. Structured edits overwrite this buffer.</small>
+                <textarea data-configure-target="raw" class="form-control font-monospace kiosk-config-raw"
+                          rows="22" spellcheck="false">{{ config_json }}</textarea>
+            </div>
         </div>
-    </div>
 
-    <div class="d-flex gap-2 mt-3 flex-shrink-0">
-        <button type="button" class="btn btn-primary" data-action="configure#apply">
-            <i class="mdi mdi-content-save me-1"></i> Apply config
-        </button>
-        <button type="button" class="btn btn-danger" data-action="configure#apply" data-configure-reboot-param="true">
-            <i class="mdi mdi-restart me-1"></i> Apply + Reboot
-        </button>
-        <a href="/kiosk/clients" class="btn btn-outline-secondary ms-auto" data-action="click->navigation#load">← Back to clients</a>
+        <!-- APPLY -->
+        <div class="card mb-3">
+            <div class="card-body py-3 d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-sm btn-primary" data-action="configure#apply">
+                    <i class="mdi mdi-content-save me-1"></i> Apply config
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" data-action="configure#apply" data-configure-reboot-param="true">
+                    <i class="mdi mdi-restart me-1"></i> Apply + Reboot
+                </button>
+                <small class="text-muted ms-2">Sends the raw JSON buffer to the device; structured edits are already merged into it.</small>
+            </div>
+        </div>
+
     </div>
 </div>

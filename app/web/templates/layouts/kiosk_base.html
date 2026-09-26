@@ -6,7 +6,7 @@
     <script type="importmap">
       {
         "imports": {
-          "@hotwired/stimulus": "https://unpkg.com/@hotwired/stimulus/dist/stimulus.js"
+          "@hotwired/stimulus": "/static/vendor/stimulus.js"
         }
       }
     </script>
@@ -21,7 +21,7 @@
     {% block head_extra %}{% endblock %}
 </head>
 <body class="" 
-    data-controller="websocket navigation playercontrols device nowplaying" 
+    data-controller="websocket navigation playercontrols device nowplaying logging"
     data-action="
       ws:send@window->websocket#handleOutgoing
       nav:go@window->navigation#load
@@ -65,6 +65,7 @@
     <script src="/static/js/kiosk-toast.js"></script>
     <!-- load htmx early so our new template fragments can use hx- attributes
          (harmless if the old loader is still in use) -->
+    <script src="/static/vendor/htmx.min.js"></script>
 
 
 

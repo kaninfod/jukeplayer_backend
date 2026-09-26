@@ -9,7 +9,6 @@ from zeroconf import Zeroconf
 from typing import Optional, List, Dict
 import logging
 import time
-from app.config import config
 from .base import PlaybackBackend
 from pychromecast.discovery import CastBrowser, SimpleCastListener
 
@@ -22,6 +21,24 @@ def _normalize_device_name(device_name: str) -> str:
     # Split by underscore, capitalize each word, join with spaces
     return ' '.join(word.capitalize() for word in device_name.lower().split('_'))
 
+
+def _target_matches(friendly_name: str, uuid: str,
+                    target_name: Optional[str], target_uuid: Optional[str]) -> bool:
+    """Does a discovered cast match what we are looking for?
+
+    UUID match first (exact — stored in speaker options at add time for
+    robust matching), then a case/whitespace-insensitive name match.
+    The name fold is what fixes cast GROUPS: the store name 'home_group'
+    normalizes to 'Home Group' while the device reports 'Home group', and
+    the old exact string compare made playback to groups impossible.
+    """
+    if target_uuid and str(uuid) == str(target_uuid):
+        return True
+    if not target_name:
+        return False
+    fold = lambda s: " ".join(str(s).split()).casefold()
+    return fold(friendly_name) == fold(target_name)
+
 def _get_global_browser():
     global _global_zeroconf, _global_browser
     if _global_zeroconf is None:
@@ -30,6 +47,39 @@ def _get_global_browser():
         _global_browser.start_discovery()
         logger.info("Started global background Chromecast discovery")
     return _global_browser
+
+
+def discovered_names() -> set:
+    """Friendly names currently visible to the persistent discovery browser
+    (no network wait — reads the browser's service cache). Used for the
+    'available' flag on chromecast speakers."""
+    browser = _get_global_browser()
+    names = set()
+    for _uuid, cast_info in browser.services.items():
+        name = getattr(cast_info, "friendly_name", None)
+        if name:
+            names.add(name)
+    return names
+
+
+def discover_devices(timeout: Optional[float] = None) -> List[Dict]:
+    """One scan of the persistent global discovery browser (blocking, network
+    I/O — call off the event loop). Returns
+    [{"name", "model", "host", "uuid"}] for the speaker-manager picker."""
+    browser = _get_global_browser()
+    if not browser.services:
+        time.sleep(timeout or 1.0)
+    devices = []
+    for uuid, cast_info in browser.services.items():
+        if hasattr(cast_info, 'friendly_name'):
+            devices.append({
+                'name': cast_info.friendly_name,
+                'model': getattr(cast_info, 'model_name', 'Unknown'),
+                'host': str(getattr(cast_info, 'host', 'Unknown')),
+                'uuid': str(uuid),
+            })
+    logger.debug(f"Discovery scan complete: found {len(devices)} Chromecast devices")
+    return devices
 
 DEFAULT_MEDIA_RECEIVER_APP_ID = "CC1AD845"
 
@@ -190,15 +240,20 @@ class DiscoveryListener(SimpleCastListener):
 class ChromecastService(PlaybackBackend):
     """
     Simplified Chromecast service using persistent global discovery.
+    Timing values come from the config store's chromecast section.
     """
-    def __init__(self, device_name: Optional[str] = None):
+    def __init__(self, device_name: Optional[str] = None, config_view=None, options=None):
         import threading
         self.device_name = device_name
+        self.config = config_view if config_view is not None else config
+        # cast UUID from speaker options (stored at add time) — robust matching
+        # that survives rename/case quirks in friendly names
+        self.cast_uuid = str((options or {}).get("cast_uuid") or "").strip() or None
         self.cast = None
         self.mc = None
         self.status_listener = None
         self._connection_lock = threading.Lock()
-        
+
         # Start global discovery proactively
         _get_global_browser()
 
@@ -213,58 +268,7 @@ class ChromecastService(PlaybackBackend):
         # Global discovery never cleans up on individual backend teardown
         pass
 
-    def list_chromecasts(self) -> List[Dict[str, str]]:
-        """
-        Return the configured list of Chromecast devices from config.
-        No network scanning required - devices are statically configured.
-        """
-        devices = []
-        for device_name in config.CHROMECAST_DEVICES:
-            devices.append({
-                'name': device_name,
-                'model': 'Unknown',
-                'host': 'Unknown',
-                'uuid': 'Unknown'
-            })
-        logger.debug(f"Returning {len(devices)} configured Chromecast devices")
-        return devices
-    
-    def scan_network_for_devices(self, timeout: Optional[int] = None) -> List[Dict[str, str]]:
-        """
-        Scan the network for available Chromecast devices.
-        
-        This performs a full network discovery and returns actual device information
-        from the network. Useful for troubleshooting and verification.
-        
-        Args:
-            timeout: Discovery timeout in seconds (defaults to CHROMECAST_DISCOVERY_TIMEOUT from config)
-            
-        Returns:
-            List of discovered devices with full details:
-            [
-                {
-                    'name': 'Living Room',
-                    'model': 'Nest Audio',
-                    'host': '192.168.68.46',
-                    'uuid': 'uuid-string'
-                },
-                ...
-            ]
-        """
-        devices, _, _ = self._discover_chromecasts(timeout=timeout)
-        return devices
-    
-    def get_available_devices(self) -> List[str]:
-        """
-        Get list of available Chromecast device names from config.
-        Useful for UI dropdowns and device selection.
-        
-        Returns:
-            List of configured device names
-        """
-        return config.CHROMECAST_DEVICES
-
-    def _discover_chromecasts(self, timeout=None, target_name=None):
+    def _discover_chromecasts(self, timeout=None, target_name=None, target_uuid=None):
         """
         Discover Chromecasts on the network using a persistent background browser.
         Returns (devices, target_cast_info, name_to_cast_info)
@@ -289,27 +293,24 @@ class ChromecastService(PlaybackBackend):
                     'uuid': str(uuid)
                 })
                 name_to_cast_info[name] = cast_info
-                if target_name and name == target_name:
+                if (target_name or target_uuid) and _target_matches(
+                        name, str(uuid), target_name, target_uuid):
                     target_cast_info = cast_info
 
         logger.debug(f"Background discovery scan complete: found {len(devices)} Chromecast devices")
         return devices, target_cast_info, name_to_cast_info
 
-    def connect(self, device_name: Optional[str] = None, fallback: bool = False) -> bool:
+    def connect(self, device_name: Optional[str] = None) -> bool:
         """
-        Connect to a Chromecast device from the statically configured device list.
+        Connect to a Chromecast device discovered via mDNS.
 
-        Device names are normalized from config format (e.g., 'living_room')
-        to discovery format (e.g., 'Living Room').
-
-        If the target device is unavailable and fallback=True, tries fallback
-        devices. Note: fallback playback happens in a DIFFERENT room — only
-        pass fallback=True where the user explicitly asked for it.
+        Device names are normalized from store format (e.g., 'living_room')
+        to discovery format (e.g., 'Living Room'). There is intentionally NO
+        fallback: connecting to the requested speaker, or failing loudly —
+        silent wrong-room playback is a surprise.
 
         Args:
             device_name: Target device name (e.g., 'living_room', 'bedroom', 'kitchen')
-            fallback: If True, try fallback devices if target is unavailable
-                (default False — silent wrong-room playback is a surprise)
 
         Returns:
             True if connected successfully, False otherwise
@@ -317,28 +318,25 @@ class ChromecastService(PlaybackBackend):
         target_name = device_name or self.device_name
         if self.cast:
             self.disconnect()
-        
+
         logger.info(f"Attempting to connect to Chromecast: {target_name}")
-        
-        # Determine device list to try (target first, then fallbacks)
+
         devices_to_try = [target_name]
-        if fallback:
-            devices_to_try.extend(config.CHROMECAST_FALLBACK_DEVICES)
-        
-        # Try each device in order
+
+        # Try each device in order (a single target today)
         for attempt_device in devices_to_try:
             # Normalize device name for discovery (living_room -> Living Room)
             normalized_device = _normalize_device_name(attempt_device)
-            
+
             try:
                 logger.info(f"Trying to connect to {normalized_device}...")
-                # Discover only the target device on the network
-                devices, target_cast_info, _ = self._discover_chromecasts(target_name=normalized_device)
-                
+                # Discover only the target device on the network (UUID first
+                # when stored at add time, else case-insensitive name match)
+                devices, target_cast_info, _ = self._discover_chromecasts(
+                    target_name=normalized_device, target_uuid=self.cast_uuid)
+
                 if not target_cast_info:
                     logger.warning(f"Device '{normalized_device}' not found on network")
-                    if attempt_device == target_name and fallback:
-                        logger.info(f"Primary device unavailable, trying fallback devices...")
                     continue
                 
                 # Found the device, establish connection
@@ -347,7 +345,7 @@ class ChromecastService(PlaybackBackend):
                 )
                 
                 logger.info(f"Waiting for {self.cast.name} to be ready...")
-                self.cast.wait(timeout=config.CHROMECAST_WAIT_TIMEOUT)
+                self.cast.wait(timeout=self.config.CHROMECAST_WAIT_TIMEOUT)
                 if not self.cast.status:
                     raise Exception("Device status not available after connection")
                 
@@ -363,8 +361,6 @@ class ChromecastService(PlaybackBackend):
             except Exception as e:
                 logger.warning(f"Failed to connect to {attempt_device}: {e}")
                 self.disconnect()
-                if attempt_device == target_name and fallback:
-                    logger.info(f"Primary device failed, trying fallback devices...")
                 continue
         
         logger.error(f"Failed to connect to any device (tried: {', '.join(devices_to_try)})")
@@ -504,7 +500,7 @@ class ChromecastService(PlaybackBackend):
             else:
                 logger.info("Playing media without metadata")
                 self.mc.play_media(url, content_type)
-            self.mc.block_until_active(timeout=config.CHROMECAST_WAIT_TIMEOUT)
+            self.mc.block_until_active(timeout=self.config.CHROMECAST_WAIT_TIMEOUT)
             logger.info("Media started successfully")
             return True
         except Exception as e:
@@ -517,7 +513,7 @@ class ChromecastService(PlaybackBackend):
                 logger.info("Attempting fallback playback without metadata")
                 self._force_takeover_receiver_app_if_needed()
                 self.mc.play_media(url, content_type)
-                self.mc.block_until_active(timeout=config.CHROMECAST_WAIT_TIMEOUT)
+                self.mc.block_until_active(timeout=self.config.CHROMECAST_WAIT_TIMEOUT)
                 return True
             except Exception as fallback_e:
                 logger.error(f"Fallback playback also failed: {fallback_e}")
@@ -661,8 +657,15 @@ class ChromecastService(PlaybackBackend):
         await asyncio.to_thread(self.disconnect)
         self._cleanup_zeroconf()        
 
-def get_chromecast_service(device_name: Optional[str] = None) -> ChromecastService:
+def get_chromecast_service(device_name: Optional[str] = None, options: Optional[Dict] = None) -> ChromecastService:
     """Create a new ChromecastService instance for the specified device.
-    Each device gets its own independent service instance.
-    """
-    return ChromecastService(device_name or config.DEFAULT_CHROMECAST_DEVICE)
+    Each device gets its own independent service instance. options carries
+    backend-specific speaker options (cast_uuid today)."""
+    from app.core.service_container import get_service
+    from app.services.config_store import chromecast_config_view
+    try:
+        view = chromecast_config_view(get_service("config_service"))
+    except Exception:
+        from app.services.config_store import SimpleNamespace
+        view = SimpleNamespace(CHROMECAST_DISCOVERY_TIMEOUT=3, CHROMECAST_WAIT_TIMEOUT=10)
+    return ChromecastService(device_name, config_view=view, options=options)

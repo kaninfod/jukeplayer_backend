@@ -47,10 +47,20 @@ def create_event_bus(container):
     from app.core.event_bus import event_bus
     return event_bus
 
+def create_config_store(container):
+    from app.services.config_store import ConfigStoreService
+    from app.config import config
+    return ConfigStoreService(path=getattr(config, "CONFIG_FILE", None))
+
+def create_config_service(container):
+    from app.services.config_store import ConfigService
+    return ConfigService(store=container.get('config_store'), system_config=container.get('config'))
+
 def create_subsonic_service(container):
     from app.services.subsonic_service import SubsonicService
-    config = container.get('config')
-    return SubsonicService(config)
+    from app.services.config_store import SubsonicConfigAdapter
+    config_service = container.get('config_service')
+    return SubsonicService(SubsonicConfigAdapter(config_service))
 
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService
@@ -75,12 +85,22 @@ def create_control_clients_service(container):
     return control_clients_service
 
 def create_speakers_service(container):
-    
-    from app.config import config
     from app.services.speakers_service import SpeakersService
+    return SpeakersService()
 
-    speakers_service = SpeakersService()
-    return speakers_service  
+def create_speaker_manager_service(container):
+    from app.services.speaker_manager_service import SpeakerManagerService
+    return SpeakerManagerService(
+        store=container.get('config_store'),
+        config_service=container.get('config_service'),
+        speakers_service=container.get('speakers_service'),
+        broker=container.get('speaker_broker_service'),
+        bluetooth_service=container.get('bluetooth_service'),
+    )
+
+def create_bluetooth_service(container):
+    from app.services.bluetooth_service import BluetoothService
+    return BluetoothService()
 
 
 # --- Setup function ---
@@ -92,11 +112,15 @@ def setup_service_container():
     container.register_singleton('config', create_config)
     container.register_singleton('nfc_encoding_state', create_nfc_encoding_state)
     container.register_singleton('event_bus', create_event_bus)
+    container.register_singleton('config_store', create_config_store)
+    container.register_singleton('config_service', create_config_service)
     container.register_singleton('subsonic_service', create_subsonic_service)
 
     container.register_singleton('control_clients_service', create_control_clients_service)
     container.register_singleton('speakers_service', create_speakers_service)
     container.register_singleton('speaker_broker_service', create_speaker_broker_service)
+    container.register_singleton('speaker_manager', create_speaker_manager_service)
+    container.register_singleton('bluetooth_service', create_bluetooth_service)
 
     container.register_singleton('playback_service', create_playback_service)
 

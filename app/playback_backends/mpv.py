@@ -9,48 +9,71 @@ import python_mpv_jsonipc as mpv
 
 from app.config import config
 from app.playback_backends.base import PlaybackBackend
-from app.playback_backends.bluetooth import BluetoothAudioChecker
+from app.services.bluetooth_service import BluetoothAudioChecker
 
 logger = logging.getLogger(__name__)
 
 
 class MPVService(PlaybackBackend):
-    """Local playback backend powered by python-mpv-jsonipc."""
+    """Local playback backend powered by python-mpv-jsonipc.
 
-    def __init__(self):
-        self.device_name = config.MPV_DEVICE_NAME
+    All MPV settings come from a config view (per-speaker values built from the
+    config store, or the legacy env config when none is supplied)."""
+
+    def __init__(self, config_view=None):
+        self.config = config_view if config_view is not None else config
+        self.device_name = self.config.MPV_DEVICE_NAME
         self._bt_checker = BluetoothAudioChecker()
-        
-        self.player = mpv.MPV(
-            ipc_socket=config.MPV_IPC_SOCKET,
+
+        mpv_kwargs = dict(
+            ipc_socket=self.config.MPV_IPC_SOCKET,
             idle="yes",
             audio_display="no",
             force_window="no",
             really_quiet=True,
             ytdl=False,
-            log_file=config.MPV_LOG_FILE if config.MPV_LOG_FILE else None,
-            cache="yes" if config.MPV_CACHE_ENABLED else "no",
-            cache_secs=max(5, config.MPV_CACHE_SECS),
-            demuxer_max_bytes=config.MPV_DEMUXER_MAX_BYTES,
-            demuxer_max_back_bytes=config.MPV_DEMUXER_MAX_BACK_BYTES,
-            audio_buffer=max(0.2, float(config.MPV_AUDIO_BUFFER_SECONDS))
+            log_file=self.config.MPV_LOG_FILE if self.config.MPV_LOG_FILE else None,
+            cache="yes" if self.config.MPV_CACHE_ENABLED else "no",
+            cache_secs=max(5, self.config.MPV_CACHE_SECS),
+            demuxer_max_bytes=self.config.MPV_DEMUXER_MAX_BYTES,
+            demuxer_max_back_bytes=self.config.MPV_DEMUXER_MAX_BACK_BYTES,
+            audio_buffer=max(0.2, float(self.config.MPV_AUDIO_BUFFER_SECONDS)),
         )
-        
+        # Reserved for the USB-DAC output backburner item: direct ALSA output.
+        audio_device = getattr(self.config, "MPV_AUDIO_DEVICE", "") or ""
+        if audio_device:
+            mpv_kwargs["audio_device"] = audio_device
+
+        self.player = mpv.MPV(**mpv_kwargs)
+
+        # Route mpv's internal log stream into the app logger — mpv-internal
+        # errors (e.g. write failures on a dead BT sink) were invisible before
+        # (mpv ran with --log-file=None and no log handler).
+        try:
+            self.player.request_log_levels(["info", "warn", "error", "fatal"])
+
+            def _mpv_log(level, prefix, text):
+                mapping = {"fatal": logging.CRITICAL, "error": logging.ERROR,
+                           "warn": logging.WARNING, "info": logging.INFO}
+                logger.log(mapping.get(level, logging.DEBUG),
+                           f"[mpv:{self.device_name}] {level}: {text}".strip())
+
+            self.player.log_handler = _mpv_log
+        except Exception as e:
+            logger.debug(f"Could not register mpv log handler: {e}")
+
         # Explicitly unmute MPV on startup
         try:
             self.player.command("set_property", "mute", False)
             self.player.command("set_property", "volume", 50.0)
         except Exception as e:
             logger.warning(f"Failed to explicitly unset mute on startup: {e}")
-            
+
         self.player.mute = False
         self.player.volume = 50.0
 
-        if config.MPV_MSG_LEVEL:
-            self.player.msg_level = config.MPV_MSG_LEVEL
-
-        if config.MPV_EXTRA_ARGS:
-            pass # Would parse extra args if needed, but not strictly required for JSON ipc wrapper like this
+        if self.config.MPV_MSG_LEVEL:
+            self.player.msg_level = self.config.MPV_MSG_LEVEL
 
         self._playback_active = False
         self._last_track_finished_at = 0.0
@@ -166,8 +189,8 @@ class MPVService(PlaybackBackend):
             return None
 
     def ensure_connected(self) -> dict:
-
-        status = self._bt_checker.check_ready()
+        audio_device = getattr(self.config, "MPV_AUDIO_DEVICE", "") or ""
+        status = self._bt_checker.check_ready(audio_device or None)
         return {"connected": status.get("ready", False), "reconnected": False}
 
     async def get_status(self) -> Optional[dict]:
@@ -204,7 +227,8 @@ class MPVService(PlaybackBackend):
             return None
 
     def get_output_readiness(self) -> Dict:
-        return self._bt_checker.check_ready()
+        audio_device = getattr(self.config, "MPV_AUDIO_DEVICE", "") or ""
+        return self._bt_checker.check_ready(audio_device or None)
 
     async def cleanup(self):
         try:
@@ -212,8 +236,16 @@ class MPVService(PlaybackBackend):
         except Exception:
             pass
 
-def get_mpv_service(device_name: str = None) -> MPVService:
-    """Create a new MPVService instance.
-    Each instance is independent for multi-device support.
-    """
-    return MPVService()
+def get_mpv_service(device_name: str = None, options: Optional[Dict] = None) -> MPVService:
+    """Create a new MPVService instance for a speaker. Per-speaker settings
+    (device name, IPC socket, later: audio_device) come from the config store
+    via the mpv config view; shared MPV tuning comes from the mpv section."""
+    from app.core.service_container import get_service
+    from app.services.config_store import mpv_config_view
+    try:
+        config_service = get_service("config_service")
+        view = mpv_config_view(config_service, device_name, options)
+    except Exception as e:
+        logger.warning("Config store unavailable for MPV view (%s) — using env config", e)
+        view = config
+    return MPVService(config_view=view)

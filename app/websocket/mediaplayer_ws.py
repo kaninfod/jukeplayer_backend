@@ -226,7 +226,8 @@ class WebSocketConnection:
             logger.info(f"Received RFID read via WS: {rfid}")
             result = await event_bus.aemit(Event(
                 type=EventType.RFID_READ,
-                payload={"rfid": rfid, "client_id": self.client_id}
+                payload={"rfid": rfid, "album_id": payload.get("album_id"),
+                         "client_id": self.client_id}
             ))
 
         except Exception as e:

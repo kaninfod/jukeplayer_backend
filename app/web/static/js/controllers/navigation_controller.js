@@ -65,7 +65,12 @@ export default class extends Controller {
             
             // Update UI
             this.contentTarget.innerHTML = html;
-            
+
+            // Content injected outside of an htmx swap is not processed by
+            // htmx automatically — hx-* attributes (scan/pair/save buttons…)
+            // stay inert until htmx.process() runs on the new subtree.
+            if (window.htmx) window.htmx.process(this.contentTarget);
+
             // Update URL bar
             window.history.pushState({ kiosk: true }, '', url);
             

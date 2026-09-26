@@ -2,7 +2,23 @@
 
 Working log of the backend cleanup (started 2026-09-24). Batches are deployed
 and verified one at a time; new findings discovered along the way are appended
-to "New findings & tweaks" at the bottom.
+to "New findings (running list)" at the bottom.
+
+## Config & speaker management (feature branch `feature/config-management`)
+
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Dedicated RPi deployment (scripts, systemd, ops guide) | ✅ committed — RPi setup in progress by user |
+| A | JSON config store + effective-config view + /kiosk/system card | ✅ committed (dcafd79), 57/57 tests |
+| B | Live speaker manager (CC discovery picker, add/remove) | ✅ verified on RPi 2026-09-24 — scan, add (tv_lounge), store persistence, live apply; 74/74 tests |
+| C | Audio/BT card (pair/connect from the web UI) | ✅ shipped — verified on RPi hardware (clean install end-to-end); UI split + hardening rounds done |
+| D | Docs + final env trim (+ cast-group match fix) | ✅ completed — 120/120 tests; branch merge-ready |
+| — | USB-DAC output (MPV audio_device per speaker) | 🔒 backburner — schema slot reserved in Phase B |
+
+Design decisions (user-confirmed): JSON store · everything UI-managed incl.
+secrets (masked fields, 0600 file) · no env fallback (store authoritative,
+clean cutover) · speakers live-managed · no auth (LAN-only) · dedicated RPi
+as phase 0.
 
 ## Batch status
 
@@ -20,11 +36,6 @@ to "New findings & tweaks" at the bottom.
 | 6d | Web UI: volume_changed dict payload normalized (0% display bug) | ✅ Code done — pending test-env run |
 | 7 | Module name collision resolved (media_player_service package) | ✅ Code done, 46/46 tests — pending test-env run |
 | 8 | Config/ops hygiene + docs | ✅ Code done, 46/46 tests — pending test-env run |
-| 4 | Chromecast stop hardening + fallback policy | ⬜ |
-| 5 | Subsonic async hygiene + scrobble fix | ⬜ |
-| 6 | Event bus thread-safety + payload consistency | ⬜ |
-| 7 | Module name collision rename (DELETE file already removed in B3); DB work done in B3.5 | ⬜ |
-| 8 | Config/ops hygiene + docs | ⬜ |
 
 ---
 
@@ -162,10 +173,407 @@ in `services/__init__.py` that loaded the file as `_media_player_service_module`
 - `README.md`: rewritten to match reality — current env vars, run commands, architecture (speaker broker), live endpoints, client list (web/ESP32/HA only), log setup. Removed stale references (`.env.example` path, album database, `/api/display/brightness`, Pi client).
 - Suite: 46 passing; app imports clean (47 routes).
 
+## Phase B — Live speaker manager (2026-09-24)
+
+Speakers are now fully UI-managed and apply **live** — no restart for
+add/remove/default. The store stays the single source of truth; every change
+is persisted there first, then applied to the live registry, then to the
+broker. `SECTION_APPLIES["speakers"]` flipped `restart → live`.
+
+- `app/services/config_store.py`: `add_speaker()` (single-default invariant: an
+  added default clears the previous), `remove_speaker()` (promotes the first
+  remaining speaker when the default is removed), `set_default_speaker()`; all
+  normalize names and persist atomically. `effective()` speakers view now
+  carries `"applies": "live"`.
+- `app/services/speakers_service.py`: construction extracted to
+  `_build_speaker()` (shared by boot-time `initialize_speakers` and the new
+  live path); new `add_speaker(entry)`, `remove_speaker(name)` (returns the
+  removed object), `set_default_name(name)`.
+- `app/services/speaker_broker_service.py`: new `handle_speaker_removed()` —
+  clients attached to a removed speaker are re-homed to the default speaker
+  (or detached when no default remains) and get a fresh context broadcast.
+- `app/playback_backends/chromecast.py`: module-level `discover_devices()`
+  scan over the persistent global discovery browser (blocking — callers go
+  through `asyncio.to_thread`), used by the picker; the connect path is
+  untouched.
+- **New `app/services/speaker_manager_service.py`** (`speaker_manager`
+  singleton): `discover()` (maps friendly names to store format, flags
+  already-configured devices), `add_speaker()` (construct live → persist;
+  rolls the live side back if the store write fails), `remove_speaker()`
+  (stop playback → disconnect backend → drop from registry → persist →
+  re-point default → re-home clients), `set_default()`; also owns
+  `sync_speaker_volume()` / `sync_all_speaker_volumes()` (moved from
+  `main.py`), so a speaker added live gets its real device volume pulled in
+  the background.
+- `app/routes/config_api.py`: `GET/POST /api/config/speakers`,
+  `DELETE /api/config/speakers/{name}`, `PUT /api/config/speakers/{name}/default`,
+  `GET /api/config/speakers/discovered` (mDNS scan off the event loop).
+- Web UI: new `components/kiosk/config/_speakers_card.html` (replaces the
+  Phase A placeholder card) — configured list with make-default/remove
+  buttons, "Scan network" → discovered picker with `added` badges, manual add
+  (Chromecast or MPV; the `audio_device` option slot for USB-DAC stays
+  reserved). Every action htmx-swaps the card fragment
+  (`/kiosk/config/speakers/*`); errors render inside the card.
+- `app/main.py`: volume sync delegated to the manager; the no-speakers boot
+  warning now points at the working UI.
+- **Tests added:** `tests/services/test_speaker_manager.py` (14: store
+  invariants, live registry, broker re-homing incl. detach-when-empty,
+  discovery mapping) + 3 API/htmx tests (add/remove lifecycle incl. 400/404
+  paths, discovered endpoint, card fragment flow). **Suite: 74 passing.**
+- **Test-isolation bug fixed** (pre-existing from Phase A):
+  `Config.CONFIG_FILE` is a class attr resolved at import, so the tests'
+  `monkeypatch.setenv("CONFIG_FILE", …)` never reached the store and route
+  tests could write the repo's real `data/config.json` (an artifact from
+  today's runs was created and removed). All config-api tests now patch
+  `app.config.config.CONFIG_FILE` to a tmp path.
+
+Notes: scan results collapse after an add (re-scan to pick more — v1
+simplicity); MPV speakers are added manually (no discovery); the
+`options.audio_device` schema slot stays reserved for the USB-DAC backburner.
+
+## Phase B.1 — Friendly display names (2026-09-24)
+
+User request on the RPi: `living_room` should display as e.g. "Living Room
+Speaker" — a per-speaker, user-configurable label. The technical name stays
+the matching key everywhere (store, discovery matching, API paths); only
+cosmetic presentation changes.
+
+- Store schema: optional `display_name` on every speaker entry (stripped
+  free text; empty = show technical name). New
+  `set_speaker_display_name(name, value)`; `add_speaker` accepts it;
+  `load()`/`set_speakers` preserve it.
+- `Speaker` registry objects carry `display_name` (set at build, updated on
+  rename) and expose it via `to_dict()`; the device-selector card shows
+  `display_name` (technical name underneath when set);
+  `get_available_output_devices()` gained a `display` key (additive for HA).
+- `SpeakerManagerService.set_display_name()` updates store + live registry;
+  `add_speaker()` takes the label — **scan-added speakers get their friendly
+  name (e.g. "TV lounge") as display name automatically**.
+- API: `PUT /api/config/speakers/{name}/display`; `POST /api/config/speakers`
+  accepts `display_name`.
+- Speakers card: display label first, technical name in muted parens when
+  set; pencil button edits via htmx `hx-prompt` (empty prompt clears →
+  technical name); manual add form has an optional Display name field;
+  confirm-dialogs now use the display label.
+- **Tests added:** 3 manager tests (persist+register, set/clear incl. live
+  attr, unknown rejected) + 2 route tests (API set/clear/404; card shows
+  display name + edits via the HX-Prompt header). **Suite: 79 passing.**
+
+## RPi verification — Phase B (2026-09-24, user)
+
+- `scripts/upgrade_rpi.sh` delivered Phase B (earlier password/paste trouble
+  was from running things from `~` instead of the repo dir — no harm done).
+- Config page shows the speakers card; scan found the real network: the 3
+  configured speakers badged "added", plus unconfigured "TV lounge" and cast
+  group "Home group".
+- Added `tv_lounge` from the picker: card updated live, store persisted
+  (`data/config.json` shows the entry with `is_default: false`).
+
+## Phase C pre-work — BT audio feasibility on the RPi (2026-09-24 evening)
+
+User-tested on the Pi 3 before implementation. Findings, decisions:
+
+- **rfkill soft-block on boot**: `hci0` was soft-blocked (fresh Trixie image);
+  `sudo rfkill unblock bluetooth` fixed power-on/scan. → `setup_rpi.sh` should
+  unblock rfkill.
+- **Pairing flow verified**: scan/pair/trust/connect via `bluetoothctl` as the
+  pi user, no sudo, no agent issues. BOOM 3 paired+bonded+trusted. Cast-group
+  name-matching caveat captured in New findings #8.
+- **A2DP connect broken on the pipewire stack**: bluetoothd logs
+  `a2dp-sink profile connect failed: Protocol not available` — no A2DP
+  endpoints are ever registered. Verified across wireplumber's monitor, a
+  manual `spa-node-factory` monitor with `api.bluez5.enum.dbus`, and
+  `pipewire-audio` installed (pipewire 1.4.2-1+rpt3, wireplumber 0.5.8-2,
+  bluez 5.82-1.1+rpt2, kernel 6.18.50+rpt-rpi-v8). Matches the open BlueZ bug
+  family (bluez#1610/#1922 — Pi 3/arm reports; no distro fix shipped yet).
+- **Decision (user):** Phase C's BT audio layer uses **PulseAudio +
+  pulseaudio-module-bluetooth** — the docker-era stack that already served
+  this Boom speaker. mpv plays via `ao=pulse`; per-speaker `options.
+  audio_device` targets pulse sink ids (`pulse/bluez_sink.<MAC>.a2dp-sink`).
+  pipewire/wireplumber/pipewire-pulse stay installed but disabled (user
+  services). The bluetoothctl-based BT card design is unchanged.
+- **RESOLVED (executed on the RPi):** PulseAudio + pulseaudio-module-bluetooth
+  installed, pipewire/wireplumber/pipewire-pulse user services disabled,
+  bluetooth restarted → `Endpoint registered` handlers exist →
+  `bluetoothctl connect` to BOOM 3 **succeeded** (A2DP UUIDs + GATT services
+  enumerated; BT battery level available via GATT). Phase C feasibility fully
+  confirmed on hardware. `deploy/jukeplayer.service` already sets
+  `XDG_RUNTIME_DIR=/run/user/__APP_UID__`, so mpv inside the backend reaches
+  the user's pulse server.
+- **Verified sink format (2026-09-24, user-confirmed):** pulse sink
+  `bluez_sink.10_94_97_0F_CB_BF.a2dp_sink` (underscores for colons, sink
+  profile), mpv device id `pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink`.
+  The BT card's "add as speaker" flow writes exactly this id into the
+  speaker's `options.audio_device`.
+- The `pipewire-audio` meta-package was also missing from setup (now
+  installed for completeness) → add it to `setup_rpi.sh` if pipewire is ever
+  revisited.
+
+## Phase C — Audio/BT card (2026-09-24, evening)
+
+Live Bluetooth speaker management, built on the evening's verified ground
+truth: bluetoothctl lifecycle as the app user + PulseAudio as the A2DP
+endpoint provider (see "Phase C pre-work" for the pipewire regression that
+forced the stack swap).
+
+- **New `app/services/bluetooth_service.py`** (`bluetooth_service` singleton):
+  blocking wrapper around `bluetoothctl` (status/devices/info/scan/pair/
+  trust/connect/disconnect/remove — routes offload via `asyncio.to_thread`)
+  and `pactl` (sink discovery). The scan keeps one bluetoothctl session alive
+  for the window (bluez stops discovery when the starting client exits).
+  Parsers (`parse_devices`/`parse_info`/`parse_pactl_sinks`) are pure and
+  unit-tested; UUIDs are extracted from the parenthesised form bluetoothctl
+  prints. `pair_and_connect()` = the card's single click (pair → trust →
+  connect). `auto_connect_trusted()` reconnects paired A2DP devices at boot
+  (design decision #3).
+- **API** `app/routes/bluetooth_api.py`: `GET /api/bluetooth/status`,
+  `GET /api/bluetooth/scan?seconds=…`, `POST /api/bluetooth/pair|connect|
+  disconnect|forget`, `GET /api/bluetooth/sinks`. MAC-validated; blocking
+  calls in `asyncio.to_thread`.
+- **Web card** `components/kiosk/config/_bluetooth_card.html` (included on
+  the config page under the Speakers card): adapter status, scan button with
+  the pairing-mode hint, device list with per-state actions — connected:
+  Disconnect / Add-as-speaker (only when a pulse sink exists); paired:
+  Connect; unpaired (after scan): Pair. Errors render inside the card.
+  `_config_ui_context` merges the card context so the full-page include works.
+- **Add-as-speaker flow:** connected BT device → speaker entry via
+  `SpeakerManagerService.add_speaker` — backend `mpv`,
+  `options.audio_device = pulse/bluez_sink.<MAC>.a2dp_sink` (verified sink
+  format), display_name = the device's friendly name. Duplicate names are
+  rejected with the card error (existing entries: remove + re-add to rebind
+  the sink — v1).
+- `main.py` startup: background `reconnect_bluetooth()` task (paired BT
+  speakers auto-connect after a reboot).
+- `scripts/setup_rpi.sh`: swaps the audio stack — installs
+  `pulseaudio pulseaudio-module-bluetooth pulseaudio-utils` (+ `rfkill`),
+  unblocks rfkill on boot, enables `pulseaudio.service/.socket` and disables
+  the pipewire user services.
+- **Tests added:** `tests/services/test_bluetooth_service.py` (8: parsers,
+  device flags, pair success/failure, sink mapping, auto-connect gating) +
+  `tests/routes/test_bluetooth_api.py` (7: status/scan/pair validation/
+  sinks/card add-speaker incl. duplicate rejection and full-page render).
+  **Suite: 96 passing.**
+
+## Routing bug: mpv display-form device names (found 2026-09-24, RPi)
+
+While debugging the simultaneous audio stop, the journal exposed a routing
+bug: MPVService emits TRACK_FINISHED with the **display-form** device name
+(`OPENRUN PRO 2 BY SHOKZ` — uppercased, spaces) while the speakers registry
+keys are normalized store names (`openrun_pro_2_by_shokz`).
+`SpeakerBrokerService.resolve_speaker` matched exactly → miss → **fallback to
+the default speaker**: after a track ended on a live-added BT speaker,
+next_track/stop executed against the Chromecast instead ("stop(bedroom)") and
+the mpv playlist stopped instead of advancing.
+
+- Fix: `resolve_speaker` normalizes the payload device_name
+  (`normalize_speaker_name`) before the lookup — covers case, spaces and
+  underscores for every event source. Test added (display/store/mixed forms
+  all resolve to the right speaker). Suite: 104 passing.
+
+## BT hardening (2026-09-24, evening)
+
+Second audio drop (16:51, RPi): only the headphones were playing this time —
+the kernel itself killed the stalled connection (`hci0: link tx timeout` /
+`killing stalled connection a8:f5:e1:7e:08:17`, dmesg ~816–932s after boot ≈
+16:49–16:51). Same shared-chip flakiness signature as the first incident, now
+proven **single-stream** (the Boom wasn't playing). The app saw NOTHING —
+mpv ran with `--log-file=None` and no log handler, so dead-sink write
+failures were invisible.
+
+- **Consolidation (user request):** all BT/system interactions now live in
+  `app/services/bluetooth_service.py` — `BluetoothAudioChecker` moved in from
+  `playback_backends/bluetooth.py` (deleted: the shim had no importers), and
+  every bluetoothctl/pactl call logs through the module logger. Full BT code
+  audit: the only BT-touching modules are `services/bluetooth_service.py`
+  (device lifecycle + sink checks), `routes/bluetooth_api.py` (JSON API),
+  the mpv backend's checker usage, and the two config cards — all live.
+- **mpv logging gap fixed:** the mpv backend registers mpv's internal log
+  stream (`request_log_levels(info/warn/error/fatal)` + log_handler) into the
+  app logger — dead-sink write failures and demuxer errors now appear as
+  `[mpv:<name>] …` lines.
+- **Aggregated logging:** Loki (API :3100, Grafana UI :3101 on the host) —
+  both devices ship there (`{source="JUKEPLAYER", device=~"jukeplayer-rpi"}`);
+  journalctl on-device remains the source of truth for bluetoothd/dmesg.
+- **BT watchdog (Phase C hardening, 2026-09-24):** `BluetoothService.
+  watchdog_tick()` runs every 30s from `main.py` startup: for every BT-backed
+  speaker (audio_device with a bluez sink), verify the pulse sink is present;
+  reconnect paired devices whose sink vanished mid-session (the shared chip
+  drops links without app-visible errors). Per-MAC exponential backoff after
+  failed connects (30s→300s) so a powered-off speaker is not hammered; skips
+  unpaired/forgotten devices; healthy passes log nothing. Startup
+  `auto_connect_trusted` stays for immediate boot recovery. Note: after a
+  reconnect the mpv stream may still need a play/pause from the UI to resume
+  at position (the pause/play toggle re-attaches the stream — observed on the
+  RPi); automatic resume is a possible future refinement.
+- **UI split (user request, 2026-09-24):** config page = setup, devices page
+  (`/kiosk/devices`) = runtime. BT connect/disconnect moved off the speakers
+  card onto the **device card** (same pattern as the ESP-client reboot): a
+  `btspeaker` Stimulus controller toggles the connection (POST
+  `/kiosk/devices/bt-toggle`, current sink state decides the action, event
+  stopped so it does not also switch playback). The device card shows the BT
+  state badge, the MAC and the battery % from BlueZ Battery1 when the device
+  exposes it. The speakers list keeps the state badge only (the speakers-card
+  bt-connect/bt-disconnect routes were removed). The "Connect Speaker" page
+  moves to **kiosk/system** (the System menu's Info card, renamed). Suite:
+  115 passing.
+- **Clean install verified end-to-end (2026-09-24, ~18:30):** fresh Trixie image
+  → clone → `setup_rpi.sh` → config-store restore → service start → both BT
+  speakers paired via the card, both playing. Persistence was NOT broken:
+  "pairings missing from disk" was a verification illusion — `/var/lib/
+  bluetooth` is root:root 0700 and the check `ls` commands ran as `pi` with
+  stderr swallowed, hiding "Permission denied". With sudo, both device dirs
+  (Boom + headphones, with link keys) are present and written at pairing/
+  reconnect time. BlueZ's `info`/`settings` files also get rewritten across
+  bluetoothd restarts (observed mtimes changed at the restart) — the pairing
+  store works.
+- **Boom battery quirk:** BlueZ Battery1 reports 1% for the BOOM 3 (its phone
+  app shows no battery at all — vendor characteristic misreports through the
+  standard BAS mapping). The OpenRun Pros report correctly (70%). Battery is
+  displayed as-reported; a quirk filter can be added later if it matters.
+- **Scan UX note (user, works as designed):** devices with a speaker entry
+  are hidden from the BT card behind the "managed in the Speakers card" note
+  — possible refinement: list the managed device names in that note.
+- Known follow-ups: USB BT dongle trial (ASUS USB-BT500 ordered — onboard
+  BCM43430 dropped links three times tonight, including single-stream; dmesg:
+  `killing stalled connection` / `Opcode 0x0c03 failed: -110`), Wi-Fi
+  power-save off as a coexistence mitigation, watchdog auto-resume
+  (reconnect works; playback still needs one play/pause tap after a drop).
+
+## Phase D — docs, env trim, cast-group match fix (2026-09-24, night)
+
+Closes the `feature/config-management` branch. Scope confirmed with the user:
+docs completion + final env trim + running-list item 8 folded in (the last
+known code bug) + orphaned-log cleanup.
+
+- **UI refinement (user spec, `7fbbe69`):** the BT state pill on device cards
+  is icon-only (green bluetooth-connect / grey bluetooth-off, no text); the
+  battery pill requires **connected AND a clear reading** (hidden otherwise —
+  the Boom's vendor-misreported 1% is already suppressed at the source); the
+  MAC renders in small font under the pill group (was only in a data
+  attribute). The connect-speaker form no longer embeds on `/kiosk/system`
+  (it was included twice there — above the menu and at the bottom of the menu
+  partial, duplicating `/kiosk/system/connect`); the form lives only on its
+  own page, reached from the Connect Speaker menu card.
+- **Cast-group match fix (running-list item 8):** the connect path compared
+  the normalized store name against the device's friendly name EXACTLY, so
+  cast groups ("Home group" vs store-normalized "Home Group") never matched
+  and playback to them always failed with "not found on network". Now:
+  `_target_matches()` — UUID-first (stored in speaker options at add time),
+  then a case/whitespace-insensitive name fold. Plumbing: speaker `options`
+  reach the chromecast backend via the factory (the mpv path already had
+  this); `add-cc` stores the discovered cast UUID in `options.cast_uuid`
+  (card hx-vals + route). Existing pre-Phase D entries keep working via the
+  name fold. Tests: `tests/playback_backends/test_chromecast_target_match.py`
+  (matching semantics, options extraction, connect pass-through) + a route
+  test for UUID storage; the old connect test's discovery monkeypatch
+  signature updated.
+- **Env trim:** `app/config.py` was already bootstrap-only (9 keys, all
+  verified in use); the deployment surface wasn't. `docker-compose.yml` lost
+  17 dead env lines (SERVER_HOST/SERVER_PORT — read by nobody, the Dockerfile
+  hardcodes host/port; SUBSONIC_*×6; PLAYBACK_BACKEND/PLAYBACK_DEVICES;
+  CHROMECAST_DEVICES/DEFAULT_CHROMECAST_DEVICE/discovery+wait timeouts;
+  HTTP_REQUEST_TIMEOUT; CORS_ALLOW_ORIGINS; ENABLE_HTTPS_REDIRECT;
+  PUBLIC_BASE_URL — all store-owned since the Phase A cutover). It keeps the
+  container runtime plumbing (PULSE_SERVER/PULSE_COOKIE/TZ) + bootstrap keys.
+  `deploy/env.rpi.example` rewritten to the final bootstrap-only form
+  (fulfils its own Phase-0-era promise). The env surface is documented as a
+  table in `docs/OPERATIONS.md` with a trim instruction for existing installs.
+- **Docs:** `docs/OPERATIONS.md` — web UI flow updated to the three-surface
+  split (config = setup, system/connect = add, devices = runtime), watchdog
+  + managed-names note, **Environment (bootstrap keys)** section, **BT500
+  dongle swap** procedure (ready for the hardware follow-up), new
+  troubleshooting entries (chip wedge dmesg signature, cast-group replay),
+  roadmap closed. `README.md` — setup section rewritten (the referenced
+  `.env_dev.example` no longer exists; bootstrap-only env + store-managed
+  config), features + speaker-management surfaces added.
+- **Housekeeping:** the orphaned 43MB root `jukebox.log` deleted
+  (`tmp_mpv.log` was already gone); the ledger's "safe to delete" note is
+  now executed. `logs/jukebox.log` (the live rotated log) is untouched.
+- **Tracker rows fixed:** Phase C marked hardware-verified (it still claimed
+  "96/96 — pending test-env run"), Phase D marked done.
+- **Proxy Basic Auth removed (user decision, post-Phase D):** the
+  `proxy_basic_user`/`proxy_basic_pass` store keys and their entire code
+  trace are gone — they existed only for the era when the music server sat
+  behind a Basic-Auth-ing reverse proxy (NPM) while exposed publicly, which
+  will not happen again. Removed: subsonic store defaults + adapter mapping,
+  the `auth=` attachment in `_api_request`, the save-route keys, the config
+  form's proxy fields, and the seed template. Existing stores that still
+  carry the keys: `update_section` ignores unknown keys, so they are inert
+  data until the next subsonic save rewrites the section. `public_base_url`
+  stays — the user still sees a use for it (absolute cover URLs / CSP host
+  allowlist, currently dormant).
+- **Legacy websocket playback backend deleted (user decision, post-Phase D):**
+  `app/playback_backends/websocket.py` (a 194-line placeholder from an early
+  experiment — "future phases will add actual binary audio streaming" never
+  happened; ESP32 clients use the HTTP API, audio goes out via chromecast/
+  mpv). Removed with its whole trace: the unused `get_websocket_backend`
+  import in the factory and the unreachable `"streaming"` branches in
+  `switch_playback_backend_fac` (the store only ever carries chromecast/mpv
+  backends — `KNOWN_BACKENDS` — and nothing referenced the class). The
+  realtime channel in `app/websocket/` is unrelated and untouched.
+- Suite: **120 passed** (114 → 120: cast-target match tests + UUID route
+  test; device-card assertions updated to the icon-only pill markup).
+
+## API modernization — per-speaker HTTP surface (2026-09-26, review round)
+
+Full review of `/api/output/*` + `/api/mediaplayer/*` with the consumer map
+verified across the ecosystem: the web UI makes **zero** `/api` calls
+(server-rendered + WS), the ESP32 client is **WebSocket-only**, and the HA
+integration is the only HTTP consumer. The single-player-era surface was
+broken in both directions: 10 transport endpoints could never report failure
+(broker handlers returned nothing → routes read `[None]` truthiness → always
+"success"), while `volume_mute` and `toggle_repeat_album` could never report
+success (they expected handler results the broker never returned).
+
+- **`/api/output` cleanup (user-confirmed):** deleted `/status`, `/devices`,
+  `/options` — single-player fossils. `/speakers` (kept) now carries
+  `"default_speaker"`. `/control_clients` kept (troubleshooting view).
+  `/switch` kept as a test convenience but re-pointed at the modern path:
+  body `{"speaker", "client_id"?}` — with a client_id it assigns that client
+  via ASSIGN_SPEAKER (the same broker path as the WS switch_device);
+  without one it makes the speaker the system default (`set_default`).
+  The old re-point-the-default-player's-backend machinery left the HTTP
+  surface.
+- **`/api/mediaplayer/*`: routing context + one envelope.** Every transport
+  endpoint accepts optional `client_id` and `speaker` query params → the
+  event payload carries them → `resolve_speaker` (client → speaker →
+  default). Default-speaker fallback stays for manual/scripted calls.
+  New shared `ActionResult` response model (pydantic: status/message/
+  speaker/volume/muted/repeat_album) — the OpenAPI schema now documents one
+  real contract. One `_run_action` helper instead of 11 hand-rolled route
+  bodies; module-level `app.core` imports (no more inline re-imports);
+  `play_track` unified to query params. `/status` now honours
+  `client_id`/`speaker` too (unchanged response shape — HA contract).
+- **Broker: structured results.** `_execute_media_action` returns
+  `{"ok", "speaker", "volume", "muted", "repeat_album", "message"}` built
+  from a post-action `get_context()` snapshot — no more implicit-None
+  results; custom actions can fail the action (`{"ok": False}` merges
+  through). All `handle_*` methods now `return` their result (the original
+  truthiness bug: `aemit` collected `[None]`). `handle_next_track` honours
+  the payload's `force` flag (previously dropped) and reports
+  "End of playlist" as a success-with-message. `handle_assign_speaker`
+  returns structured results; `load_rfid` returns them too (RFID_READ)
+  and the WS `play_rfid` handler passes `album_id` through (was dropped —
+  though the ESP32 reads the album_id off the card and sends `play_album`,
+  so the whole rfid path is legacy; the HTTP `/play_album_from_rfid` route
+  was removed with this round).
+- **Play album routing note:** `handle_play_album` resolves the speaker via
+  the routing context and loads the album into that player; the envelope
+  reports `{"ok": False}` when Subsonic can't load the album.
+- Tests: new `tests/routes/test_mediaplayer_api.py` (uniform envelope,
+  client_id/speaker/default targeting priority, end-of-playlist message,
+  resolution failure, deleted endpoints 404, `/speakers` default field,
+  `/switch` both modes). Suite: **133 passed**.
+- HA compatibility: the integration's `get_default_speaker` moves to
+  `/api/output/speakers` (with a fallback to the deleted `/options` for
+  backends not yet updated) in a co-released HA branch; its dead
+  `get_output_status` method is removed.
+
 ## Final state notes
 
-- Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.
-- For the RPi deployment: rebuild the image (requirements changed), and note `ENABLE_DOCS` now defaults to false in compose.
+- ~~Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.~~
+  Done in Phase D: `jukebox.log` deleted, `tmp_mpv.log` was already gone.
+- For the RPi deployment: rebuild the image (requirements changed), and note `ENABLE_DOCS` now defaults to false in compose. The RPi `.env` should be trimmed to the bootstrap set (see `deploy/env.rpi.example` + OPERATIONS "Environment").
 - Test-env config still has `LOG_LEVEL=DEBUG` — consider INFO now that debug logging is opt-in.
 
 ## Test-env verification (Batch 1) — 2026-09-24
@@ -193,3 +601,4 @@ in `services/__init__.py` that loaded the file as `_media_player_service_module`
 5. ~~NOTIFICATION events go nowhere~~ — **resolved**: events removed entirely (Batch 3.5).
 6. ~~NFC-encode flow never persists an rfid→album mapping~~ — **moot**: DB removed (Batch 3.5); cards are self-describing.
 7. Startup eagerly connects to all Chromecasts + spawns MPV just to sync default volume 50 (`VolumeManager.__init__` → `sync_volume_from_backend`) — slow startup + log noise; candidate deferral in Batch 6.
+8. ~~**Cast groups don't match by name** (found on RPi 2026-09-24): discovery surfaces cast GROUPS (e.g. "Home group"), but the connect path normalizes the store name `home_group` → `"Home Group"` while the device reports `"Home group"` — and the match is an exact string compare, so playback to such a speaker fails with "Device 'Home Group' not found on network". Exact-title-case names (Living Room, Bedroom, …) match fine. Fix plan: make the target match case/whitespace-insensitive (and consider storing the cast UUID in speaker options at add time for robust matching). Until then, adding a group works as a config entry but playback to it will not connect.~~ — **resolved** (Phase D): `_target_matches()` matches UUID-first (stored in `options.cast_uuid` at add time) with a case/whitespace-insensitive name fold; speaker options now reach the chromecast backend through the factory.
