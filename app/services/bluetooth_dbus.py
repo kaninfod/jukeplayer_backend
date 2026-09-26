@@ -227,7 +227,7 @@ class BlueZDbus:
             body=[AGENT_PATH], signature="o",
         ), timeout=10.0)
         self._agent_registered = True
-        objects = await self._managed_objects()
+        objects = await self._get_managed_objects()
         self._resolve_adapter(objects)
         logger.info(f"[BT-dbus] connected to org.bluez (adapter: {self._adapter_path})")
 
