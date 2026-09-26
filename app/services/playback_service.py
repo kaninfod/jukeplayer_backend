@@ -106,11 +106,12 @@ class PlaybackService:
             logger.error(f"Failed to load album_id {album_id} (start_track_index={start_track_index}): {e}")
             return False
 
-    async def load_rfid(self, event: Event) -> bool:
+    async def load_rfid(self, event: Event) -> dict:
         """Handle RFID_READ events: play the album carried on the card.
 
         Cards are self-describing — the client reads album_id from the card
-        and sends it in the event. There is no backend rfid→album database."""
+        and sends it in the event. There is no backend rfid→album database.
+        Returns the structured result the HTTP/WS layers wrap."""
         from app.core.service_container import get_service
 
         rfid = event.payload.get('rfid')
@@ -120,15 +121,17 @@ class PlaybackService:
 
         if not album_id:
             logger.warning(f"RFID {rfid} carries no album_id (unencoded card?) — ignoring")
-            return False
+            return {"ok": False, "error": f"Card {rfid} carries no album_id (unencoded card?)"}
 
         speaker = get_service("speaker_broker_service").resolve_speaker(client_id=client_id)
         player = speaker.mediaplayer if speaker else None
         if player is None:
             logger.error("RFID_READ received but no player available to load album into")
-            return False
+            return {"ok": False, "error": "No player available to load the album into"}
 
         logger.info(f"Loading album_id {album_id} from RFID {rfid} into {player.device_name}...")
-        await self.load_from_album_id(album_id, player=player)
-        return True
+        loaded = await self.load_from_album_id(album_id, player=player)
+        if not loaded:
+            return {"ok": False, "error": f"Could not load album '{album_id}' from card"}
+        return {"ok": True, "message": f"Album '{album_id}' loaded from card"}
 

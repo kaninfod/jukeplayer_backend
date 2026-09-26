@@ -1,157 +1,73 @@
+"""Output/speaker introspection + assignment API.
 
+- /api/output/speakers: full live picture (registry state + clients) plus the
+  configured default speaker — the troubleshooting view.
+- /api/output/control_clients: the registered control clients.
+- /api/output/switch: testing convenience — assign a client to a speaker
+  (same path as the WS switch_device), or with no client_id, make the
+  speaker the system default.
+
+Removed with the per-speaker era (single-player fossils): /status,
+/devices, /options — /api/output/speakers is the full picture now, and
+speaker switching happens through the broker (ASSIGN_SPEAKER), not by
+re-pointing the one default player's backend.
+"""
 from typing import Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.config import config
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/output", tags=["output"])
 
 
-class OutputSwitchRequest(BaseModel):
-    backend: str
-    device_name: Optional[str] = None
+class SwitchRequest(BaseModel):
+    """Assign a client to a speaker; without client_id, make the speaker the
+    system default (the test-friendly "switch" from the single-player era)."""
+    speaker: str
+    client_id: Optional[str] = None
 
 
-def _backend_key(backend) -> str:
-    if backend is None:
-        return "unknown"
-    name = type(backend).__name__.lower()
-    if "mpv" in name:
-        return "mpv"
-    if "chromecast" in name:
-        return "chromecast"
-    return name
-
-
-@router.get("/options")
-def output_options():
-    from app.core.service_container import get_service
-    speakers = get_service("config_service").speakers()
-    default = next((s["name"] for s in speakers if s.get("is_default")), None)
-    return {
-        "status": "ok",
-        "backends": ["mpv", "chromecast"],
-        "configured_speakers": [s["name"] for s in speakers],
-        "defaults": {
-            "speaker": default,
-        },
-    }
-
-
-@router.get("/status")
-async def output_status():
-    from app.core.service_container import get_service
-    from app.playback_backends.factory import get_available_output_devices
-
-    ss = get_service("speakers_service")
-    default_speaker = ss.get_default_speaker()
-    if not default_speaker:
-        return {"status": "error", "message": "No speakers configured"}
-
-    player = default_speaker.mediaplayer
-    backend = getattr(player, "playback_backend", None)
-    devices = get_available_output_devices()
-
-    if not backend and devices:
-        return {"status": "error", "message": "No active playback backend"}
-
-    backend_status = await backend.get_status() if hasattr(backend, "get_status") else None
-    readiness = (
-        backend.get_output_readiness()
-        if hasattr(backend, "get_output_readiness")
-        else {"ready": True, "message": "No backend-specific checks"}
-    )
-
-    backend_name = _backend_key(backend)
-    connected = readiness.get("ready", True)
-    if backend_name == "chromecast" and hasattr(backend, "is_connected"):
-        try:
-            connected = bool(backend.is_connected())
-        except Exception:
-            connected = False
-
-    for device in devices:
-        if device.get("backend") == backend_name and device.get("device") == getattr(backend, "device_name", None):
-            device["active"] = True
-        else:
-            device["active"] = False
-
-        if device.get("backend") == "mpv":
-            device["icon"] = "mdi-bluetooth-audio"
-        elif device.get("backend") == "chromecast":
-            device["icon"] = "mdi-cast"
-        else:
-            device["icon"] = "mdi-cast"
-
-
-    return {
-        "status": "ok",
-        "active_backend": backend_name,
-        "active_device": getattr(backend, "device_name", None),
-        "connected": connected,
-        "playback_backend_ready": readiness.get("ready", True),
-        "backend_status": backend_status,
-        "output_readiness": readiness,
-        "capabilities": {
-            "runtime_switch": True,
-            "chromecast_device_selection": True,
-            "bluetooth_via_mpv": True,
-        },
-        "devices": devices,
-    }
-
-
-@router.get("/devices")
-def output_devices():
-    """
-    Returns all available output devices (Chromecast and MPV/Bluetooth) as a JSON list.
-    Each device: {"backend": ..., "device": ..., "name": ...}
-    """
-    from app.playback_backends.factory import get_available_output_devices
-    return {
-        "status": "ok",
-        "devices": get_available_output_devices()
-    }
-
-@router.post("/switch")
-async def output_switch(request: OutputSwitchRequest):
+async def _assign(client_id: Optional[str], speaker_name: str) -> dict:
+    """Assign a registered client to a speaker, or (no client_id) set the
+    speaker as the system default."""
+    from app.core import Event, EventType, event_bus
     from app.core.service_container import get_service
 
-    ss = get_service("speakers_service")
-    default_speaker = ss.get_default_speaker()
-    if not default_speaker or not default_speaker.mediaplayer:
-        return {"status": "error", "message": "No speakers configured"}
+    if client_id:
+        result = await event_bus.aemit(Event(
+            type=EventType.ASSIGN_SPEAKER,
+            payload={"client_id": client_id, "speaker_name": speaker_name},
+        ))
+        first = result[0] if result else None
+        if isinstance(first, dict) and first.get("ok"):
+            return {"status": "success",
+                    "message": f"Client '{client_id}' assigned to '{first.get('speaker')}'",
+                    "speaker": first.get("speaker")}
+        error = first.get("error") if isinstance(first, dict) else "No handler ran for this action"
+        return {"status": "error", "message": str(error)}
 
-    player = default_speaker.mediaplayer
-
-    previous_backend = _backend_key(getattr(player, "playback_backend", None))
-
-    logger.info(
-        "Switching output backend requested: backend=%s device_name=%s",
-        request.backend,
-        request.device_name,
-    )
-
-    result = await player.switch_playback_backend(request.backend, device_name=request.device_name)
-
-    if result.get("status") != "ok":
-        return result
-
-    result.setdefault("previous_backend", previous_backend)
-    return result
+    manager = get_service("speaker_manager")
+    try:
+        entry = manager.set_default(speaker_name)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    name = (entry or {}).get("name") or speaker_name
+    return {"status": "success", "message": f"Default speaker set to '{name}'", "speaker": name}
 
 
 @router.get("/speakers")
 async def list_speakers():
+    """All configured speakers with their live registry state — the
+    troubleshooting view of the system."""
     from app.core.service_container import get_service
-            
+
     ccs = get_service("control_clients_service")
     ss = get_service("speakers_service")
     speakers_info = ss.to_dict()
+    default_speaker = ss.get_default_speaker()
 
     for speaker_name, speaker_data in speakers_info.items():
         clients = speaker_data.get("clients", [])
@@ -166,15 +82,17 @@ async def list_speakers():
                     logger.warning(f"Client {client_id} listed on speaker {speaker_name} but not registered")
             speaker_data["clients"] = clients_info
             speakers_info[speaker_name] = speaker_data
-    
+
     return {
         "status": "ok",
-        "devices": speakers_info
+        "devices": speakers_info,
+        "default_speaker": default_speaker.speaker_name if default_speaker else None,
     }
 
 
 @router.get("/control_clients")
 async def list_control_clients():
+    """All registered control clients with their speaker info."""
     from app.core.service_container import get_service
 
     ccs = get_service("control_clients_service")
@@ -191,3 +109,13 @@ async def list_control_clients():
         "devices": client_info
     }
 
+
+@router.post("/switch")
+async def output_switch(request: SwitchRequest):
+    """Testing convenience: switch playback context.
+
+    - With client_id: assign that registered client to the named speaker
+      (the same broker path the web UI's WS switch_device uses).
+    - Without client_id: make the named speaker the system default.
+    """
+    return await _assign(request.client_id, request.speaker)

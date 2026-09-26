@@ -514,6 +514,61 @@ known code bug) + orphaned-log cleanup.
 - Suite: **120 passed** (114 → 120: cast-target match tests + UUID route
   test; device-card assertions updated to the icon-only pill markup).
 
+## API modernization — per-speaker HTTP surface (2026-09-26, review round)
+
+Full review of `/api/output/*` + `/api/mediaplayer/*` with the consumer map
+verified across the ecosystem: the web UI makes **zero** `/api` calls
+(server-rendered + WS), the ESP32 client is **WebSocket-only**, and the HA
+integration is the only HTTP consumer. The single-player-era surface was
+broken in both directions: 10 transport endpoints could never report failure
+(broker handlers returned nothing → routes read `[None]` truthiness → always
+"success"), while `volume_mute` and `toggle_repeat_album` could never report
+success (they expected handler results the broker never returned).
+
+- **`/api/output` cleanup (user-confirmed):** deleted `/status`, `/devices`,
+  `/options` — single-player fossils. `/speakers` (kept) now carries
+  `"default_speaker"`. `/control_clients` kept (troubleshooting view).
+  `/switch` kept as a test convenience but re-pointed at the modern path:
+  body `{"speaker", "client_id"?}` — with a client_id it assigns that client
+  via ASSIGN_SPEAKER (the same broker path as the WS switch_device);
+  without one it makes the speaker the system default (`set_default`).
+  The old re-point-the-default-player's-backend machinery left the HTTP
+  surface.
+- **`/api/mediaplayer/*`: routing context + one envelope.** Every transport
+  endpoint accepts optional `client_id` and `speaker` query params → the
+  event payload carries them → `resolve_speaker` (client → speaker →
+  default). Default-speaker fallback stays for manual/scripted calls.
+  New shared `ActionResult` response model (pydantic: status/message/
+  speaker/volume/muted/repeat_album) — the OpenAPI schema now documents one
+  real contract. One `_run_action` helper instead of 11 hand-rolled route
+  bodies; module-level `app.core` imports (no more inline re-imports);
+  `play_track` unified to query params. `/status` now honours
+  `client_id`/`speaker` too (unchanged response shape — HA contract).
+- **Broker: structured results.** `_execute_media_action` returns
+  `{"ok", "speaker", "volume", "muted", "repeat_album", "message"}` built
+  from a post-action `get_context()` snapshot — no more implicit-None
+  results; custom actions can fail the action (`{"ok": False}` merges
+  through). All `handle_*` methods now `return` their result (the original
+  truthiness bug: `aemit` collected `[None]`). `handle_next_track` honours
+  the payload's `force` flag (previously dropped) and reports
+  "End of playlist" as a success-with-message. `handle_assign_speaker`
+  returns structured results; `load_rfid` returns them too (RFID_READ)
+  and the WS `play_rfid` handler passes `album_id` through (was dropped —
+  though the ESP32 reads the album_id off the card and sends `play_album`,
+  so the whole rfid path is legacy; the HTTP `/play_album_from_rfid` route
+  was removed with this round).
+- **Play album routing note:** `handle_play_album` resolves the speaker via
+  the routing context and loads the album into that player; the envelope
+  reports `{"ok": False}` when Subsonic can't load the album.
+- Tests: new `tests/routes/test_mediaplayer_api.py` (uniform envelope,
+  client_id/speaker/default targeting priority, end-of-playlist message,
+  resolution failure, deleted endpoints 404, `/speakers` default field,
+  `/switch` both modes). Suite: **133 passed**.
+- HA compatibility: the integration's `get_default_speaker` moves to
+  `/api/output/speakers` (with a fallback to the deleted `/options` for
+  backends not yet updated) in a co-released HA branch; its dead
+  `get_output_status` method is removed.
+
 ## Final state notes
 
 - ~~Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.~~

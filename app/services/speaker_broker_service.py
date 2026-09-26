@@ -85,18 +85,20 @@ class SpeakerBrokerService:
         speaker_name = payload.get("speaker_name")
         logger.info(f"[SpeakerBrokerService] Handling ASSIGN_SPEAKER event for client_id: {client_id} to speaker_name: {speaker_name}")
         if not client_id or not speaker_name:
-            return
-        
+            return {"ok": False, "error": "ASSIGN_SPEAKER needs both client_id and speaker_name"}
+
         self._remove_client_from_speakers(client_id)
         if client_id not in self.control_clients._clients:
             logger.warning(f"[SpeakerBrokerService] ASSIGN_SPEAKER for unknown client_id: {client_id} — ignoring")
-            return
+            return {"ok": False, "error": f"Unknown client_id '{client_id}'"}
         speaker = self._assign_client_to_speaker(client_id, speaker_name)
-        logger.info(f"[SpeakerBrokerService] Assigned client_id: {client_id} to speaker_name: {speaker_name} with result: {speaker is not False}")
         if speaker:
             # store the canonical registry name, not the payload's display form
             self.control_clients._clients[client_id].speaker_name = speaker.speaker_name
             await self.broadcast_context_to_clients(speaker)
+            return {"ok": True, "speaker": speaker.speaker_name,
+                    "message": f"Client '{client_id}' assigned to '{speaker.speaker_name}'"}
+        return {"ok": False, "error": f"Unknown speaker '{speaker_name}'"}
 
     async def handle_speaker_removed(self, removed_speaker):
         """Re-home clients attached to a speaker that was just removed from the
@@ -214,52 +216,63 @@ class SpeakerBrokerService:
 
         async def play_album_action(mediaplayer):
             result = await playback_service.load_from_album_id(
-                album_id, 
-                player=mediaplayer, 
+                album_id,
+                player=mediaplayer,
                 start_track_index=start_track_index
             )
             logger.info(f"[SpeakerBrokerService] Loaded album_id: {album_id} for client_id: {client_id} with result: {result}")
+            if not result:
+                return {"ok": False, "error": f"Could not load album '{album_id}'"}
+            return {"message": f"Album '{album_id}' queued (starting at track {start_track_index})"}
 
         # Pass it to the helper
-        await self._execute_media_action(event, "play_album", custom_action=play_album_action)
+        return await self._execute_media_action(event, "play_album", custom_action=play_album_action)
 
     async def handle_play_pause(self, event: Event):
-        await self._execute_media_action(event, "play_pause")
+        return await self._execute_media_action(event, "play_pause")
 
     async def handle_next_track(self, event: Event):
-        await self._execute_media_action(event, "next_track")
+        async def next_action(mediaplayer):
+            # the HTTP route marks manual next_track as forced; auto-advance
+            # (TRACK_FINISHED) shares this handler without the flag
+            force = bool(event.payload.get("force"))
+            result = await mediaplayer.next_track(force=force)
+            if result is False:
+                return {"message": "End of playlist — playback stopped"}
+
+        return await self._execute_media_action(event, "next_track", custom_action=next_action)
 
     async def handle_previous_track(self, event: Event):
-        await self._execute_media_action(event, "previous_track")
+        return await self._execute_media_action(event, "previous_track")
 
     async def handle_stop(self, event: Event):
-        await self._execute_media_action(event, "stop")
+        return await self._execute_media_action(event, "stop")
 
     async def handle_volume_up(self, event: Event):
-        await self._execute_media_action(event, "handle_volume_up", broadcaster=self.broadcast_volume_to_clients)
+        return await self._execute_media_action(event, "handle_volume_up", broadcaster=self.broadcast_volume_to_clients)
 
     async def handle_volume_down(self, event: Event):
-        await self._execute_media_action(event, "handle_volume_down", broadcaster=self.broadcast_volume_to_clients)
+        return await self._execute_media_action(event, "handle_volume_down", broadcaster=self.broadcast_volume_to_clients)
 
     async def handle_set_volume(self, event: Event):
         async def set_volume_action(mediaplayer):
-            result = await mediaplayer.set_volume(event)
+            await mediaplayer.set_volume(event)
             logger.info(f"[SpeakerBrokerService] Set volume to: {event.payload.get('volume')}")
-        
-        await self._execute_media_action(event, "set_volume", custom_action=set_volume_action)               
+
+        return await self._execute_media_action(event, "set_volume", custom_action=set_volume_action)
 
     async def handle_volume_mute(self, event: Event):
-        await self._execute_media_action(event, "handle_volume_mute")    
+        return await self._execute_media_action(event, "handle_volume_mute")
 
     async def handle_toggle_repeat(self, event: Event):
-        await self._execute_media_action(event, "toggle_repeat")                        
+        return await self._execute_media_action(event, "toggle_repeat")
 
     async def handle_play_track(self, event: Event):
         async def play_track_action(mediaplayer):
-            result = await mediaplayer.play_track(track_index=event.payload.get("track_index"))
+            await mediaplayer.play_track(track_index=event.payload.get("track_index"))
             logger.info(f"[SpeakerBrokerService] Loaded track_index: {event.payload.get('track_index')}")
-        
-        await self._execute_media_action(event, "play_track", custom_action=play_track_action)  
+
+        return await self._execute_media_action(event, "play_track", custom_action=play_track_action)
 
     def resolve_speaker(self, client_id: str = None, device_name: str = None) -> Optional[Speaker]:
         """Resolve the speaker for a routing context, in priority order:
@@ -291,27 +304,52 @@ class SpeakerBrokerService:
                 logger.warning("[SpeakerBrokerService] Cannot resolve a speaker: no routing context and no speakers configured")
         return speaker
 
-    async def _execute_media_action(self, event: Event, action_name: str, custom_action=None, broadcaster=None):
+    async def _execute_media_action(self, event: Event, action_name: str, custom_action=None, broadcaster=None) -> dict:
+        """Execute one media action on the resolved speaker and broadcast the
+        new context to its clients.
+
+        Returns a structured result the HTTP routes can wrap uniformly:
+        {"ok": True, "speaker": name, "volume": …, "muted": …,
+         "repeat_album": …} on success, or {"ok": False, "error": …} on
+        failure — no more implicit-None results that routes misread."""
         payload = event.payload
         client_id = payload.get("client_id")
         logger.info(f"[SpeakerBrokerService] Executing media action: {action_name} for client_id: {client_id} with payload: {payload}")
 
         speaker = self.resolve_speaker(client_id=client_id, device_name=payload.get("device_name"))
         if speaker is None:
-            return
+            return {"ok": False,
+                    "error": "No speaker could be resolved (no routing context and no speakers configured)"}
 
         mediaplayer = speaker.mediaplayer
         if not mediaplayer:
             logger.warning(f"[SpeakerBrokerService] Speaker {speaker.speaker_name} has no media player instance")
-            return
+            return {"ok": False, "speaker": speaker.speaker_name,
+                    "error": f"Speaker '{speaker.speaker_name}' has no media player instance"}
 
         if custom_action:
-            await custom_action(mediaplayer)
+            detail = await custom_action(mediaplayer) or {}
         else:
             action_method = getattr(mediaplayer, action_name)
-            await action_method()
+            detail = await action_method() or {}
 
         if broadcaster is None:
             await self.broadcast_context_to_clients(speaker)
         else:
             await broadcaster(speaker)
+
+        # Post-action state snapshot: one shape for every action, so routes
+        # never guess result[0] shapes again. Detail (if the custom action
+        # returned one) is merged last.
+        context = mediaplayer.get_context()
+        result = {
+            "ok": True,
+            "speaker": speaker.speaker_name,
+            "volume": context.get("volume"),
+            "muted": context.get("muted"),
+            "repeat_album": context.get("repeat_album"),
+            "message": action_name,
+        }
+        if isinstance(detail, dict):
+            result.update(detail)
+        return result

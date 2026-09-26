@@ -32,7 +32,7 @@ async def test_load_rfid_loads_card_album_on_default_speaker(monkeypatch):
     svc, _ = make_service()
     ok = await svc.load_rfid(Event(EventType.RFID_READ, {"rfid": "ABC", "album_id": "al-42"}))
 
-    assert ok is True
+    assert ok["ok"] is True
     broker.resolve_speaker.assert_called_once_with(client_id=None)
     args, kwargs = svc.load_from_album_id.await_args
     assert args[0] == "al-42"
@@ -49,7 +49,7 @@ async def test_load_rfid_prefers_clients_speaker(monkeypatch):
     svc, _ = make_service()
     ok = await svc.load_rfid(Event(EventType.RFID_READ, {"rfid": "ABC", "album_id": "al-7", "client_id": "c1"}))
 
-    assert ok is True
+    assert ok["ok"] is True
     broker.resolve_speaker.assert_called_once_with(client_id="c1")
     args, kwargs = svc.load_from_album_id.await_args
     assert kwargs.get("player") is client_speaker.mediaplayer
@@ -63,7 +63,7 @@ async def test_load_rfid_card_without_album_id_is_ignored(monkeypatch):
     svc, _ = make_service()
     ok = await svc.load_rfid(Event(EventType.RFID_READ, {"rfid": "XYZ"}))
 
-    assert ok is False
+    assert ok["ok"] is False
     broker.resolve_speaker.assert_not_called()
     svc.load_from_album_id.assert_not_awaited()
 
@@ -77,5 +77,5 @@ async def test_load_rfid_no_speaker_fails_cleanly(monkeypatch):
     svc, _ = make_service()
     ok = await svc.load_rfid(Event(EventType.RFID_READ, {"rfid": "ABC", "album_id": "al-1"}))
 
-    assert ok is False
+    assert ok["ok"] is False
     svc.load_from_album_id.assert_not_awaited()
