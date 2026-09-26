@@ -284,3 +284,20 @@ def test_bridge_exists_and_surfaces_connect_failure():
     client = BlueZDbus()
     with pytest.raises(RuntimeError, match="D-Bus|BlueZ"):
         client.call(lambda: asyncio.sleep(0), timeout=2.0)
+
+
+def test_call_refuses_to_post_into_a_dead_loop():
+    """Regression (hardware, second round): a connect failure that happens
+    AFTER the bus connects (e.g. agent registration) used to leave the bus
+    set while the loop never ran — calls posted into a dead loop and every
+    BT action timed out after its bridge timeout. The bridge must refuse
+    when the loop is not running."""
+    import asyncio
+
+    client = BlueZDbus()
+    client._started.set()
+    client._bus = object()      # bus looks connected
+    client._connect_error = None
+    client._loop = None         # ...but the loop never ran
+    with pytest.raises(RuntimeError, match="loop is not running"):
+        client.call(lambda: asyncio.sleep(0), timeout=1.0)

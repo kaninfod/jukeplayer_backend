@@ -181,6 +181,10 @@ class BlueZDbus:
         asyncio.to_thread; some template contexts call directly) and the
         async dbus-fast world."""
         self.ensure()
+        if self._loop is None or not self._loop.is_running():
+            # a failed connect used to leave the bus set while the loop never
+            # ran — calls posted into a dead loop timed out forever
+            raise RuntimeError("BlueZ D-Bus loop is not running (connect failed)")
         fut = asyncio.run_coroutine_threadsafe(coro_fn(), self._loop)
         try:
             return fut.result(timeout=timeout)
@@ -195,8 +199,11 @@ class BlueZDbus:
         try:
             loop.run_until_complete(self._connect())
         except Exception as e:
+            # fail CLEAN: no bus, no running loop — ensure()/call() must
+            # raise instead of posting coroutines into a dead loop
             logger.error(f"[BT-dbus] connect failed: {e}")
             self._connect_error = f"BlueZ D-Bus unavailable: {e}"
+            self._bus = None
             self._started.set()
             return
         self._started.set()
@@ -209,7 +216,7 @@ class BlueZDbus:
         # fail for JustWorks devices depending on bluez's agent policy.
         self._agent = AutoAcceptAgent()
         self._bus.export(AGENT_PATH, self._agent)
-        await self._call_raw(Message(
+        await self._call_msg(Message(
             destination="org.bluez", path="/org/bluez",
             interface="org.bluez.AgentManager1", member="RegisterAgent",
             body=[AGENT_PATH, "NoInputNoOutput"],
