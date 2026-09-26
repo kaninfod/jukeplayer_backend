@@ -219,12 +219,12 @@ class BlueZDbus:
         await self._call_msg(Message(
             destination="org.bluez", path="/org/bluez",
             interface="org.bluez.AgentManager1", member="RegisterAgent",
-            body=[AGENT_PATH, "NoInputNoOutput"],
+            body=[AGENT_PATH, "NoInputNoOutput"], signature="os",
         ), timeout=10.0)
         await self._call_msg(Message(
             destination="org.bluez", path="/org/bluez",
             interface="org.bluez.AgentManager1", member="RequestDefaultAgent",
-            body=[AGENT_PATH],
+            body=[AGENT_PATH], signature="o",
         ), timeout=10.0)
         self._agent_registered = True
         objects = await self._managed_objects()
@@ -248,14 +248,14 @@ class BlueZDbus:
         await self._call_msg(Message(
             destination="org.bluez", path=self._adapter_path,
             interface="org.freedesktop.DBus.Properties", member="Set",
-            body=["org.bluez.Adapter1", name, value],
+            body=["org.bluez.Adapter1", name, value], signature="ssv",
         ), timeout=10.0)
 
     async def _set_device_prop(self, device_path: str, name: str, value: Variant) -> None:
         await self._call_msg(Message(
             destination="org.bluez", path=device_path,
             interface="org.freedesktop.DBus.Properties", member="Set",
-            body=["org.bluez.Device1", name, value],
+            body=["org.bluez.Device1", name, value], signature="ssv",
         ), timeout=10.0)
 
     async def _get_managed_objects(self) -> Dict[str, Any]:
@@ -346,7 +346,7 @@ class BlueZDbus:
         await self._call_msg(Message(
             destination="org.bluez", path=adapter,
             interface="org.bluez.Adapter1", member="SetDiscoveryFilter",
-            body=[{"Transport": Variant("s", "bredr")}],
+            body=[{"Transport": Variant("s", "bredr")}], signature="a{sv}",
         ), timeout=10.0)
         await self._call_msg(Message(
             destination="org.bluez", path=adapter,
@@ -382,7 +382,7 @@ class BlueZDbus:
             await self._call_msg(Message(
                 destination="org.bluez", path=adapter or "/org/bluez/hci0",
                 interface="org.freedesktop.DBus.Properties", member="Set",
-                body=["org.bluez.Adapter1", "Pairable", Variant("b", True)],
+                body=["org.bluez.Adapter1", "Pairable", Variant("b", True)], signature="ssv",
             ), timeout=10.0)
         except Exception as e:
             logger.debug(f"[BT-dbus] Pairable=True failed (continuing): {e}")
@@ -480,7 +480,7 @@ class BlueZDbus:
                 await self._call_msg(Message(
                     destination="org.bluez", path=self._adapter_path or "/org/bluez/hci0",
                     interface="org.bluez.Adapter1", member="RemoveDevice",
-                    body=[path],
+                    body=[path], signature="o",
                 ), timeout=10.0)
                 removed = True
         logger.info(f"[BT] Forget {mac}: removed={removed}")
