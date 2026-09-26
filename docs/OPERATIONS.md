@@ -16,10 +16,10 @@ Target: Raspberry Pi 3 B 1.2 (works on any Pi), Raspberry Pi OS **Lite 64-bit**
    and Wi-Fi (if not wired) in the Imager's OS customisation.
 2. **Get the code** — ssh in, then:
    ```bash
-   git clone -b feature/config-management https://github.com/kaninfod/jukeplayer_backend.git ~/jukeplayer_backend
+   git clone https://github.com/kaninfod/jukeplayer_backend.git ~/jukeplayer_backend
    cd ~/jukeplayer_backend
    ```
-   (Switch to `main` once the config work merges.)
+   (The config & speaker management work is merged to `main`.)
 3. **Run the setup script** — installs packages (PulseAudio audio stack, BT
    tools), unblocks rfkill, configures headless BlueZ, installs the venv +
    systemd unit, enables linger, and disables the pipewire user services:
