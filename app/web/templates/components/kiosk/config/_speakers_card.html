@@ -63,11 +63,11 @@
                     </td>
                     <td>
                         {% if s.speaker_type == 'chromecast' %}
-                        <span class="badge text-bg-info"><i class="mdi mdi-cast me-1"></i>Chromecast</span>
+                        <span class="badge device-type-badge type-cc"><i class="mdi mdi-cast me-1"></i>Chromecast</span>
                         {% elif s.speaker_type == 'bluetooth' %}
-                        <span class="badge text-bg-info"><i class="mdi mdi-bluetooth me-1"></i>Bluetooth</span>
+                        <span class="badge device-type-badge type-bt"><i class="mdi mdi-bluetooth me-1"></i>Bluetooth</span>
                         {% else %}
-                        <span class="badge text-bg-secondary">Audio</span>
+                        <span class="badge device-type-badge type-audio">Audio</span>
                         {% endif %}
                     </td>
                     <td class="text-end">

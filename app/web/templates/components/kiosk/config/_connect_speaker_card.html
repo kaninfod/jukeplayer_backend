@@ -18,7 +18,7 @@
             <div class="col-md-6">
                 <div class="scan-card h-100">
                     <div class="d-flex align-items-center gap-2 mb-1">
-                        <div class="scan-card-glyph"><i class="mdi mdi-cast"></i></div>
+                        <div class="scan-card-glyph glyph-cc"><i class="mdi mdi-cast"></i></div>
                         <div class="fw-semibold">Chromecast</div>
                     </div>
                     <small class="text-muted d-block mb-2">Google Cast devices discovered on this network</small>
@@ -32,7 +32,7 @@
             <div class="col-md-6">
                 <div class="scan-card h-100">
                     <div class="d-flex align-items-center gap-2 mb-1">
-                        <div class="scan-card-glyph"><i class="mdi mdi-bluetooth"></i></div>
+                        <div class="scan-card-glyph glyph-bt"><i class="mdi mdi-bluetooth"></i></div>
                         <div class="fw-semibold">Bluetooth</div>
                     </div>
                     <small class="text-muted d-block mb-2">Put the speaker in pairing mode — usually a blinking light</small>
@@ -61,7 +61,7 @@
                 <tbody>
                 {% for d in cc_devices %}
                 <tr>
-                    <td><i class="mdi mdi-cast"></i></td>
+                    <td><span class="device-link-pill link-action glyph-cc"><i class="mdi mdi-cast"></i></span></td>
                     <td>
                         <div class="d-flex flex-column">
                             <span class="fw-semibold">{{ d.name }}</span>
@@ -106,7 +106,7 @@
                 <tbody>
                 {% for d in bt_devices %}
                 <tr>
-                    <td><i class="mdi mdi-bluetooth"></i></td>
+                    <td><span class="device-link-pill link-action glyph-bt"><i class="mdi mdi-bluetooth"></i></span></td>
                     <td><span class="fw-semibold">{{ d.name or d.mac }}</span></td>
                     <td><span class="device-meta">{{ d.mac }}</span></td>
                     <td class="text-end">
