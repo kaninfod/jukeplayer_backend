@@ -255,10 +255,20 @@ class SpeakerManagerService:
         mac = getattr(speaker, "bt_mac", None)
         result = await asyncio.to_thread(self.bluetooth_service.disconnect, mac)
         speaker.connected = result["connected"]
+        # the audio link is gone — stop the player so it does not keep
+        # running into a dead sink (device card falls back to Idle)
+        player = speaker.mediaplayer
+        if player:
+            try:
+                stop = getattr(player, "stop", None)
+                if stop:
+                    await stop()
+            except Exception as e:
+                logger.warning(f"[SpeakerManager] Stop after disconnect failed for '{name}': {e}")
         # user intent: this speaker was deliberately handed over — pause the
         # watchdog auto-reconnect until the user connects again (persisted)
         self._set_user_disconnected(name, True)
-        logger.info(f"[SpeakerManager] '{name}' disconnected by user — auto-reconnect paused (handover)")
+        logger.info(f"[SpeakerManager] '{name}' disconnected by user — player stopped, auto-reconnect paused (handover)")
         return {"name": name, "connected": result["connected"]}
 
     def _set_user_disconnected(self, name: str, flag: bool) -> None:

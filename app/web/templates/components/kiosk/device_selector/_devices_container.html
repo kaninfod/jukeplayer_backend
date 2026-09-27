@@ -14,11 +14,9 @@
             <p class="mt-3">No output devices found</p>
         </div>
         {% else %}
-        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 m-0">
+        <div class="device-grid">
             {% for name, details in speakers.items() %}
-            <div class="col">
                 {% include 'components/kiosk/device_selector/_device.html' %}
-            </div>
             {% endfor %}
         </div>
         {% endif %}

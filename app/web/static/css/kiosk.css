@@ -918,3 +918,15 @@ span.kiosk-round-btn {
 
 .device-card-footer { border-top: 1px solid var(--bs-border-color); }
 .device-page-footer { border-top: 1px solid var(--bs-border-color); }
+
+/* Devices page — square cards in a wrapping flex box (left → right, down) */
+.device-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: flex-start;
+}
+.device-card {
+    width: 15rem;
+    aspect-ratio: 1 / 1;
+}

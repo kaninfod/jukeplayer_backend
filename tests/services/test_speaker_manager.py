@@ -433,6 +433,8 @@ async def test_disconnect_marks_user_handover(stack):
     await stack.manager.disconnect_speaker("boom_3")
 
     assert speaker.user_disconnected is True
+    # the player is stopped so it does not keep running into the dead sink
+    speaker.mediaplayer.stop.assert_awaited()
     entry = next(s for s in stack.store.section("speakers") if s["name"] == "boom_3")
     assert entry["options"]["bt_user_disconnected"] is True
 
