@@ -17,7 +17,7 @@
     <div class="card-body d-flex flex-column p-2">
         <div class="fw-semibold text-truncate w-100" title="{{ album.name|e }}">{{ album.name|e }}</div>
         <div class="device-card-footer mt-auto pt-2 d-flex justify-content-between align-items-center">
-            <button type="button" class="device-link-pill link-action"
+            <button type="button" class="device-link-pill glyph-bt"
                     href="/kiosk/nfc-client-select?album_id={{ album.id }}&album_name={{ album.name|e }}"
                     data-action="click->navigation#load"
                     title="NFC encode this album">

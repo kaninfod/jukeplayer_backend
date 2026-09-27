@@ -1083,3 +1083,25 @@ body:has(.htmx-request) #page-busy {
     color: #4cd7f6;
     border-color: rgba(76, 215, 246, .28);
 }
+
+/* Glyph dropdown: scrollable, ~3 options visible */
+.speakers-table .dropdown-menu {
+    max-height: 8rem;
+    overflow-y: auto;
+}
+
+/* Protocol tints: config table protocol badges */
+.device-type-badge.type-audio {
+    background: rgba(148, 163, 184, .12);
+    color: #94A3B8;
+    border-color: rgba(148, 163, 184, .25);
+}
+
+/* System menu: per-action accent glyphs */
+.system-action-card .mdi { color: var(--bs-secondary-color); }
+.system-action-card.glyph-reload .mdi { color: #fbbf24; }
+.system-action-card.glyph-fullscreen .mdi { color: #4cd7f6; }
+.system-action-card.glyph-clients .mdi { color: #c0c1ff; }
+.system-action-card.glyph-controls .mdi { color: #34d399; }
+.system-action-card.glyph-config .mdi { color: #c0c1ff; }
+.system-action-card.glyph-connect .mdi { color: #4cd7f6; }
