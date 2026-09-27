@@ -10,6 +10,7 @@ export default class extends Controller {
         const name = event.params.speakerName
         console.info(`[bt] toggling connection for ${name} …`)
         try {
+            if (typeof window.setPageBusy === "function") window.setPageBusy(true);
             const resp = await fetch("/kiosk/devices/bt-toggle", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -29,6 +30,8 @@ export default class extends Controller {
         } catch (e) {
             console.warn(`[bt] toggle failed for ${name}:`, e)
             window.showKioskToast(`BT toggle failed: ${e.message}`, { theme: "error" })
+        } finally {
+            if (typeof window.setPageBusy === "function") window.setPageBusy(false)
         }
     }
 }

@@ -830,3 +830,162 @@ span.kiosk-round-btn {
 .library-album-card .btn i {
     font-size: 1.1rem;
 }
+
+/* ============================================================
+   Devices page — card anatomy (Stitch translation, light palette)
+   ============================================================ */
+.device-card {
+    border-radius: .75rem;
+    cursor: pointer;
+    transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+}
+.device-card:hover {
+    box-shadow: 0 .35rem 1rem rgba(0, 0, 0, .12);
+    transform: translateY(-2px);
+}
+.device-card-playing {
+    border-color: rgba(25, 135, 84, .45);
+    box-shadow: 0 0 0 .2rem rgba(25, 135, 84, .08);
+}
+
+.device-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .65rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: .2rem .5rem;
+    border-radius: .5rem;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    color: var(--bs-secondary-color);
+}
+
+.device-player-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: .7rem;
+    padding: .15rem .5rem;
+    border-radius: 1rem;
+    border: 1px solid transparent;
+}
+.player-playing { background: rgba(25, 135, 84, .12); color: #198754; border-color: rgba(25, 135, 84, .25); }
+.player-paused  { background: rgba(255, 193, 7, .15); color: #7a5b00; border-color: rgba(255, 193, 7, .35); }
+.player-idle    { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color); }
+.player-offline { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color); }
+
+.device-link-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    font-size: .9rem;
+    border: 1px solid transparent;
+}
+.link-connected { background: rgba(25, 135, 84, .12); color: #198754; border-color: rgba(25, 135, 84, .3); cursor: pointer; }
+.link-connected:hover { background: rgba(25, 135, 84, .22); }
+.link-handover { background: rgba(255, 193, 7, .18); color: #7a5b00; border-color: rgba(255, 193, 7, .45); }
+.link-paired { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color); }
+
+.icon-tile {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 1rem;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--bs-secondary-color);
+}
+
+.device-tech-name {
+    font-family: var(--bs-font-monospace);
+    font-size: .72rem;
+    color: var(--bs-secondary-color);
+}
+.device-meta {
+    font-family: var(--bs-font-monospace);
+    font-size: .65rem;
+    letter-spacing: .5px;
+    color: var(--bs-secondary-color);
+}
+
+.device-card-footer { border-top: 1px solid var(--bs-border-color); }
+.device-page-footer { border-top: 1px solid var(--bs-border-color); }
+
+/* Devices page — square cards in a wrapping flex box (left → right, down) */
+.device-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: flex-start;
+}
+.device-card {
+    width: 15rem;
+    aspect-ratio: 1 / 1;
+}
+
+/* Global page-busy overlay — ONE spinner for the whole SPA (blocks the
+   container during htmx requests and controller fetches). */
+#page-busy {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .55);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+#page-busy .page-busy-box {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .15);
+}
+body.page-loading #page-busy,
+body:has(.htmx-request) #page-busy {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Speakers setup table */
+.speakers-table { font-size: .9rem; }
+.speakers-th {
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    border-bottom-color: var(--bs-border-color) !important;
+}
+.speakers-icon-select { min-width: 11rem; font-family: var(--bs-font-monospace); font-size: .72rem; }
+
+/* Connect page — scan cards */
+.scan-card {
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    padding: 1rem;
+}
+.scan-card-glyph {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: .75rem;
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    color: var(--bs-secondary-color);
+}

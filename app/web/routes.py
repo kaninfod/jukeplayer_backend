@@ -95,7 +95,7 @@ def _config_ui_context(saved_section: str | None = None) -> dict:
             "logging": scalars("logging"),
             "server": scalars("server"),
         },
-        "speakers": _speakers_card_context()["speakers"],
+        **_speakers_card_context(),
         "system_env": {key: entry["value"] for key, entry in config_service.effective()["sections"]["system_env"]["keys"].items()},
         "saved_section": saved_section,
         "applies": "live" if saved_section == "logging" else "restart" if saved_section else None,
@@ -171,12 +171,17 @@ def _speakers_card_context(message: str | None = None, error: str | None = None)
             "display_name": entry.get("display_name") or "",
             "is_default": entry.get("is_default", False),
             "speaker_type": getattr(speaker, "type", "local") if speaker else "local",
-            "connected": bool(getattr(speaker, "connected", False)) if speaker else False,
-            "available": bool(getattr(speaker, "available", False)) if speaker else False,
+            "icon": getattr(speaker, "icon", None) if speaker else None,
+            "bt_mac": getattr(speaker, "bt_mac", None) if speaker else None,
+            "cc_host": getattr(speaker, "cc_host", None) if speaker else None,
+            "address": (getattr(speaker, "bt_mac", None) if speaker else None)
+                       or (getattr(speaker, "cc_host", None) if speaker else None),
         })
+    from app.services.speaker_manager_service import SPEAKER_ICONS
     return {
         "speakers": speakers,
         "default_name": default_name,
+        "speaker_icons": SPEAKER_ICONS,
         "message": message,
         "error": error,
     }
@@ -206,11 +211,11 @@ def _connect_card_context(message: str | None = None, error: str | None = None,
                           bt_devices=None, bt_scanned: bool = False) -> dict:
     bt = _bt_service_or_none()
     manager = get_service("speaker_manager")
-    managed_names = [s.get("display_name") or s["name"] for s in manager.configured()]
 
     cc_list = []
     if cc_devices is not None:
-        cc_list = [d for d in cc_devices if not d.get("configured")]
+        for d in cc_devices:
+            cc_list.append({**d, "managed": bool(d.get("configured"))})
     bt_list = []
     if bt_devices is not None:
         managed_macs = set()
@@ -220,14 +225,14 @@ def _connect_card_context(message: str | None = None, error: str | None = None,
             if mac:
                 managed_macs.add(mac)
         for d in bt_devices:
-            if d.get("mac") in managed_macs:
-                continue
+            entry = {**d, "managed": d.get("mac") in managed_macs}
             name = (d.get("name") or "").strip()
-            if d.get("paired") or d.get("connected") or d.get("audio") or (name and name != d["mac"]):
-                bt_list.append(d)
+            # managed devices stay VISIBLE (with a Managed pill) instead of
+            # being hidden behind a note — user preference, 2026-09-26
+            if entry["managed"] or d.get("paired") or d.get("connected") or d.get("audio") or (name and name != d["mac"]):
+                bt_list.append(entry)
 
     return {
-        "managed_names": managed_names,
         "cc_devices": cc_list,
         "cc_scanned": cc_scanned,
         "bt_devices": bt_list,
@@ -413,6 +418,38 @@ async def kiosk_speakers_default(name: str, request: Request):
         return _with_toast(resp, str(e), theme="error")
 
 
+@router.post("/kiosk/config/speakers/{name}/icon")
+async def kiosk_speakers_icon(name: str, request: Request):
+    """Per-row glyph dropdown (config table): set the speaker's mdi icon."""
+    form = await request.form()
+    icon = str(form.get("icon") or "").strip()
+    manager = get_service("speaker_manager")
+    try:
+        result = manager.set_speaker_icon(name, icon)
+        resp = _render_speakers_card(request, **_speakers_card_context(
+            message=f"Icon for {name}: {result['icon']}"))
+        return _with_toast(resp, f"Icon for {name}: {result['icon']}")
+    except ValueError as e:
+        resp = _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
+
+
+@router.post("/kiosk/config/speakers/default")
+async def kiosk_speakers_default_dropdown(request: Request):
+    """Default-speaker dropdown under the table (replaces the star column)."""
+    form = await request.form()
+    name = str(form.get("name") or "").strip()
+    manager = get_service("speaker_manager")
+    try:
+        manager.set_default(name)
+        resp = _render_speakers_card(request, **_speakers_card_context(
+            message=f"Default speaker: {name}"))
+        return _with_toast(resp, f"Default speaker: {name}")
+    except ValueError as e:
+        resp = _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
+
+
 # Bluetooth card (Phase C): scan/pair/connect for BT speakers + "add as
 # speaker" wiring through the SpeakerManager (mpv backend + pulse sink).
 
@@ -527,6 +564,10 @@ async def kiosk_devices_partial(request: Request):
     speakers_service = get_service("speakers_service")
     context["speakers"] = speakers_service.to_dict()
     # BT runtime info now lives on the Speaker flags (updated by the state pass)
+    try:
+        context["fallback"] = get_service("config_service").default_speaker_name()
+    except Exception:
+        context["fallback"] = None
     logger.info(f"Rendering devices partial with speakers: {list(context['speakers'].keys())}")
 
 

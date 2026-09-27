@@ -1,11 +1,10 @@
+{# Speakers — setup table (glyph / name+ID / protocol / bin).
+   No status here: state lives on the devices page. The default speaker is
+   the dropdown under the table (system fallback, not per-row stars). #}
 <div class="card mb-3 flex-shrink-0" id="speakers-card">
     <div class="card-body py-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="text-muted mb-0"><i class="mdi mdi-speaker-multiple"></i> Speakers</h6>
-            <a href="/kiosk/system" class="btn btn-sm btn-outline-primary"
-               data-action="click->navigation#load">
-                <i class="mdi mdi-plus"></i> Connect a new speaker
-            </a>
         </div>
 
         {% if message %}
@@ -16,55 +15,86 @@
         {% endif %}
 
         {% if speakers %}
-        <ul class="list-group list-group-flush mb-2">
-            {% for s in speakers %}
-            {% set label = s.display_name or s.name %}
-            <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">
-                <span>
-                    <i class="mdi mdi-speaker"></i> {{ label }}
-                    {% if s.display_name %}<small class="text-muted ms-1">({{ s.name }})</small>{% endif %}
-                    {% if s.speaker_type == 'chromecast' %}
-                    <span class="badge text-bg-info ms-1"><i class="mdi mdi-cast me-1"></i>Chromecast</span>
-                    {% elif s.speaker_type == 'bluetooth' %}
-                    <span class="badge text-bg-info ms-1"><i class="mdi mdi-bluetooth"></i>Bluetooth</span>
-                    {% else %}
-                    <span class="badge text-bg-secondary ms-1">Audio</span>
-                    {% endif %}
-                    {% if s.connected %}
-                    <span class="badge text-bg-success ms-1">Connected</span>
-                    {% elif s.available %}
-                    <span class="badge text-bg-info ms-1">Available</span>
-                    {% else %}
-                    <span class="badge text-bg-light border text-muted ms-1">Unavailable</span>
-                    {% endif %}
-                    {% if s.is_default %}<span class="badge text-bg-primary ms-1">default</span>{% endif %}
-                </span>
-                <span class="btn-group btn-group-sm">
-                    <button type="button" class="btn btn-outline-secondary" title="Edit display name"
-                            hx-prompt="Display name for {{ s.name }} (empty = show technical name)"
-                            hx-post="/kiosk/config/speakers/{{ s.name }}/display"
-                            hx-target="#speakers-card" hx-swap="outerHTML">
-                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-pencil"></i>
-                    </button>
-                    {% if not s.is_default %}
-                    <button type="button" class="btn btn-outline-secondary" title="Make default"
-                            hx-post="/kiosk/config/speakers/{{ s.name }}/default"
-                            hx-target="#speakers-card" hx-swap="outerHTML">
-                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-star-outline"></i>
-                    </button>
-                    {% endif %}
-                    <button type="button" class="btn btn-outline-danger" title="Remove speaker"
-                            hx-post="/kiosk/config/speakers/{{ s.name }}/remove"
-                            hx-confirm="Remove speaker '{{ label }}'?{% if s.type == 'bluetooth' %} The Bluetooth pairing is removed too (Paired: no, Trusted: no).{% endif %}"
-                            hx-target="#speakers-card" hx-swap="outerHTML">
-                        <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-delete"></i>
-                    </button>
-                </span>
-            </li>
-            {% endfor %}
-        </ul>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 speakers-table">
+                <thead>
+                <tr>
+                    <th class="speakers-th">Glyph</th>
+                    <th class="speakers-th">Name &amp; ID</th>
+                    <th class="speakers-th">Protocol</th>
+                    <th class="speakers-th text-end">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for s in speakers %}
+                {% set label = s.display_name or s.name %}
+                <tr>
+                    <td>
+                        <select class="form-select form-select-sm speakers-icon-select"
+                                name="icon" aria-label="Icon for {{ s.name }}"
+                                hx-post="/kiosk/config/speakers/{{ s.name }}/icon"
+                                hx-trigger="change" hx-target="#speakers-card" hx-swap="outerHTML">
+                            {% for ic in speaker_icons %}
+                            <option value="{{ ic }}" {% if s.icon == ic %}selected{% endif %}>{{ ic }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <div class="d-flex flex-column">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-semibold">{{ label }}</span>
+                                <button type="button" class="btn btn-sm btn-link p-0 text-muted" title="Edit friendly name"
+                                        hx-prompt="Display name for {{ s.name }} (empty = show technical name)"
+                                        hx-post="/kiosk/config/speakers/{{ s.name }}/display"
+                                        hx-target="#speakers-card" hx-swap="outerHTML">
+                                    <i class="mdi mdi-pencil"></i>
+                                </button>
+                            </div>
+                            <span class="device-meta">{{ s.name }}{% if s.address %} · {{ s.address|e }}{% endif %}</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if s.speaker_type == 'chromecast' %}
+                        <span class="badge text-bg-info"><i class="mdi mdi-cast me-1"></i>Chromecast</span>
+                        {% elif s.speaker_type == 'bluetooth' %}
+                        <span class="badge text-bg-info"><i class="mdi mdi-bluetooth me-1"></i>Bluetooth</span>
+                        {% else %}
+                        <span class="badge text-bg-secondary">Audio</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger" title="Remove speaker"
+                                hx-post="/kiosk/config/speakers/{{ s.name }}/remove"
+                                hx-confirm="Remove speaker '{{ label }}'?{% if s.speaker_type == 'bluetooth' %} The Bluetooth pairing is removed too (Paired: no, Trusted: no).{% endif %}"
+                                hx-target="#speakers-card" hx-swap="outerHTML">
+                            <i class="mdi mdi-delete"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
-        <small class="text-muted d-block mb-2">No speakers configured yet — use "Connect a new speaker" on the System page.</small>
+        <small class="text-muted d-block mb-2">No speakers configured yet — use "Connect a new speaker" below.</small>
         {% endif %}
+
+        {# under the table: default dropdown (left) + connect button (right) #}
+        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Default speaker:</span>
+                <select class="form-select form-select-sm w-auto" name="name" aria-label="Default speaker"
+                        hx-post="/kiosk/config/speakers/default" hx-trigger="change"
+                        hx-target="#speakers-card" hx-swap="outerHTML">
+                    {% for s in speakers %}
+                    <option value="{{ s.name }}" {% if s.is_default %}selected{% endif %}>{{ s.display_name or s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <a href="/kiosk/system" class="btn btn-sm btn-outline-primary"
+               data-action="click->navigation#load">
+                <i class="mdi mdi-plus"></i> Connect a new speaker
+            </a>
+        </div>
     </div>
 </div>

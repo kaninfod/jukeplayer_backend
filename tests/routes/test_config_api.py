@@ -302,3 +302,57 @@ async def test_configure_page_htmx_partial(initialized_app):
         assert partial.status_code == 200
         assert 'class="card mb-3"' in partial.text
         assert 'data-configure-target="raw"' in partial.text
+
+
+@pytest.mark.asyncio
+async def test_speakers_icon_route_sets_and_renders(monkeypatch, tmp_path, initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/system/connect/add-cc", data={"name": "living_room"})
+
+        resp = await client.post("/kiosk/config/speakers/living_room/icon",
+                                 data={"icon": "mdi-television"})
+        assert resp.status_code == 200
+        assert "mdi-television" in resp.text          # the row's select re-renders
+        with open(tmp_path / "config.json") as fh:
+            entry = next(s for s in json.load(fh)["speakers"] if s["name"] == "living_room")
+        assert entry["options"]["icon"] == "mdi-television"
+
+        # invalid icon → error card, nothing stored
+        resp = await client.post("/kiosk/config/speakers/living_room/icon",
+                                 data={"icon": "mdi-not-a-real-icon"})
+        assert resp.status_code == 200
+        assert "Unknown speaker icon" in resp.text
+        with open(tmp_path / "config.json") as fh:
+            entry = next(s for s in json.load(fh)["speakers"] if s["name"] == "living_room")
+        assert entry["options"]["icon"] == "mdi-television"
+
+
+@pytest.mark.asyncio
+async def test_speakers_default_dropdown_route(monkeypatch, tmp_path, initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/system/connect/add-cc", data={"name": "living_room"})
+        await client.post("/kiosk/system/connect/add-cc", data={"name": "bedroom"})
+
+        resp = await client.post("/kiosk/config/speakers/default", data={"name": "bedroom"})
+        assert resp.status_code == 200
+        assert "Default speaker: bedroom" in resp.text
+        with open(tmp_path / "config.json") as fh:
+            speakers = json.load(fh)["speakers"]
+        assert next(s for s in speakers if s["name"] == "bedroom")["is_default"] is True
+        assert next(s for s in speakers if s["name"] == "living_room")["is_default"] is False
+
+
+@pytest.mark.asyncio
+async def test_speakers_card_table_renders_without_status(initialized_app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/system/connect/add-cc", data={"name": "living_room"})
+
+        resp = await client.get("/kiosk/config")
+        assert resp.status_code == 200
+        html = " ".join(resp.text.split())
+        assert "speakers-table" in html                      # the table design
+        assert "mdi-television" in html                      # glyph dropdown options
+        assert "Default speaker:" in html                    # the dropdown row
+        # status badges are gone from the setup page (devices page owns state)
+        assert "Connected</span>" not in html
+        assert "Available</span>" not in html

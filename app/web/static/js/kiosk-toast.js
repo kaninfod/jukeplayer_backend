@@ -43,3 +43,10 @@ document.body.addEventListener("kioskToast", function (evt) {
     const d = evt.detail || {};
     window.showKioskToast(d.message || String(d.value || ""), { theme: d.theme || "info" });
 });
+
+// Global page-busy overlay: ONE spinner for the whole SPA (user decision —
+// per-button spinners are overkill). Controllers toggle body.page-loading;
+// htmx requests are covered by CSS (body:has(.htmx-request)).
+window.setPageBusy = function(on) {
+    document.body.classList.toggle('page-loading', Boolean(on));
+};

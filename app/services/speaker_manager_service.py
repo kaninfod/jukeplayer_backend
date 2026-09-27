@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 
 KNOWN_BACKENDS = ("chromecast", "mpv")
 
+# Curated glyph set for the config table's per-row icon dropdown (v1:
+# hardcoded whitelist — the full MDI library is deliberately not exposed).
+SPEAKER_ICONS = (
+    "mdi-cast", "mdi-speaker", "mdi-speaker-wireless", "mdi-headphones",
+    "mdi-radio", "mdi-television", "mdi-bed-double",
+    "mdi-silverware-fork-knife", "mdi-boombox", "mdi-amplifier",
+)
+
 
 def normalize_speaker_name(raw: Any) -> str:
     """'Living Room' -> 'living_room' (store format). connect() re-normalizes
@@ -182,6 +190,13 @@ class SpeakerManagerService:
             if speaker.type == "chromecast":
                 if cc_names is not None:
                     speaker.available = normalize_speaker_name(speaker.speaker_name) in cc_names
+                try:
+                    hosts = {normalize_speaker_name(n): h for n, h in cc_mod.discovered_hosts().items()}
+                    host = hosts.get(normalize_speaker_name(speaker.speaker_name))
+                    if host:
+                        speaker.cc_host = host  # keep the last-known address when offline
+                except Exception as e:
+                    logger.debug(f"[SpeakerManager] CC host lookup unavailable: {e}")
                 backend = getattr(speaker.mediaplayer, "playback_backend", None) if speaker.mediaplayer else None
                 conn = getattr(backend, "is_connected", None)
                 speaker.connected = bool(conn and conn())
@@ -255,11 +270,33 @@ class SpeakerManagerService:
         mac = getattr(speaker, "bt_mac", None)
         result = await asyncio.to_thread(self.bluetooth_service.disconnect, mac)
         speaker.connected = result["connected"]
+        # the audio link is gone — stop the player so it does not keep
+        # running into a dead sink (device card falls back to Idle)
+        player = speaker.mediaplayer
+        if player:
+            try:
+                stop = getattr(player, "stop", None)
+                if stop:
+                    await stop()
+            except Exception as e:
+                logger.warning(f"[SpeakerManager] Stop after disconnect failed for '{name}': {e}")
         # user intent: this speaker was deliberately handed over — pause the
         # watchdog auto-reconnect until the user connects again (persisted)
         self._set_user_disconnected(name, True)
-        logger.info(f"[SpeakerManager] '{name}' disconnected by user — auto-reconnect paused (handover)")
+        logger.info(f"[SpeakerManager] '{name}' disconnected by user — player stopped, auto-reconnect paused (handover)")
         return {"name": name, "connected": result["connected"]}
+
+    def set_speaker_icon(self, name: str, icon: str) -> Dict[str, Any]:
+        """Set a speaker's glyph (validated against the curated whitelist).
+        Persisted as a speaker option; the devices page renders it."""
+        if icon not in SPEAKER_ICONS:
+            raise ValueError(f"Unknown speaker icon '{icon}'")
+        speaker = self.speakers.get_speaker(speaker_name=name)
+        if not speaker:
+            raise ValueError(f"Speaker '{name}' is not configured")
+        speaker.icon = icon
+        self.store.set_speaker_option(normalize_speaker_name(name), "icon", icon)
+        return {"name": speaker.speaker_name, "icon": icon}
 
     def _set_user_disconnected(self, name: str, flag: bool) -> None:
         """Persist the user-handover marker (speaker option) and mirror it on

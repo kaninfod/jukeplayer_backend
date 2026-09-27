@@ -20,6 +20,8 @@ class Speaker:
         self.bt_mac = None                  # MAC for bluetooth-backed speakers
         self.battery = None                 # battery % (bluetooth, when clearly reported)
         self.user_disconnected = False      # user handed this BT speaker to another device
+        self.cc_host = None                 # host (IP) of the chromecast device, when seen
+        self.icon = None                    # user-chosen mdi glyph (options.icon); None -> type default
         self.clients = set()
 
     def to_dict(self):
@@ -38,6 +40,10 @@ class Speaker:
             "bt_mac": self.bt_mac,
             "battery": self.battery,
             "user_disconnected": self.user_disconnected,
+            "cc_host": self.cc_host,
+            "icon": self.icon or ("mdi-cast" if self.type == "chromecast"
+                                  else "mdi-bluetooth" if self.type == "bluetooth"
+                                  else "mdi-speaker"),
             "clients": list(self.clients),
             "mediaplayer": {
                 "status": context.get("status"),
@@ -98,6 +104,7 @@ class SpeakersService:
         speaker.bt_mac = bt_mac
         # user-handover marker (BT speakers): survives restarts via the store
         speaker.user_disconnected = bool((entry.get("options") or {}).get("bt_user_disconnected"))
+        speaker.icon = (entry.get("options") or {}).get("icon")
         return speaker
 
     def add_speaker(self, entry: dict) -> Speaker:

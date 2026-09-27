@@ -279,13 +279,27 @@ async def test_device_card_shows_handover_pill(initialized_app):
 
         page = await client.get("/kiosk/devices")
         assert page.status_code == 200
-        # the BT state pill goes yellow in handover (no separate pill)
-        assert "text-bg-warning" in page.text
+        # the BT link pill goes amber in handover (icon-only, no separate pill)
+        assert "link-handover" in page.text
         assert "auto-reconnect paused" in page.text
-        assert "Handover" not in page.text.replace(
-            "Handover: auto-reconnect paused", "")
 
-        # unflagged speakers keep the plain grey disconnected pill
+        # unflagged speakers keep the grey paired pill
         boom.user_disconnected = False
         page = await client.get("/kiosk/devices")
-        assert "text-bg-warning" not in page.text
+        assert "link-handover" not in page.text
+        assert "link-paired" in page.text
+        # connected BT speakers render the clickable green link pill
+        assert "link-connected" not in page.text  # boom is disconnected here
+
+
+@pytest.mark.asyncio
+async def test_device_card_uses_configured_icon(initialized_app):
+    """The config table's glyph dropdown feeds the devices page icon tile."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        _inject_speaker("living_room", default=True)
+        ss = _get_service("speakers_service")
+        ss._speakers["living_room"].icon = "mdi-television"
+
+        page = await client.get("/kiosk/devices")
+        assert page.status_code == 200
+        assert "mdi-television" in page.text

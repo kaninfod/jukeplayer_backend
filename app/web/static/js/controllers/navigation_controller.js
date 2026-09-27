@@ -47,6 +47,7 @@ export default class extends Controller {
         }
 
         console.log("Navigation target resolved to:", url);
+        if (typeof window.setPageBusy === "function") window.setPageBusy(true);
 
         if (!url) {
             console.warn("Navigation failed: No URL found in event", event);
@@ -76,6 +77,8 @@ export default class extends Controller {
             
         } catch (error) {
             console.error("Navigation fetch failed:", error);
+        } finally {
+            if (typeof window.setPageBusy === "function") window.setPageBusy(false);
         }
 
         console.log("Broadcasting navigation completion for:", url);
