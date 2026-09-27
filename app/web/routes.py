@@ -621,7 +621,7 @@ async def kiosk_configure(request: Request, client_id: str):
     config_json = json.dumps(config, indent=2)
     if _is_htmx_request(request):
         return templates.TemplateResponse(request=request,
-            name="components/kiosk/configure/_configure.html",
+            name="components/kiosk/config_esp/_config_esp.html",
             context={"request": request, "client_id": client_id, "config_json": config_json,
                      "config": config, "client_name": client.user_name,
                      "refresh_splits": client.tft_refresh_splits or []})

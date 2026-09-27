@@ -511,3 +511,33 @@ def test_set_speaker_option_persists_and_removes(stack):
 def test_set_speaker_option_unknown_name_raises(stack):
     with pytest.raises(ValueError, match="not configured"):
         stack.store.set_speaker_option("ghost", "bt_user_disconnected", True)
+
+
+def test_link_down_event_reconnects_unflagged_speaker(stack):
+    """The event-driven path: a BT link-down fires an immediate reconnect
+    (no waiting for the next 30s state pass)."""
+    import threading
+    speaker = _add_bt_speaker(stack)
+    bt = _fake_bt(stack)
+    connect_calls = []
+    bt.connect = lambda mac: connect_calls.append(mac) or {"connected": True}
+    stack.manager.register_link_watch()
+
+    stack.manager._handle_bt_link_down("10:94:97:0F:CB:BF")
+
+    assert connect_calls == ["10:94:97:0F:CB:BF"]
+
+
+def test_link_down_respects_user_handover(stack):
+    """Handover-flagged speakers are NOT re-grabbed on link-down events."""
+    import threading
+    speaker = _add_bt_speaker(stack)
+    speaker.user_disconnected = True   # handed to the phone
+    bt = _fake_bt(stack)
+    stack.manager.register_link_watch()
+    connect = MagicMock(wraps=bt.connect)
+    bt.connect = connect
+
+    stack.manager._handle_bt_link_down("10:94:97:0F:CB:BF")
+
+    assert bt.connect.call_count == 0  # intent respected, no stealing

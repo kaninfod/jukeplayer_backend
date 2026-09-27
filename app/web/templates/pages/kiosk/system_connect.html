@@ -3,13 +3,14 @@
 {% block title %}Jukeplayer — Connect Speaker{% endblock %}
 
 {% block kiosk_content %}
-    <div class="container py-3">
-        <div class="mb-3">
-            <a href="/kiosk/system" class="btn btn-sm btn-outline-secondary"
-               data-action="click->navigation#load">
-                <i class="mdi mdi-arrow-left"></i> Back to System
-            </a>
+{% from "components/kiosk/shared/ui.html" import page_header %}
+    <div class="kiosk-component-container h-100 d-flex flex-column p-4">
+        {{ page_header(icon="mdi-plus-network",
+                       title="Device Discovery & Pairing",
+                       subtitle="Scan, pair and add speakers — setup surface",
+                       back="/kiosk/system", back_label="Back to System") }}
+        <div class="flex-grow-1 overflow-auto">
+            {% include 'components/kiosk/config/_connect_speaker_card.html' %}
         </div>
-        {% include 'components/kiosk/config/_connect_speaker_card.html' %}
     </div>
 {% endblock %}

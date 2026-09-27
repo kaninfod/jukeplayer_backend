@@ -1,20 +1,10 @@
 <div class="kiosk-component-container h-100 d-flex flex-column">
     <div class="mb-4 flex-shrink-0">
 
-        <div class="mb-3 d-flex align-items-center gap-3">
-            {% if back_url %}
-            <button href="{{ back_url }}" data-action="click->navigation#load" id="library-back-btn" class="btn btn-outline-secondary">
-                <i class="mdi mdi-arrow-left"></i> Back
-            </button>
-            {% else %}
-            <button id="library-back-btn" class="btn btn-outline-secondary library-back-btn-hidden">
-                <i class="mdi mdi-arrow-left"></i> Back
-            </button>
-            {% endif %}
-            <h3 class="kiosk-artist mb-0">
-                <i class="mdi mdi-folder-music"></i> <span id="library-title">{{ title or 'Music Library' }}</span>
-            </h3>
-        </div>
+        {% from "components/kiosk/shared/ui.html" import page_header %}
+        {{ page_header(icon="mdi-folder-music",
+                       title=title or "Music Library",
+                       back=back_url if back_url else None) }}
 
 
 

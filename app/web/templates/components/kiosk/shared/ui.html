@@ -1,0 +1,32 @@
+{# Shared kiosk UI macros — the design system (Phase: UI harmonisation).
+   Import per page:  {% from "components/kiosk/shared/ui.html" import page_header, card_grid %}
+   Page header: standard glyph + title + optional subtitle + optional back.
+   Card grid: the shared wrapping container for square card collections. #}
+
+{% macro page_header(icon, title, subtitle=None, back=None, back_label="Back") -%}
+<div class="page-header mb-3 flex-shrink-0 d-flex justify-content-between align-items-center">
+    <div>
+        <h3 class="kiosk-artist mb-1"><i class="mdi {{ icon }}"></i> {{ title }}</h3>
+        {% if subtitle %}
+        <p class="text-muted mb-0">{{ subtitle }}</p>
+        {% endif %}
+    </div>
+    {% if back %}
+    <a href="{{ back }}" class="btn btn-sm btn-outline-secondary" data-action="click->navigation#load">
+        <i class="mdi mdi-arrow-left"></i> {{ back_label }}
+    </a>
+    {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro card_grid() -%}
+<div class="card-grid flex-grow-1 overflow-auto">
+{{ caller() }}
+</div>
+{%- endmacro %}
+
+{% macro page_footer(content="") -%}
+<div class="page-footer flex-shrink-0 mt-2 pt-2 d-flex justify-content-between align-items-center small text-muted">
+{{ content }}
+</div>
+{%- endmacro %}
