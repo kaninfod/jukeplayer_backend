@@ -616,6 +616,55 @@ and properties. Consumer map: web UI (zero /api calls), ESP32 (WS-only), HA
   keeps the speaker; watchdog paused; yellow handover pill; Connect
   takes it back).
 
+## UI/UX: shared design system, card harmonisation, Acoustic Midnight theme (2026-09-26/27)
+
+The UI/UX round, driven by a Stitch mockup workflow (user sketches/mockups
+landed in ui-mocks/, screenshots came back for review):
+
+- **Shared design system** (`components/kiosk/shared/ui.html`): the
+  `page_header` (glyph/title/subtitle/back), `card_grid` and `page_footer`
+  macros. 9 of 10 content pages converted — headers standardized
+  (subtitles added where missing, back buttons where they make sense);
+  the player page is intentionally unique.
+- **Devices**: three-band card anatomy (type badge + player/link/battery
+  pills + icon tile + names + address + clients + state-dependent
+  Connect/Select action), square cards in the shared flex grid. Label
+  system agreed with the user: top pills = link + player state, bottom
+  right = the next action.
+- **Config**: the speakers list became a **setup table** (glyph dropdown
+  with a 10-icon whitelist / friendly name + system name + address /
+  protocol / bin) with the default-speaker dropdown + connect button
+  under the table. Status stripped from setup (it lives on devices).
+  Per-speaker icons persist as speaker options and render on the
+  devices page (the latent blank-icon bug resolved properly).
+- **Connect page**: two scan cards (CC/BT) + one results table for the
+  last scan; managed speakers SHOWN with a Managed pill instead of
+  hidden behind a note.
+- **Clients**: square cards + action circles (connected / configure /
+  reboot — the last two ESP32-gated; the client_id line dropped, the
+  attached speaker moved to the top-right pill).
+- **User handover** (BT): disconnect records a per-speaker intent marker
+  (speaker option, persists across restarts); the watchdog pauses
+  reconnect for flagged speakers; Connect takes them back. Playback
+  deliberately does NOT steal a handed-over speaker. BT disconnect also
+  stops the player (no phantom playback into a dead sink).
+- **Event-driven BT reconnect**: the D-Bus layer subscribes to BlueZ
+  Device1 PropertiesChanged and fires the reconnect the moment a link
+  drops (the 30s pass remains for battery/availability).
+- **Global page-busy overlay**: ONE spinner for the whole SPA instead of
+  per-button indicators (htmx + navigation + btspeaker hooks).
+- **ESP32 configure folder renamed**: components/kiosk/config_esp/
+  (_config_esp.html).
+- **Acoustic Midnight dark theme** (`kiosk-theme.css`): the DESIGN.md
+  tokens as CSS variables via data-bs-theme="dark" — midnight surfaces,
+  bright protocol accents (CC soft-indigo, BT electric-cyan), state
+  colors as --jk-* variables (emerald/amber/crimson), solid fills +
+  calibrated glows, the full chrome sweep (nav, now-playing bar,
+  volume, menus, status bars). The body background hardcoded in
+  jukebox.css was fixed to read the theme variable.
+- Suite: **153 passed**. All converted surfaces hardware-verified by the
+  user on jukeplayer-rpi.
+
 ## Final state notes
 
 - ~~Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.~~
