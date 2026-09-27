@@ -1,6 +1,10 @@
+{# Device discovery & pairing — two scan cards + a results table for the
+   last scan (one protocol at a time). Managed speakers (already added)
+   are SHOWN with a Managed pill instead of hidden. Spinner = the global
+   page-busy overlay. #}
 <div class="card mb-3" id="connect-speaker-card">
-    <div class="card-body py-3">
-        <h6 class="text-muted mb-2"><i class="mdi mdi-plus-network"></i> Connect a new speaker</h6>
+    <div class="card-body p-3">
+        <h6 class="text-muted mb-2"><i class="mdi mdi-plus-network"></i> Device Discovery &amp; Pairing</h6>
 
         {% if message %}
         <div class="alert alert-success py-1 px-2 my-2 small mb-0">{{ message }}</div>
@@ -9,75 +13,125 @@
         <div class="alert alert-danger py-1 px-2 my-2 small mb-0">{{ error }}</div>
         {% endif %}
 
-        {% if managed_names %}
-        <small class="text-muted d-block mb-1"><i class="mdi mdi-speaker-multiple"></i>
-            Already added as speaker{{ 's' if managed_names|length != 1 }} (managed in the Speakers card):
-            {{ managed_names | join(", ") }}</small>
-        {% endif %}
-
-        <!-- CHROMECAST -->
-        <div class="d-flex justify-content-between align-items-center mt-3 mb-1">
-            <h6 class="text-muted small mb-0"><i class="mdi mdi-cast"></i> Chromecast <span class="text-muted">(device powered on, on the network)</span></h6>
-            <button type="button" class="btn btn-sm btn-outline-primary"
-                    hx-get="/kiosk/system/connect/scan/cc"
-                    hx-target="#connect-speaker-card" hx-swap="outerHTML">
-                <i class="mdi mdi-radar"></i> Scan
-            </button>
+        {# two scan cards (one per protocol) #}
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <div class="scan-card h-100">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="scan-card-glyph"><i class="mdi mdi-cast"></i></div>
+                        <div class="fw-semibold">Chromecast</div>
+                    </div>
+                    <small class="text-muted d-block mb-2">Google Cast devices discovered on this network</small>
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                            hx-get="/kiosk/system/connect/scan/cc"
+                            hx-target="#connect-speaker-card" hx-swap="outerHTML">
+                        <i class="mdi mdi-radar me-1"></i>Scan
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="scan-card h-100">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="scan-card-glyph"><i class="mdi mdi-bluetooth"></i></div>
+                        <div class="fw-semibold">Bluetooth</div>
+                    </div>
+                    <small class="text-muted d-block mb-2">Put the speaker in pairing mode — usually a blinking light</small>
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                            hx-get="/kiosk/system/connect/scan/bt"
+                            hx-target="#connect-speaker-card" hx-swap="outerHTML">
+                        <i class="mdi mdi-bluetooth-search me-1"></i>Scan
+                    </button>
+                </div>
+            </div>
         </div>
+
+        {# results: one protocol at a time (the last scan wins) #}
         {% if cc_scanned %}
         {% if cc_devices %}
-        <ul class="list-group list-group-flush mb-2">
-            {% for d in cc_devices %}
-            {% if not d.configured %}
-            <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">
-                <span class="small">{{ d.name }} <span class="text-muted">· {{ d.model }} · {{ d.host }}</span></span>
-                <button type="button" class="btn btn-sm btn-outline-primary"
-                        hx-post="/kiosk/system/connect/add-cc" hx-vals='{"name": "{{ d.name }}", "uuid": "{{ d.uuid }}"}'
-                        hx-target="#connect-speaker-card" hx-swap="outerHTML">
-                    <i class="mdi mdi-plus"></i> Add
-                </button>
-            </li>
-            {% endif %}
-            {% endfor %}
-        </ul>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 speakers-table">
+                <thead>
+                <tr>
+                    <th class="speakers-th">Glyph</th>
+                    <th class="speakers-th">Name</th>
+                    <th class="speakers-th">Address</th>
+                    <th class="speakers-th text-end">Action</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for d in cc_devices %}
+                <tr>
+                    <td><i class="mdi mdi-cast"></i></td>
+                    <td>
+                        <div class="d-flex flex-column">
+                            <span class="fw-semibold">{{ d.name }}</span>
+                            <span class="device-meta">{{ d.model }}</span>
+                        </div>
+                    </td>
+                    <td><span class="device-meta">{{ d.host }}</span></td>
+                    <td class="text-end">
+                        {% if d.managed %}
+                        <span class="device-link-pill link-handover" title="Already added as a speaker — managed in the config table"><i class="mdi mdi-check"></i></span>
+                        {% else %}
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                hx-post="/kiosk/system/connect/add-cc"
+                                hx-vals='{"name": "{{ d.name }}", "uuid": "{{ d.uuid }}"}'
+                                hx-target="#connect-speaker-card" hx-swap="outerHTML">
+                            <i class="mdi mdi-plus me-1"></i>Add
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% else %}
-        <small class="text-muted">No Chromecasts found — check the device is powered on and on the same network.</small>
+        <small class="text-muted d-block">No Chromecasts found — check the device is powered on and on the same network.</small>
         {% endif %}
         {% endif %}
 
-        <!-- BLUETOOTH -->
-        <div class="d-flex justify-content-between align-items-center mt-3 mb-1">
-            <h6 class="text-muted small mb-0"><i class="mdi mdi-bluetooth"></i> Bluetooth <span class="text-muted">(speaker in pairing mode — usually a blinking light)</span></h6>
-            <button type="button" class="btn btn-sm btn-outline-primary"
-                    hx-get="/kiosk/system/connect/scan/bt"
-                    hx-target="#connect-speaker-card" hx-swap="outerHTML">
-                <i class="mdi mdi-bluetooth-search"></i> Scan
-            </button>
-        </div>
         {% if bt_scanned %}
         {% if bt_devices %}
-        <ul class="list-group list-group-flush mb-2">
-            {% for d in bt_devices %}
-            <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0">
-                <span class="small">
-                    {{ d.name or d.mac }} <span class="text-muted">· {{ d.mac }}</span>
-                </span>
-                <button type="button" class="btn btn-sm btn-outline-primary"
-                        hx-post="/kiosk/system/connect/pair" hx-vals='{"mac": "{{ d.mac }}"}'
-                        hx-target="#connect-speaker-card" hx-swap="outerHTML">
-                    <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span>
-                    <i class="mdi mdi-bluetooth-audio"></i> Pair
-                </button>
-            </li>
-            {% endfor %}
-        </ul>
-        <small class="text-muted d-block">Pairing connects the device and adds it as a speaker automatically.</small>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 speakers-table">
+                <thead>
+                <tr>
+                    <th class="speakers-th">Glyph</th>
+                    <th class="speakers-th">Name</th>
+                    <th class="speakers-th">Address</th>
+                    <th class="speakers-th text-end">Action</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for d in bt_devices %}
+                <tr>
+                    <td><i class="mdi mdi-bluetooth"></i></td>
+                    <td><span class="fw-semibold">{{ d.name or d.mac }}</span></td>
+                    <td><span class="device-meta">{{ d.mac }}</span></td>
+                    <td class="text-end">
+                        {% if d.managed %}
+                        <span class="device-link-pill link-handover" title="Already added as a speaker — managed in the config table"><i class="mdi mdi-check"></i></span>
+                        {% else %}
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                hx-post="/kiosk/system/connect/pair" hx-vals='{"mac": "{{ d.mac }}"}'
+                                hx-target="#connect-speaker-card" hx-swap="outerHTML">
+                            <i class="mdi mdi-bluetooth-audio me-1"></i>Pair
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <small class="text-muted d-block mt-1">Pairing connects the device and adds it as a speaker automatically.</small>
         {% else %}
-        <small class="text-muted">No Bluetooth devices found — put the speaker in pairing mode and scan again.</small>
+        <small class="text-muted d-block">No Bluetooth devices found — put the speaker in pairing mode and scan again.</small>
         {% endif %}
         {% endif %}
 
-        <!-- MANUAL (advanced) -->
+        {# manual (advanced) #}
         <details class="mt-3">
             <summary class="small text-muted">Add a speaker manually (advanced)</summary>
             <form class="row g-2 align-items-end mt-1"

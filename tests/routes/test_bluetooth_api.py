@@ -183,12 +183,15 @@ async def test_connect_card_renders_and_pair_adds_speaker(initialized_app):
 
 @pytest.mark.asyncio
 async def test_connect_card_managed_note(initialized_app):
+    """Managed speakers stay VISIBLE in the scan results with a Managed
+    pill (and no Pair action) instead of being hidden behind a note."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post("/kiosk/system/connect/pair", data={"mac": "10:94:97:0F:CB:BF"})
         scan = await client.get("/kiosk/system/connect/scan/bt")
         text = " ".join(scan.text.split())
-        assert "Already added as speaker (managed in the Speakers card): BOOM 3" in text
-        assert "10:94:97:0F:CB:BF" not in text   # hidden from the pair list
+        assert "link-handover" in text or "Managed" in text
+        assert "BOOM 3" in text                   # shown, not hidden
+        assert "mdi-bluetooth-audio" not in text  # no Pair action on managed rows
 
 
 @pytest.mark.asyncio

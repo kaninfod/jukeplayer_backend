@@ -211,11 +211,11 @@ def _connect_card_context(message: str | None = None, error: str | None = None,
                           bt_devices=None, bt_scanned: bool = False) -> dict:
     bt = _bt_service_or_none()
     manager = get_service("speaker_manager")
-    managed_names = [s.get("display_name") or s["name"] for s in manager.configured()]
 
     cc_list = []
     if cc_devices is not None:
-        cc_list = [d for d in cc_devices if not d.get("configured")]
+        for d in cc_devices:
+            cc_list.append({**d, "managed": bool(d.get("configured"))})
     bt_list = []
     if bt_devices is not None:
         managed_macs = set()
@@ -225,14 +225,14 @@ def _connect_card_context(message: str | None = None, error: str | None = None,
             if mac:
                 managed_macs.add(mac)
         for d in bt_devices:
-            if d.get("mac") in managed_macs:
-                continue
+            entry = {**d, "managed": d.get("mac") in managed_macs}
             name = (d.get("name") or "").strip()
-            if d.get("paired") or d.get("connected") or d.get("audio") or (name and name != d["mac"]):
-                bt_list.append(d)
+            # managed devices stay VISIBLE (with a Managed pill) instead of
+            # being hidden behind a note — user preference, 2026-09-26
+            if entry["managed"] or d.get("paired") or d.get("connected") or d.get("audio") or (name and name != d["mac"]):
+                bt_list.append(entry)
 
     return {
-        "managed_names": managed_names,
         "cc_devices": cc_list,
         "cc_scanned": cc_scanned,
         "bt_devices": bt_list,

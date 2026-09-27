@@ -969,3 +969,23 @@ body:has(.htmx-request) #page-busy {
     border-bottom-color: var(--bs-border-color) !important;
 }
 .speakers-icon-select { min-width: 11rem; font-family: var(--bs-font-monospace); font-size: .72rem; }
+
+/* Connect page — scan cards */
+.scan-card {
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    padding: 1rem;
+}
+.scan-card-glyph {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: .75rem;
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    color: var(--bs-secondary-color);
+}
