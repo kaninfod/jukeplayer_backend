@@ -24,3 +24,9 @@
 {{ caller() }}
 </div>
 {%- endmacro %}
+
+{% macro page_footer(content="") -%}
+<div class="page-footer flex-shrink-0 mt-2 pt-2 d-flex justify-content-between align-items-center small text-muted">
+{{ content }}
+</div>
+{%- endmacro %}

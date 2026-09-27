@@ -2,7 +2,7 @@
    top band: type badge + player pill + BT link pill (icon-only, click to
    disconnect when connected) · center band: icon tile + names + MAC ·
    bottom band: clients count + state-dependent action (Connect/Select) #}
-<div class="card device-card h-100 {{ 'device-card-playing' if details.mediaplayer.status == 'playing' else '' }}"
+<div class="card device-card {{ 'device-card-playing' if details.mediaplayer.status == 'playing' else '' }}"
      data-action="click->device#switchDevice"
      data-device-device-backend-param="{{ details.backend|e }}"
      data-device-device-id-param="{{ details.speaker_name|e }}">

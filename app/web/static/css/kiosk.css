@@ -917,7 +917,7 @@ span.kiosk-round-btn {
 }
 
 .device-card-footer { border-top: 1px solid var(--bs-border-color); }
-.device-page-footer { border-top: 1px solid var(--bs-border-color); }
+.page-footer { border-top: 1px solid var(--bs-border-color); }
 
 /* Shared card grid — wrapping flex box for square card collections
    (left → right, down). Used via the card_grid macro on all

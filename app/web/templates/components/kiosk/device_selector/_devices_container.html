@@ -1,7 +1,7 @@
 {# Output Devices page — uses the shared page_header + card_grid macros
    (UI harmonisation reference implementation). Card anatomy lives in
    _device.html (Stitch translation, light palette). #}
-{% from "components/kiosk/shared/ui.html" import page_header, card_grid %}
+{% from "components/kiosk/shared/ui.html" import page_header, card_grid, page_footer %}
 <div class="kiosk-component-container h-100 d-flex flex-column">
 
     {{ page_header(icon="mdi-speaker-multiple",
@@ -21,11 +21,12 @@
         {% endif %}
     {% endcall %}
 
-    <div class="device-page-footer flex-shrink-0 mt-2 pt-2 d-flex justify-content-between align-items-center small text-muted">
+    {% set footer_content %}
         <span>
             <i class="mdi mdi-debug-step-over me-1"></i>
             Fallback speaker: <strong>{{ fallback or "—" }}</strong>
         </span>
         <span id="device-status"></span>
-    </div>
+    {% endset %}
+    {{ page_footer(footer_content) }}
 </div>
