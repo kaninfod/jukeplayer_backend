@@ -352,13 +352,22 @@ body.kiosk-layout {
     height: 80px;
     font-size: 32px;
     border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+    --bs-btn-bg: #0a2735;
+    --bs-btn-color: #22d3ee;
+    --bs-btn-border-color: rgba(34, 211, 238, .25);
+    --bs-btn-hover-bg: #0d3247;
+    --bs-btn-hover-color: #22d3ee;
+    --bs-btn-hover-border-color: rgba(34, 211, 238, .5);
+    --bs-btn-active-bg: #0a2735;
+    --bs-btn-active-color: #67e8f9;
+    --bs-btn-active-border-color: rgba(34, 211, 238, .6);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .4), 0 0 10px rgba(34, 211, 238, .12);
     transition: all 0.2s;
 }
 
 .btn-media-control:active {
     transform: scale(0.95);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
 }
 
 /* ============================================
