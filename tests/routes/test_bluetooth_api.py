@@ -296,7 +296,7 @@ async def test_connect_form_lives_only_on_connect_page(initialized_app):
         # full page load of /kiosk/system → menu only, no connect form (either include)
         page = await client.get("/kiosk/system")
         assert page.status_code == 200
-        assert "System Settings" in page.text
+        assert "System" in page.text
         assert "connect-speaker-card" not in page.text
 
         # SPA partial (htmx) → same: menu only, no form

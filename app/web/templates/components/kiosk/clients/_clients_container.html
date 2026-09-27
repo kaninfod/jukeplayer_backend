@@ -1,31 +1,27 @@
+{# Clients — card collection (shared header + card grid, UI harmonisation). #}
+{% from "components/kiosk/shared/ui.html" import page_header, card_grid, page_footer %}
 <div class="kiosk-component-container h-100 d-flex flex-column">
-    <div  class="mb-4 flex-shrink-0">
-        <h3 class="kiosk-artist mb-2">
-            <i class="mdi mdi-radio"></i> Clients registered on server
-        </h3>
-    </div>
-    
-    <div id="device-grid" class="flex-grow-1 overflow-auto">
+
+    {{ page_header(icon="mdi-radio",
+                   title="Clients",
+                   subtitle="Control clients registered on this server") }}
+
+    {% call card_grid() %}
         {% if not clients %}
-          <div class="text-center text-muted py-5">
-              <i class="mdi mdi-speaker-off" style="font-size: 48px;"></i>
-              <p class="mt-3">No output devices found</p>
-          </div>
-          {% else %}
-          <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 m-0">
-            
-              {% for name, details in clients.items() %}
-                <div class="col">
-                  {% include 'components/kiosk/clients/_client.html' %}
-                </div>
-              {% endfor %}
-          </div>
+        <div class="text-center text-muted py-5">
+            <i class="mdi mdi-web" style="font-size: 48px;"></i>
+            <p class="mt-3">No clients registered</p>
+        </div>
+        {% else %}
+            {% for name, details in clients.items() %}
+                {% include 'components/kiosk/clients/_client.html' %}
+            {% endfor %}
         {% endif %}
+    {% endcall %}
 
-    </div>
-    
-    <div id="device-status" class="mt-auto pt-3"></div>
+    {% set footer_content %}
+        <span>{{ clients | length }} client{{ 's' if clients | length != 1 }} registered</span>
+        <span id="device-status"></span>
+    {% endset %}
+    {{ page_footer(footer_content) }}
 </div>
-
-
-

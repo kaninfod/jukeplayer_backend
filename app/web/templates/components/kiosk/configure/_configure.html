@@ -28,14 +28,11 @@
 <div class="kiosk-component-container h-100 d-flex flex-column p-4"
      data-controller="configure"
      data-configure-client-id-value="{{ client_id }}">
-    <div class="mb-3 flex-shrink-0 d-flex justify-content-between align-items-center">
-        <div>
-            <h3 class="kiosk-artist mb-1"><i class="mdi mdi-cog"></i> Configure {{ client_name }}</h3>
-            <small class="text-muted">{{ client_id }}</small>
-        </div>
-        <a href="/kiosk/clients" class="btn btn-sm btn-outline-secondary"
-           data-action="click->navigation#load">← Back to clients</a>
-    </div>
+    {% from "components/kiosk/shared/ui.html" import page_header %}
+    {{ page_header(icon="mdi-cog",
+                   title="Configure " ~ client_name,
+                   subtitle=client_id,
+                   back="/kiosk/clients", back_label="Back to clients") }}
 
     <div class="flex-grow-1 overflow-auto">
 

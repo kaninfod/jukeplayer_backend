@@ -10,9 +10,10 @@
     >
     
     <!-- Header -->
-    <h3 class="kiosk-artist mb-4">
-        <i class="mdi mdi-nfc-variant"></i> NFC Encoding
-    </h3>
+    {% from "components/kiosk/shared/ui.html" import page_header %}
+    {{ page_header(icon="mdi-nfc-variant",
+                   title="NFC Encoding",
+                   subtitle="Write an album id onto a card, then tap it to bind") }}
     
     <!-- Album being encoded -->
     <div id="nfc-album-name" class="kiosk-title mb-4" style="text-align: center;">

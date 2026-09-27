@@ -1,12 +1,10 @@
 <!-- Kiosk System Menu Component -->
+{% from "components/kiosk/shared/ui.html" import page_header %}
 <div class="kiosk-component-container">
-    <div class="mb-4">
-        <h3 class="kiosk-artist mb-2">
-            <i class="mdi mdi-cog"></i> System Settings
-        </h3>
-    </div>
+    {{ page_header(icon="mdi-cog",
+                   title="System",
+                   subtitle="Reload, fullscreen, clients, player controls, configuration and speaker setup") }}
     
-    <!-- 2 rows × 3 columns grid -->
     <div class="kiosk-grid-3col">
         <!-- Row 1, Col 1 -->
         <div href="/kiosk/clients" data-action="click->navigation#load" class="card h-100 system-action-card" >
