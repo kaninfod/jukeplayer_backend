@@ -373,14 +373,6 @@ body.kiosk-layout {
     padding: 20px;
 }
 
-/* Grid layout for device selector and system menu */
-.kiosk-grid-3col {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 15px;
-    max-width: 100%;
-}
-
 /* ============================================
    VOLUME BAR (Right Sidebar)
    ============================================ */
