@@ -11,6 +11,7 @@ untouched), then the live side, then client re-homing.
 import asyncio
 import logging
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -219,24 +220,59 @@ class SpeakerManagerService:
                         # user presses Connect (marker persists in the store)
                         logger.debug(f"[SpeakerManager] '{speaker.speaker_name}' in user handover — auto-reconnect paused")
                         continue
-                    logger.info(f"[SpeakerManager] '{speaker.speaker_name}' ({mac}) lost its sink — reconnecting …")
-                    result = self.bluetooth_service.connect(mac)
-                    if result["connected"]:
-                        speaker.connected = True
-                        speaker.available = True
-                        self._reconnect_state.pop(mac, None)
-                        reconnected.append(speaker.speaker_name)
-                        logger.info(f"[SpeakerManager] Reconnected '{speaker.speaker_name}' — resume playback from the UI if needed")
-                    else:
-                        attempts = state.get("attempts", 0) + 1
-                        delay = min(300.0, 30.0 * (2 ** min(attempts, 4)))
-                        self._reconnect_state[mac] = {"attempts": attempts, "not_before": now + delay,
-                                                      "error": result.get("error")}
-                        logger.warning(f"[SpeakerManager] Reconnect {mac} failed ({result.get('error')}) — retry in {delay:.0f}s")
+                    self._reconnect_speaker(speaker, reconnected)
             else:
                 # local speakers (e.g. analog): available when configured
                 speaker.available = True
         return {"reconnected": reconnected}
+
+    def _reconnect_speaker(self, speaker, reconnected: Optional[List[str]] = None) -> None:
+        """Attempt one reconnect for a BT speaker whose link dropped (shared
+        by the 30s state pass and the event-driven link-down handler)."""
+        mac = speaker.bt_mac
+        state = self._reconnect_state.get(mac, {})
+        now = time.monotonic()
+        if now < state.get("not_before", 0):
+            return  # backing off after failed reconnects
+        logger.info(f"[SpeakerManager] '{speaker.speaker_name}' ({mac}) lost its sink — reconnecting …")
+        result = self.bluetooth_service.connect(mac)
+        if result["connected"]:
+            speaker.connected = True
+            speaker.available = True
+            self._reconnect_state.pop(mac, None)
+            if reconnected is not None:
+                reconnected.append(speaker.speaker_name)
+            logger.info(f"[SpeakerManager] Reconnected '{speaker.speaker_name}' — resume playback from the UI if needed")
+        else:
+            attempts = state.get("attempts", 0) + 1
+            delay = min(300.0, 30.0 * (2 ** min(attempts, 4)))
+            self._reconnect_state[mac] = {"attempts": attempts, "not_before": now + delay,
+                                          "error": result.get("error")}
+            logger.warning(f"[SpeakerManager] Reconnect {mac} failed ({result.get('error')}) — retry in {delay:.0f}s")
+
+    def register_link_watch(self) -> None:
+        """Wire the event-driven reconnect: the D-Bus layer calls back the
+        moment a Device1 link drops; the 30s state pass remains as the
+        safety net (battery/availability refresh)."""
+        if not self.bluetooth_service:
+            return
+        try:
+            self.bluetooth_service.on_device_link_down(self._handle_bt_link_down)
+        except Exception as e:
+            logger.warning(f"[SpeakerManager] link watch unavailable: {e}")
+
+    def _handle_bt_link_down(self, mac: str) -> None:
+        """Runs on a worker thread the moment a BT link drops (D-Bus
+        signal). Respects the user handover marker + backoff, then attempts
+        an immediate reconnect."""
+        for speaker in self.speakers.get_all_speakers().values():
+            if getattr(speaker, "bt_mac", None) != mac:
+                continue
+            if getattr(speaker, "user_disconnected", False):
+                logger.debug(f"[SpeakerManager] '{speaker.speaker_name}' in user handover — reconnect paused")
+                return
+            self._reconnect_speaker(speaker)
+            return
 
     async def connect_speaker(self, name: str) -> Dict[str, Any]:
         """Connect a speaker's device. Bluetooth: bluetoothctl connect.

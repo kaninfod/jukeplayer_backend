@@ -280,3 +280,38 @@ def test_call_refuses_to_post_into_a_dead_loop():
     client._loop = None         # ...but the loop never ran
     with pytest.raises(RuntimeError, match="loop is not running"):
         client.call(lambda: asyncio.sleep(0), timeout=1.0)
+
+def test_link_down_signal_fires_callback():
+    """The D-Bus signal dispatcher reacts to Device1 Connected=false and
+    calls the registered handler with the device MAC (event-driven
+    reconnect)."""
+    from types import SimpleNamespace
+
+    from dbus_fast import MessageType
+
+    client = BlueZDbus.__new__(BlueZDbus)
+    client._bus = MagicMock()
+    client._adapter_path = "/org/bluez/hci0"
+    client._link_down_callback = None
+    fired = []
+    client.set_link_down_callback(lambda mac: fired.append(mac))
+
+    signal = SimpleNamespace(message_type=MessageType.SIGNAL,
+                             member="PropertiesChanged",
+                             path="/org/bluez/hci0/dev_10_94_97_0F_CB_BF",
+                             body=("org.bluez.Device1",
+                                   {"Connected": Variant("b", False)}, []))
+    client._handle_msg(signal)
+    assert fired == [BOOM_MAC]
+
+    # connected=true is not a link-down
+    signal.body = ("org.bluez.Device1", {"Connected": Variant("b", True)}, [])
+    client._handle_msg(signal)
+    assert fired == [BOOM_MAC]
+
+    # non-device signals ignored
+    client._handle_msg(SimpleNamespace(message_type=MessageType.SIGNAL,
+                                       member="PropertiesChanged",
+                                       path="/org/bluez",
+                                       body=("org.bluez.Adapter1", {}, [])))
+    assert fired == [BOOM_MAC]

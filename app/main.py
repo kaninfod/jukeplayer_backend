@@ -173,6 +173,14 @@ async def startup_event():
     speaker_manager = global_container.get('speaker_manager')
     asyncio.create_task(speaker_manager.sync_all_speaker_volumes())
 
+    # Step 5b: event-driven BT reconnect — the D-Bus layer calls back the
+    # moment a Device1 link drops (the 30s state pass remains as the
+    # battery/availability refresh + safety net).
+    try:
+        speaker_manager.register_link_watch()
+    except Exception as e:
+        logging.warning(f"[speaker link watch] unavailable: {e}")
+
     # Step 5: speaker state watchdog — every interval, refresh available/
     # connected flags on every Speaker and reconnect BT speakers whose link
     # dropped mid-session (the shared BT chip hangs without app-visible errors).

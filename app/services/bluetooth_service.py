@@ -218,6 +218,12 @@ class BluetoothService:
             logger.info(f"[BT] No pulse sink for {mac} (not connected?)")
         return sink
 
+    # --- event-driven reconnect ------------------------------------------------------
+    def on_device_link_down(self, callback) -> None:
+        """Register the handler fired the moment a BT device's audio link
+        drops (BlueZ Device1 Connected=false signal)."""
+        self._dbus.set_link_down_callback(callback)
+
     # --- battery ------------------------------------------------------------------
     def battery_percent(self, mac: str, uuids: Optional[List[str]] = None) -> Optional[int]:
         """Battery percentage from BlueZ's Battery1 interface. Returns None

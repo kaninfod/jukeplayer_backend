@@ -146,6 +146,7 @@ class BlueZDbus:
         self._agent = None
         self._agent_registered = False
         self._start_lock = threading.Lock()
+        self._link_down_callback: Optional[Callable[[str], Any]] = None
 
     # --- lifecycle ----------------------------------------------------------------
     def ensure(self) -> None:
@@ -211,6 +212,7 @@ class BlueZDbus:
 
     async def _connect(self) -> None:
         self._bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        self._bus.add_message_handler(self._handle_msg)
         logger.info("[BT-dbus] system bus connected")
         # Register the pairing agent up front: Pair() without an agent can
         # fail for JustWorks devices depending on bluez's agent policy.
@@ -232,6 +234,39 @@ class BlueZDbus:
         logger.info(f"[BT-dbus] connected to org.bluez (adapter: {self._adapter_path})")
 
     # --- low-level ------------------------------------------------------------------
+    def set_link_down_callback(self, callback: Callable[[str], Any]) -> None:
+        """Register the handler for BlueZ Device1 Connected=false events
+        (event-driven reconnect instead of waiting for the next poll)."""
+        self._link_down_callback = callback
+
+    def _handle_msg(self, msg: Message) -> None:
+        """Signal dispatcher (runs on the D-Bus loop thread). Reacts to
+        Device1 Connected=false - the moment an audio link drops."""
+        try:
+            if msg.message_type != MessageType.SIGNAL:
+                return
+            if msg.member != "PropertiesChanged" or not msg.path or "/dev_" not in msg.path:
+                return
+            interface, changed = msg.body[0], msg.body[1]
+            if interface != "org.bluez.Device1":
+                return
+            connected = _prop(changed, "Connected")
+            if connected is not False:
+                return
+            mac_match = re.search(r"dev_([0-9A-Fa-f_]{17})", msg.path)
+            if not mac_match:
+                return
+            mac = mac_match.group(1).replace("_", ":").upper()
+            logger.info(f"[BT-dbus] link down: {mac}")
+            if self._link_down_callback:
+                # run OFF the D-Bus loop: the reconnect path blocks on
+                # futures posted to this very loop - calling it inline
+                # would deadlock
+                threading.Thread(target=self._link_down_callback, args=(mac,),
+                                 name=f"bt-link-down-{mac}", daemon=True).start()
+        except Exception as e:
+            logger.error(f"[BT-dbus] signal handling failed: {e}")
+
     async def _call_msg(self, msg: Message, timeout: float = 25.0) -> Any:
         reply = await asyncio.wait_for(self._bus.call(msg), timeout=timeout)
         if reply is None:
