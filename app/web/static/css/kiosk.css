@@ -1114,3 +1114,19 @@ body:has(.htmx-request) #page-busy {
 .system-action-card.glyph-controls .mdi { color: #34d399; }
 .system-action-card.glyph-config .mdi { color: #c0c1ff; }
 .system-action-card.glyph-connect .mdi { color: #4cd7f6; }
+
+/* Styleguide page — token swatches */
+.swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+.swatch { width: 8rem; }
+.swatch-chip {
+    height: 3rem;
+    border-radius: .5rem;
+    border: 1px solid var(--bs-border-color);
+    margin-bottom: .35rem;
+}
+
+.system-action-card.glyph-palette .mdi { color: #a78bfa; }

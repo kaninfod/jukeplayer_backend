@@ -553,6 +553,19 @@ async def kiosk_player_partial(request: Request):
     )
 
 
+@router.get("/kiosk/styleguide", response_class=HTMLResponse)
+async def kiosk_styleguide(request: Request):
+    """The living styleguide: renders the design system with its real
+    classes so colors, pills and cards can be reviewed after theme
+    changes. Static — no data dependencies."""
+    if _is_htmx_request(request):
+        return templates.TemplateResponse(request=request,
+            name="components/kiosk/shared/_styleguide.html", context={"request": request})
+    return templates.TemplateResponse(request=request,
+        name="pages/kiosk/styleguide.html",
+        context={"request": request, "kiosk_mode": True})
+
+
 @router.get("/kiosk/devices", response_class=HTMLResponse)
 async def kiosk_devices_partial(request: Request):
     from app.core.service_container import get_service

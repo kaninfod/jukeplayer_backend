@@ -10,6 +10,7 @@ import ClientActionsController from "./controllers/client_actions_controller.js"
 import ConfigureController from "./controllers/configure_controller.js"
 import LoggingController from "./controllers/logging_controller.js"
 import BtSpeakerController from "./controllers/bt_speaker_controller.js"
+import StyleguideController from "./controllers/styleguide_controller.js"
 
 const application = Application.start()
 
@@ -28,5 +29,6 @@ application.register("clientactions", ClientActionsController)
 application.register("configure", ConfigureController)
 application.register("logging", LoggingController)
 application.register("btspeaker", BtSpeakerController)
+application.register("styleguide", StyleguideController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

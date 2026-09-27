@@ -1,0 +1,120 @@
+{# Living styleguide — the design system rendered with its real classes.
+   Static (no data dependencies). After a theme or component change,
+   review here first; update this page when a component changes. #}
+{% from "components/kiosk/shared/ui.html" import page_header, page_footer %}
+<div class="kiosk-component-container h-100 d-flex flex-column"
+     data-controller="styleguide">
+
+    {{ page_header(icon="mdi-palette",
+                   title="Styleguide",
+                   subtitle="The living design system — components, states and tokens in the current skin") }}
+
+    <div class="flex-grow-1 overflow-auto pe-1">
+
+        {# COLORS #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-palette"></i> Colors</h6>
+        <div class="swatch-grid mb-4">
+            {% for name, hex in [
+                ("canvas #0B0F19", "#0B0F19"),
+                ("card #171b26", "#171b26"),
+                ("elevated #1c1f2a", "#1c1f2a"),
+                ("on-surface #F8FAFC", "#F8FAFC"),
+                ("muted #94A3B8", "#94A3B8"),
+                ("CC indigo #6366F1", "#6366F1"),
+                ("BT cyan #06B6D4", "#06B6D4"),
+                ("success #34d399", "#34d399"),
+                ("warning #fbbf24", "#fbbf24"),
+                ("danger #f87171", "#f87171"),
+            ] %}
+            <div class="swatch">
+                <div class="swatch-chip" style="background: {{ hex }};"></div>
+                <small class="device-meta">{{ name }}</small>
+            </div>
+            {% endfor %}
+        </div>
+
+        {# IDENTITY BADGES #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-shape"></i> Identity badges</h6>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+            <span class="device-type-badge type-cc"><i class="mdi mdi-cast"></i> Chromecast</span>
+            <span class="device-type-badge type-bt"><i class="mdi mdi-bluetooth"></i> Bluetooth</span>
+            <span class="device-type-badge type-audio"><i class="mdi mdi-speaker"></i> Audio</span>
+        </div>
+
+        {# PLAYER PILLS #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-play-circle"></i> Player state</h6>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+            <span class="device-player-pill player-playing" title="Playing"><i class="mdi mdi-play me-1"></i>Playing</span>
+            <span class="device-player-pill player-paused" title="Paused"><i class="mdi mdi-pause me-1"></i>Paused</span>
+            <span class="device-player-pill player-idle" title="Player idle">Idle</span>
+            <span class="device-player-pill player-offline" title="Not on the network"><i class="mdi mdi-wifi-off me-1"></i>Offline</span>
+        </div>
+
+        {# LINK PILLS #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-bluetooth"></i> BT link state (clickable = disconnect)</h6>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+            <button type="button" class="device-link-pill link-connected" title="Connected — click to disconnect (handover)"><i class="mdi mdi-bluetooth-connect"></i></button>
+            <span class="device-link-pill link-handover" title="Handover: auto-reconnect paused"><i class="mdi mdi-bluetooth-off"></i></span>
+            <span class="device-link-pill link-paired" title="Paired — audio link down"><i class="mdi mdi-bluetooth-off"></i></span>
+        </div>
+
+        {# ICON TILES #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-shape"></i> Icon tiles</h6>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+            <div class="icon-tile"><i class="mdi mdi-speaker"></i></div>
+            <div class="icon-tile tile-cc"><i class="mdi mdi-cast"></i></div>
+            <div class="icon-tile tile-bt"><i class="mdi mdi-bluetooth"></i></div>
+        </div>
+
+        {# BUTTONS #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-gesture-tap-button"></i> Buttons</h6>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
+            <button type="button" class="btn btn-sm btn-primary">Primary</button>
+            <button type="button" class="btn btn-sm btn-outline-primary">Outline primary</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary">Outline secondary</button>
+            <button type="button" class="btn btn-media-control" style="width: 3.5rem; height: 3.5rem; font-size: 1.2rem;"><i class="mdi mdi-play"></i></button>
+        </div>
+
+        {# CARD SAMPLE (three-band anatomy) #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-card-bulleted"></i> Card — three-band anatomy</h6>
+        <div class="card-grid mb-4">
+            <div class="card device-card">
+                <div class="card-body d-flex flex-column p-3">
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <span class="device-type-badge type-bt"><i class="mdi mdi-bluetooth"></i> Bluetooth</span>
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="device-player-pill player-playing" title="Playing here"><i class="mdi mdi-play me-1"></i>Playing</span>
+                            <button type="button" class="device-link-pill link-connected" title="Connected — click to disconnect (handover)"><i class="mdi mdi-bluetooth-connect"></i></button>
+                            <span class="device-player-pill player-idle" title="Device battery"><i class="mdi mdi-battery me-1"></i>82%</span>
+                        </div>
+                    </div>
+                    <div class="text-center my-3">
+                        <div class="icon-tile tile-bt mx-auto mb-2"><i class="mdi mdi-speaker"></i></div>
+                        <div class="fw-bold text-truncate">BOOM 3</div>
+                        <div class="device-tech-name text-truncate">boom_3</div>
+                        <div class="device-meta">10:94:97:0F:CB:BF</div>
+                    </div>
+                    <div class="device-card-footer mt-auto pt-2 d-flex justify-content-between align-items-center">
+                        <span class="text-muted small"><i class="mdi mdi-account-multiple-outline me-1"></i>1</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary">Select<i class="mdi mdi-arrow-right ms-1"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# THEME TOGGLE #}
+        <h6 class="text-muted mb-2"><i class="mdi mdi-theme-light-dark"></i> Theme</h6>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="click->styleguide#toggleTheme">
+                <i class="mdi mdi-theme-light-dark me-1"></i>Toggle theme
+            </button>
+            <small class="text-muted">The theme is attribute-driven — this flips data-bs-theme on &lt;html&gt; live.</small>
+        </div>
+
+    </div>
+
+    {% set footer_content %}
+        <span>Acoustic Midnight — the tokens live in <span class="device-meta">kiosk-theme.css</span></span>
+    {% endset %}
+    {{ page_footer(footer_content) }}
+</div>

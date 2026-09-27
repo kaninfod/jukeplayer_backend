@@ -303,3 +303,22 @@ async def test_device_card_uses_configured_icon(initialized_app):
         page = await client.get("/kiosk/devices")
         assert page.status_code == 200
         assert "mdi-television" in page.text
+
+@pytest.mark.asyncio
+async def test_styleguide_page_renders(initialized_app):
+    """The living styleguide renders the design system with its real
+    classes and the live theme toggle."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        page = await client.get("/kiosk/styleguide")
+        assert page.status_code == 200
+        html = " ".join(page.text.split())
+        assert "link-handover" in html               # link pills in every state
+        assert "player-playing" in html              # player pills
+        assert "device-link-pill link-connected" in html  # the sample card renders its bands
+        assert "styleguide#toggleTheme" in html      # the live theme toggle
+        assert "device-meta" in html                 # the mono meta lines
+
+        # htmx partial renders the same content
+        partial = await client.get("/kiosk/styleguide", headers={"HX-Request": "true"})
+        assert partial.status_code == 200
+        assert "swatch-grid" in partial.text
