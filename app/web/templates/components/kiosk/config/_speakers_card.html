@@ -30,14 +30,22 @@
                 {% set label = s.display_name or s.name %}
                 <tr>
                     <td>
-                        <select class="form-select form-select-sm speakers-icon-select"
-                                name="icon" aria-label="Icon for {{ s.name }}"
-                                hx-post="/kiosk/config/speakers/{{ s.name }}/icon"
-                                hx-trigger="change" hx-target="#speakers-card" hx-swap="outerHTML">
-                            {% for ic in speaker_icons %}
-                            <option value="{{ ic }}" {% if s.icon == ic %}selected{% endif %}>{{ ic }}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-sm btn-outline-secondary device-glyph-btn"
+                                    data-bs-toggle="dropdown" aria-expanded="false" title="Change glyph">
+                                <i class="mdi {{ s.icon }}"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                {% for ic in speaker_icons %}
+                                <li><button type="button" class="dropdown-item"
+                                        hx-post="/kiosk/config/speakers/{{ s.name }}/icon"
+                                        hx-vals='{"icon": "{{ ic }}"}'
+                                        hx-target="#speakers-card" hx-swap="outerHTML">
+                                    <i class="mdi {{ ic }} me-1"></i>{{ ic }}
+                                </button></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
                     </td>
                     <td>
                         <div class="d-flex flex-column">
