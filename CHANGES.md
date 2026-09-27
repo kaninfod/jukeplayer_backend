@@ -603,9 +603,18 @@ and properties. Consumer map: web UI (zero /api calls), ESP32 (WS-only), HA
   as the human debug tool in `docs/OPERATIONS.md`.
 - Tests: facade contract over a fake dbus layer (envelope shapes, targeting,
   discovery cycle, pair failure paths, battery filters, auto-connect rules);
-  parser tests dropped with the parsers. Suite: **138 passed**.
+  parser tests dropped with the parsers. Suite: **138 → 146 passed**.
 - Watchdog stays poll-driven this round (event-driven reconnect via
   Device1 signals is a follow-up).
+- **Hardware-verified on jukeplayer-rpi (2026-09-26, merged to main):**
+  three transport bugs found by the Pi's journal and fixed same-day
+  (missing sync bridge; missing explicit D-Bus signatures; dead-loop
+  posting after a partial connect failure — all now guarded by
+  fail-fast paths + real-client regression tests). Full cycle verified:
+  forget → D-Bus scan → agent pairing (~1s) → trust → connect → music
+  through the pulse sink. User handover verified by the user (phone
+  keeps the speaker; watchdog paused; yellow handover pill; Connect
+  takes it back).
 
 ## Final state notes
 
