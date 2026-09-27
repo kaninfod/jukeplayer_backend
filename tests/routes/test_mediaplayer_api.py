@@ -290,3 +290,16 @@ async def test_device_card_shows_handover_pill(initialized_app):
         assert "link-paired" in page.text
         # connected BT speakers render the clickable green link pill
         assert "link-connected" not in page.text  # boom is disconnected here
+
+
+@pytest.mark.asyncio
+async def test_device_card_uses_configured_icon(initialized_app):
+    """The config table's glyph dropdown feeds the devices page icon tile."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        _inject_speaker("living_room", default=True)
+        ss = _get_service("speakers_service")
+        ss._speakers["living_room"].icon = "mdi-television"
+
+        page = await client.get("/kiosk/devices")
+        assert page.status_code == 200
+        assert "mdi-television" in page.text

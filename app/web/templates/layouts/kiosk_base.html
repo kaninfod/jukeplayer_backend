@@ -60,6 +60,13 @@
 
     <!-- Toast container for global notifications -->
     <div id="kiosk-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;"></div>
+    <!-- Global page-busy overlay: ONE spinner for the whole SPA -->
+    <div id="page-busy" aria-hidden="true">
+        <div class="page-busy-box text-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2 small text-muted">Working…</div>
+        </div>
+    </div>
     
     <!-- Kiosk-specific JavaScript -->
     <script src="/static/js/kiosk-toast.js"></script>

@@ -21,7 +21,7 @@
             <button type="button" class="btn btn-sm btn-outline-primary"
                     hx-get="/kiosk/system/connect/scan/cc"
                     hx-target="#connect-speaker-card" hx-swap="outerHTML">
-                <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-radar"></i> Scan
+                <i class="mdi mdi-radar"></i> Scan
             </button>
         </div>
         {% if cc_scanned %}
@@ -51,7 +51,7 @@
             <button type="button" class="btn btn-sm btn-outline-primary"
                     hx-get="/kiosk/system/connect/scan/bt"
                     hx-target="#connect-speaker-card" hx-swap="outerHTML">
-                <span class="spinner-border spinner-border-sm htmx-indicator" role="status" aria-hidden="true"></span> <i class="mdi mdi-bluetooth-search"></i> Scan
+                <i class="mdi mdi-bluetooth-search"></i> Scan
             </button>
         </div>
         {% if bt_scanned %}

@@ -930,3 +930,42 @@ span.kiosk-round-btn {
     width: 15rem;
     aspect-ratio: 1 / 1;
 }
+
+/* Global page-busy overlay — ONE spinner for the whole SPA (blocks the
+   container during htmx requests and controller fetches). */
+#page-busy {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, .55);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+#page-busy .page-busy-box {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .15);
+}
+body.page-loading #page-busy,
+body:has(.htmx-request) #page-busy {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Speakers setup table */
+.speakers-table { font-size: .9rem; }
+.speakers-th {
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    border-bottom-color: var(--bs-border-color) !important;
+}
+.speakers-icon-select { min-width: 11rem; font-family: var(--bs-font-monospace); font-size: .72rem; }

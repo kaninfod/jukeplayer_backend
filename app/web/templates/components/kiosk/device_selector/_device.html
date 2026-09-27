@@ -57,11 +57,7 @@
 
         {# center band #}
         <div class="text-center my-3">
-            {% if details.type == 'chromecast' %}
-            <div class="icon-tile mx-auto mb-2"><i class="mdi mdi-cast"></i></div>
-            {% else %}
-            <div class="icon-tile mx-auto mb-2"><i class="mdi mdi-speaker"></i></div>
-            {% endif %}
+            <div class="icon-tile mx-auto mb-2"><i class="mdi {{ details.icon }}"></i></div>
             <div class="fw-bold text-truncate" title="{{ (details.display_name or details.speaker_name)|e }}">{{ (details.display_name or details.speaker_name)|e }}</div>
             <div class="device-tech-name text-truncate" title="{{ details.speaker_name|e }}">{{ details.speaker_name|e }}</div>
             {% if details.bt_mac %}

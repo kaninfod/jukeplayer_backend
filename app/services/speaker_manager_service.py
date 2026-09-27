@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 
 KNOWN_BACKENDS = ("chromecast", "mpv")
 
+# Curated glyph set for the config table's per-row icon dropdown (v1:
+# hardcoded whitelist — the full MDI library is deliberately not exposed).
+SPEAKER_ICONS = (
+    "mdi-cast", "mdi-speaker", "mdi-speaker-wireless", "mdi-headphones",
+    "mdi-radio", "mdi-television", "mdi-bed-double",
+    "mdi-silverware-fork-knife", "mdi-boombox", "mdi-amplifier",
+)
+
 
 def normalize_speaker_name(raw: Any) -> str:
     """'Living Room' -> 'living_room' (store format). connect() re-normalizes
@@ -277,6 +285,18 @@ class SpeakerManagerService:
         self._set_user_disconnected(name, True)
         logger.info(f"[SpeakerManager] '{name}' disconnected by user — player stopped, auto-reconnect paused (handover)")
         return {"name": name, "connected": result["connected"]}
+
+    def set_speaker_icon(self, name: str, icon: str) -> Dict[str, Any]:
+        """Set a speaker's glyph (validated against the curated whitelist).
+        Persisted as a speaker option; the devices page renders it."""
+        if icon not in SPEAKER_ICONS:
+            raise ValueError(f"Unknown speaker icon '{icon}'")
+        speaker = self.speakers.get_speaker(speaker_name=name)
+        if not speaker:
+            raise ValueError(f"Speaker '{name}' is not configured")
+        speaker.icon = icon
+        self.store.set_speaker_option(normalize_speaker_name(name), "icon", icon)
+        return {"name": speaker.speaker_name, "icon": icon}
 
     def _set_user_disconnected(self, name: str, flag: bool) -> None:
         """Persist the user-handover marker (speaker option) and mirror it on

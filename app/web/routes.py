@@ -95,7 +95,7 @@ def _config_ui_context(saved_section: str | None = None) -> dict:
             "logging": scalars("logging"),
             "server": scalars("server"),
         },
-        "speakers": _speakers_card_context()["speakers"],
+        **_speakers_card_context(),
         "system_env": {key: entry["value"] for key, entry in config_service.effective()["sections"]["system_env"]["keys"].items()},
         "saved_section": saved_section,
         "applies": "live" if saved_section == "logging" else "restart" if saved_section else None,
@@ -171,12 +171,17 @@ def _speakers_card_context(message: str | None = None, error: str | None = None)
             "display_name": entry.get("display_name") or "",
             "is_default": entry.get("is_default", False),
             "speaker_type": getattr(speaker, "type", "local") if speaker else "local",
-            "connected": bool(getattr(speaker, "connected", False)) if speaker else False,
-            "available": bool(getattr(speaker, "available", False)) if speaker else False,
+            "icon": getattr(speaker, "icon", None) if speaker else None,
+            "bt_mac": getattr(speaker, "bt_mac", None) if speaker else None,
+            "cc_host": getattr(speaker, "cc_host", None) if speaker else None,
+            "address": (getattr(speaker, "bt_mac", None) if speaker else None)
+                       or (getattr(speaker, "cc_host", None) if speaker else None),
         })
+    from app.services.speaker_manager_service import SPEAKER_ICONS
     return {
         "speakers": speakers,
         "default_name": default_name,
+        "speaker_icons": SPEAKER_ICONS,
         "message": message,
         "error": error,
     }
@@ -402,6 +407,38 @@ async def kiosk_speakers_remove(name: str, request: Request):
 
 @router.post("/kiosk/config/speakers/{name}/default")
 async def kiosk_speakers_default(name: str, request: Request):
+    manager = get_service("speaker_manager")
+    try:
+        manager.set_default(name)
+        resp = _render_speakers_card(request, **_speakers_card_context(
+            message=f"Default speaker: {name}"))
+        return _with_toast(resp, f"Default speaker: {name}")
+    except ValueError as e:
+        resp = _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
+
+
+@router.post("/kiosk/config/speakers/{name}/icon")
+async def kiosk_speakers_icon(name: str, request: Request):
+    """Per-row glyph dropdown (config table): set the speaker's mdi icon."""
+    form = await request.form()
+    icon = str(form.get("icon") or "").strip()
+    manager = get_service("speaker_manager")
+    try:
+        result = manager.set_speaker_icon(name, icon)
+        resp = _render_speakers_card(request, **_speakers_card_context(
+            message=f"Icon for {name}: {result['icon']}"))
+        return _with_toast(resp, f"Icon for {name}: {result['icon']}")
+    except ValueError as e:
+        resp = _render_speakers_card(request, **_speakers_card_context(error=str(e)))
+        return _with_toast(resp, str(e), theme="error")
+
+
+@router.post("/kiosk/config/speakers/default")
+async def kiosk_speakers_default_dropdown(request: Request):
+    """Default-speaker dropdown under the table (replaces the star column)."""
+    form = await request.form()
+    name = str(form.get("name") or "").strip()
     manager = get_service("speaker_manager")
     try:
         manager.set_default(name)
