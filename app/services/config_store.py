@@ -236,6 +236,24 @@ class ConfigStoreService:
                 return speakers
         raise ValueError(f"Speaker '{clean}' is not configured")
 
+    def set_speaker_option(self, name: str, key: str, value: Any) -> List[Dict[str, Any]]:
+        """Set (or remove, with a None value) one option on a configured
+        speaker. The manager is the single writer of the speakers section."""
+        clean = str(name or "").strip().lower()
+        speakers = list(self.section("speakers"))
+        for s in speakers:
+            if s["name"] == clean:
+                options = dict(s.get("options") or {})
+                if value is None:
+                    options.pop(key, None)
+                else:
+                    options[key] = value
+                s["options"] = options
+                self._data["speakers"] = speakers
+                self.save()
+                return speakers
+        raise ValueError(f"Speaker '{clean}' is not configured")
+
 
 class ConfigService:
     """Merged effective configuration + runtime appliers.

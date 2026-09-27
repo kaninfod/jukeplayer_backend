@@ -19,6 +19,7 @@ class Speaker:
         self.connected = False              # active audio link
         self.bt_mac = None                  # MAC for bluetooth-backed speakers
         self.battery = None                 # battery % (bluetooth, when clearly reported)
+        self.user_disconnected = False      # user handed this BT speaker to another device
         self.clients = set()
 
     def to_dict(self):
@@ -36,6 +37,7 @@ class Speaker:
             "connected": self.connected,
             "bt_mac": self.bt_mac,
             "battery": self.battery,
+            "user_disconnected": self.user_disconnected,
             "clients": list(self.clients),
             "mediaplayer": {
                 "status": context.get("status"),
@@ -94,6 +96,8 @@ class SpeakersService:
                           display_name=str(entry.get("display_name") or ""),
                           speaker_type=speaker_type)
         speaker.bt_mac = bt_mac
+        # user-handover marker (BT speakers): survives restarts via the store
+        speaker.user_disconnected = bool((entry.get("options") or {}).get("bt_user_disconnected"))
         return speaker
 
     def add_speaker(self, entry: dict) -> Speaker:

@@ -265,8 +265,10 @@ async def test_device_card_bt_controls(initialized_app):
         assert resp.json()["connected"] is False
         page = await client.get("/kiosk/devices")
         html = " ".join(page.text.split())
-        disconnected_pill = ('<span class="badge rounded-pill bg-light text-muted border px-2"'
-                             ' title="BT disconnected"> <i class="mdi mdi-bluetooth-off"></i> </span>')
+        # a user disconnect sets handover: the state pill goes yellow
+        disconnected_pill = ('<span class="badge rounded-pill text-bg-warning px-2"'
+                             ' title="Handover: auto-reconnect paused — press Connect to take'
+                             ' this speaker back"> <i class="mdi mdi-bluetooth-off"></i> </span>')
         assert disconnected_pill in html
         # disconnected → battery pill hidden even though a reading exists
         assert "42%" not in html

@@ -58,6 +58,7 @@ def stack(tmp_path, monkeypatch):
                           display_name=entry.get("display_name", ""),
                           speaker_type=speaker_type)
         speaker.bt_mac = bt_mac
+        speaker.user_disconnected = bool((entry.get("options") or {}).get("bt_user_disconnected"))
         return speaker
 
     monkeypatch.setattr(speakers, "_build_speaker", fake_build)
@@ -401,3 +402,110 @@ def test_state_pass_marks_cc_available(stack, monkeypatch):
 
 def entry_name():
     return "living_room_speaker"
+
+# --- user handover (BT disconnect intent) ---------------------------------------
+
+def _add_bt_speaker(stack, name="boom_3", mac="10:94:97:0F:CB:BF"):
+    """Add an mpv-backed speaker whose audio_device resolves to a BT MAC."""
+    stack.manager.add_speaker(
+        name=name, backend="mpv",
+        options={"audio_device": f"pulse/bluez_sink.{mac.replace(':', '_')}.a2dp_sink"})
+    return stack.speakers.get_speaker(speaker_name=name)
+
+
+def _fake_bt(stack, sink=None):
+    bt = MagicMock()
+    bt.disconnect = lambda mac: {"mac": mac, "connected": False}
+    bt.sink_for_device = lambda mac: None
+    bt.info = lambda mac: {"paired": True, "connected": False, "uuids": [],
+                           "name": "BOOM 3"}
+    bt.battery_percent = lambda mac, uuids=None: None
+    bt.connect = lambda mac: {"connected": True}
+    stack.manager.bluetooth_service = bt
+    return bt
+
+
+@pytest.mark.asyncio
+async def test_disconnect_marks_user_handover(stack):
+    speaker = _add_bt_speaker(stack)
+    _fake_bt(stack)
+
+    await stack.manager.disconnect_speaker("boom_3")
+
+    assert speaker.user_disconnected is True
+    entry = next(s for s in stack.store.section("speakers") if s["name"] == "boom_3")
+    assert entry["options"]["bt_user_disconnected"] is True
+
+
+@pytest.mark.asyncio
+async def test_watchdog_skips_flagged_speaker(stack, caplog):
+    speaker = _add_bt_speaker(stack)
+    speaker.user_disconnected = True   # user handed the speaker to their phone
+    bt = _fake_bt(stack)
+    connect = MagicMock(wraps=bt.connect)
+    bt.connect = connect
+    stack.manager._reconnect_state.clear()
+
+    stack.manager.update_speaker_states()
+
+    assert bt.connect.call_count == 0          # no reconnect while flagged
+    assert stack.manager._reconnect_state.get("10:94:97:0F:CB:BF") is None
+
+
+@pytest.mark.asyncio
+async def test_connect_clears_user_handover(stack):
+    speaker = _add_bt_speaker(stack)
+    speaker.user_disconnected = True
+    stack.store.set_speaker_option("boom_3", "bt_user_disconnected", True)
+    _fake_bt(stack)
+    bt = stack.manager.bluetooth_service
+    bt.sink_for_device = lambda mac: "pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"
+
+    await stack.manager.connect_speaker("boom_3")
+
+    assert speaker.user_disconnected is False
+    entry = next(s for s in stack.store.section("speakers") if s["name"] == "boom_3")
+    assert entry["options"].get("bt_user_disconnected") in (False, None)
+
+
+def test_handover_flag_survives_rebuild_from_store(stack):
+    """The marker persists as a speaker option — construction reads it back."""
+    speaker = _add_bt_speaker(stack)
+    stack.store.set_speaker_option("boom_3", "bt_user_disconnected", True)
+    rebuilt = stack.speakers._build_speaker(next(
+        s for s in stack.store.section("speakers") if s["name"] == "boom_3"))
+    assert rebuilt.user_disconnected is True
+
+
+def test_watchdog_still_reconnects_unflagged_speaker(stack):
+    _add_bt_speaker(stack)
+    bt = _fake_bt(stack)
+    bt.sink_for_device = lambda mac: None
+    connect_calls = []
+    bt.connect = lambda mac: connect_calls.append(mac) or {"connected": True}
+    stack.manager.bluetooth_service = bt
+    stack.manager._reconnect_state.clear()
+
+    stack.manager.update_speaker_states()
+
+    assert connect_calls == ["10:94:97:0F:CB:BF"]
+
+
+# --- store helper (persisted handover marker) -------------------------------------
+
+def test_set_speaker_option_persists_and_removes(stack):
+    stack.store.add_speaker("boom_3", backend="mpv")
+    stack.store.set_speaker_option("boom_3", "bt_user_disconnected", True)
+    entry = next(s for s in stack.store.section("speakers") if s["name"] == "boom_3")
+    assert entry["options"]["bt_user_disconnected"] is True
+    with open(str(stack.store.path)) as fh:
+        assert json.load(fh)["speakers"][0]["options"]["bt_user_disconnected"] is True
+
+    stack.store.set_speaker_option("boom_3", "bt_user_disconnected", None)
+    entry = next(s for s in stack.store.section("speakers") if s["name"] == "boom_3")
+    assert "bt_user_disconnected" not in entry["options"]
+
+
+def test_set_speaker_option_unknown_name_raises(stack):
+    with pytest.raises(ValueError, match="not configured"):
+        stack.store.set_speaker_option("ghost", "bt_user_disconnected", True)

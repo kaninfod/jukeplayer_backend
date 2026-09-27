@@ -569,6 +569,44 @@ success (they expected handler results the broker never returned).
   backends not yet updated) in a co-released HA branch; its dead
   `get_output_status` method is removed.
 
+## BT transport port — bluetoothctl → BlueZ D-Bus (dbus-fast) (2026-09-26)
+
+Assessment round (user): the bluetoothctl wrapper was the wrong layer — a
+subprocess + regex-scraped debug CLI where BlueZ's real interface is signals
+and properties. Consumer map: web UI (zero /api calls), ESP32 (WS-only), HA
+(HTTP for status/mute/repeat/browse) — all on the same facade.
+
+- **New `app/services/bluetooth_dbus.py`** (`BlueZDbus`): async BlueZ client
+  pinned to its own event-loop thread (the facade stays sync — routes call
+  via `asyncio.to_thread`, some template contexts synchronously; both work).
+  Speaks `org.bluez` directly: ObjectManager inventory (no regex parsing),
+  Adapter1 `SetDiscoveryFilter` (BR/EDR) + `StartDiscovery`/`StopDiscovery`
+  (no interactive bluetoothctl session), Device1 `Pair`/`Connect`/
+  `Disconnect`/`RemoveDevice` + `Trusted`/`Pairable` properties, Battery1
+  `Percentage` (no busctl), and a **pairing agent** (`AutoAcceptAgent`,
+  NoInputNoOutput, registered with AgentManager1) so JustWorks A2DP pairing
+  needs no interaction.
+- **Facade unchanged**: `BluetoothService` keeps every public method and
+  result shape (the connect card, device cards, `/api/bluetooth/*`, and the
+  watchdog don't change). The pactl layer is untouched — sinks are
+  PulseAudio objects, not BlueZ objects.
+- **Gone**: ~200 lines of stdout regex parsing, the scan-session
+  puppeteering, subprocess error scraping. Errors now arrive as real D-Bus
+  replies mapped to human text (`org.bluez.Error.AlreadyExists` → "Device is
+  already paired", …).
+- **Latent bug fixed on the way**: the fe61 battery filter used a bare
+  prefix in a list-membership check against full UUIDs — it never actually
+  matched, so the vendor-misreport suppression never fired. Now a substring
+  check (the Boom's bogus 1% is suppressed for real this time).
+- `requirements.txt`: + `dbus-fast` (the HA-ecosystem BlueZ stack). No
+  Bluetooth tooling needed by the app anymore — bluetoothctl remains only
+  as the human debug tool in `docs/OPERATIONS.md`.
+- Tests: facade contract over a fake dbus layer (envelope shapes, targeting,
+  discovery cycle, pair failure paths, battery filters, auto-connect rules);
+  parser tests dropped with the parsers. Suite: **138 passed**.
+- Watchdog stays poll-driven this round (event-driven reconnect via
+  Device1 signals is a follow-up).
+
 ## Final state notes
 
 - ~~Old 44MB `jukebox.log` at repo root and `tmp_mpv.log` are orphaned — safe to delete.~~

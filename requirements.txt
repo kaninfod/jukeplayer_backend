@@ -21,6 +21,9 @@ websockets>=10.0
 pychromecast>=14.0.0
 zeroconf>=0.50.0
 
+# Bluetooth (BlueZ over D-Bus — replaces the bluetoothctl subprocess layer)
+dbus-fast>=5.0.0
+
 # Async
 python-multipart>=0.0.9
 aiofiles>=23.0.0
