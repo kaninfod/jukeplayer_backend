@@ -527,6 +527,10 @@ async def kiosk_devices_partial(request: Request):
     speakers_service = get_service("speakers_service")
     context["speakers"] = speakers_service.to_dict()
     # BT runtime info now lives on the Speaker flags (updated by the state pass)
+    try:
+        context["fallback"] = get_service("config_service").default_speaker_name()
+    except Exception:
+        context["fallback"] = None
     logger.info(f"Rendering devices partial with speakers: {list(context['speakers'].keys())}")
 
 

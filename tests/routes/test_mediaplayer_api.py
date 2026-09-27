@@ -279,13 +279,14 @@ async def test_device_card_shows_handover_pill(initialized_app):
 
         page = await client.get("/kiosk/devices")
         assert page.status_code == 200
-        # the BT state pill goes yellow in handover (no separate pill)
-        assert "text-bg-warning" in page.text
+        # the BT link pill goes amber in handover (icon-only, no separate pill)
+        assert "link-handover" in page.text
         assert "auto-reconnect paused" in page.text
-        assert "Handover" not in page.text.replace(
-            "Handover: auto-reconnect paused", "")
 
-        # unflagged speakers keep the plain grey disconnected pill
+        # unflagged speakers keep the grey paired pill
         boom.user_disconnected = False
         page = await client.get("/kiosk/devices")
-        assert "text-bg-warning" not in page.text
+        assert "link-handover" not in page.text
+        assert "link-paired" in page.text
+        # connected BT speakers render the clickable green link pill
+        assert "link-connected" not in page.text  # boom is disconnected here

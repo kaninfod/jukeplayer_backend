@@ -252,24 +252,23 @@ async def test_device_card_bt_controls(initialized_app):
         page = await client.get("/kiosk/devices")
         assert page.status_code == 200
         html = " ".join(page.text.split())
-        # BT state pill is icon-only — no text inside the pill
-        connected_pill = ('<span class="badge rounded-pill bg-success px-2" title="BT connected">'
-                          ' <i class="mdi mdi-bluetooth-connect"></i> </span>')
-        assert connected_pill in html
+        # connected: the link pill is green and clickable (disconnect toggle)
+        assert '<button type="button" class="device-link-pill link-connected"' in html
+        assert 'Connected — click to disconnect (handover)' in html
         # battery pill requires connected + a clear reading
         assert "42%" in html
-        # MAC address in small font below the pill group
+        # MAC address in the card's tech-name band
         assert "10:94:97:0F:CB:BF" in html
+        # connected → the bottom action is Select
+        assert "Select" in html
 
         resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "boom_3"})
         assert resp.json()["connected"] is False
         page = await client.get("/kiosk/devices")
         html = " ".join(page.text.split())
-        # a user disconnect sets handover: the state pill goes yellow
-        disconnected_pill = ('<span class="badge rounded-pill text-bg-warning px-2"'
-                             ' title="Handover: auto-reconnect paused — press Connect to take'
-                             ' this speaker back"> <i class="mdi mdi-bluetooth-off"></i> </span>')
-        assert disconnected_pill in html
+        # a user disconnect sets handover: amber link pill + Connect action
+        assert '<span class="device-link-pill link-handover" title="Handover: auto-reconnect paused — press Connect to take this speaker back">' in html
+        assert "<i class=\"mdi mdi-bluetooth-connect me-1\"></i>Connect" in html
         # disconnected → battery pill hidden even though a reading exists
         assert "42%" not in html
 
