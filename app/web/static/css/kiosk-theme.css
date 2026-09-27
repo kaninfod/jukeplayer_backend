@@ -1,0 +1,39 @@
+/* ============================================================
+   kiosk-theme.css — "Acoustic Midnight" (DESIGN.md token mapping)
+   Loaded AFTER bootstrap.min.css + kiosk.css: the tokens override the
+   Bootstrap variables and our kiosk classes read them. The dark theme
+   is active via data-bs-theme="dark" on <html>; removing that
+   attribute restores the light palette.
+   ============================================================ */
+
+:root {
+    /* state/accent palette (identical in both themes - the semantics
+       green=playing/connected, amber=handover/warning survive the skin) */
+    --jk-accent-cc: #6366F1;        /* Chromecast: indigo */
+    --jk-accent-bt: #06B6D4;        /* Bluetooth: electric cyan */
+    --jk-success-rgb: 16, 185, 129; /* emerald: playing / connected */
+    --jk-warning-rgb: 245, 158, 11; /* industrial amber: handover / paused */
+    --jk-danger-rgb: 239, 68, 68;   /* crimson: destructive */
+}
+
+[data-bs-theme="dark"] {
+    /* surfaces (DESIGN.md core canvas + elevation) */
+    --bs-body-bg: #0B0F19;                 /* absolute deep midnight navy */
+    --bs-body-color: #F8FAFC;              /* text primary */
+    --bs-secondary-color: #94A3B8;         /* text secondary / muted */
+    --bs-tertiary-bg: #111827;             /* surface elevation 1 (cards, tiles) */
+    --bs-secondary-bg: #1E293B;            /* surface elevation 2 (popovers, inputs) */
+    --bs-border-color: rgba(255, 255, 255, .08);
+    --bs-emphasis-color: #F8FAFC;
+    --bs-card-bg: #111827;
+    --bs-card-border-color: rgba(255, 255, 255, .08);
+
+    /* accents */
+    --bs-primary: #6366F1;
+    --bs-primary-rgb: 99, 102, 241;
+    --bs-link-color: #38BDF8;
+
+    /* protocol hover glows (per DESIGN.md elevation) */
+    --jk-glow-cc: rgba(99, 102, 241, .15);
+    --jk-glow-bt: rgba(6, 182, 212, .15);
+}

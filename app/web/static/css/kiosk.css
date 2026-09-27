@@ -838,8 +838,8 @@ span.kiosk-round-btn {
     transform: translateY(-2px);
 }
 .device-card-playing {
-    border-color: rgba(25, 135, 84, .45);
-    box-shadow: 0 0 0 .2rem rgba(25, 135, 84, .08);
+    border-color: rgba(var(--jk-success-rgb), .45);
+    box-shadow: 0 0 0 .2rem rgba(var(--jk-success-rgb), .08);
 }
 
 .device-type-badge {
@@ -865,8 +865,8 @@ span.kiosk-round-btn {
     border-radius: 1rem;
     border: 1px solid transparent;
 }
-.player-playing { background: rgba(25, 135, 84, .12); color: #198754; border-color: rgba(25, 135, 84, .25); }
-.player-paused  { background: rgba(255, 193, 7, .15); color: #7a5b00; border-color: rgba(255, 193, 7, .35); }
+.player-playing { background: rgba(var(--jk-success-rgb), .12); color: rgb(var(--jk-success-rgb)); border-color: rgba(var(--jk-success-rgb), .25); }
+.player-paused  { background: rgba(var(--jk-warning-rgb), .15); color: rgb(var(--jk-warning-rgb)); border-color: rgba(var(--jk-warning-rgb), .35); }
 .player-idle    { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color); }
 .player-offline { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color); }
 
@@ -880,9 +880,9 @@ span.kiosk-round-btn {
     font-size: .9rem;
     border: 1px solid transparent;
 }
-.link-connected { background: rgba(25, 135, 84, .12); color: #198754; border-color: rgba(25, 135, 84, .3); cursor: pointer; }
-.link-connected:hover { background: rgba(25, 135, 84, .22); }
-.link-handover { background: rgba(255, 193, 7, .18); color: #7a5b00; border-color: rgba(255, 193, 7, .45); }
+.link-connected { background: rgba(var(--jk-success-rgb), .12); color: rgb(var(--jk-success-rgb)); border-color: rgba(var(--jk-success-rgb), .3); cursor: pointer; }
+.link-connected:hover { background: rgba(var(--jk-success-rgb), .22); }
+.link-handover { background: rgba(var(--jk-warning-rgb), .18); color: rgb(var(--jk-warning-rgb)); border-color: rgba(var(--jk-warning-rgb), .45); }
 .link-paired { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); border-color: var(--bs-border-color); }
 
 .icon-tile {
