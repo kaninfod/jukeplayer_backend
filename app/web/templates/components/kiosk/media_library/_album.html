@@ -17,7 +17,7 @@
         <h6 class="card-title text-truncate" style="max-width: 100%;">{{ album.name|e }}</h6>
         <p class="card-text text-muted text-truncate mb-0" style="max-width: 100%;">{{ artist.name|e }}</p>
         {% if album.year %}
-            <p class="card-text"><small class="text-muted">{{ album.year }}</small></p>
+            <p class="card-text text-truncate mb-0"><small class="text-muted">{{ album.year }}</small></p>
         {% endif %}
         <button data-action="click->playercontrols#playAlbum" data-playercontrols-album-id-param="{{ album.id }}" type="button" class="btn btn-success w-100 mb-2">
             <i class="mdi mdi-play"></i> Play

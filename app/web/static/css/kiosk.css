@@ -679,9 +679,11 @@ span.kiosk-round-btn {
    ============================================ */
 
 .system-action-card {
+    width: 15rem;
+    aspect-ratio: 1 / 1;
     transition: transform 0.2s, box-shadow 0.2s;
     min-height: 180px;
-    cursor: pointer;    
+    cursor: pointer;
 }
 
 .system-action-card:hover:not([style*="opacity: 0.5"]) {
