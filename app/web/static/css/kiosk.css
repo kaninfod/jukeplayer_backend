@@ -991,3 +991,23 @@ body:has(.htmx-request) #page-busy {
     font-size: 1.3rem;
     color: var(--bs-secondary-color);
 }
+
+/* Shared card contract: square geometry + three-band anatomy.
+   Band classes (device-type-badge / device-player-pill / device-link-pill /
+   icon-tile / device-card-footer) are the shared vocabulary every card
+   partial renders; per-type content lives in the bands. */
+.card-square {
+    width: 15rem;
+    aspect-ratio: 1 / 1;
+}
+.device-link-pill.link-action {
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+    border-color: var(--bs-border-color);
+    cursor: pointer;
+    text-decoration: none;
+}
+.device-link-pill.link-action:hover {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+}

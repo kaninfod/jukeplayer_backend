@@ -1,28 +1,46 @@
+{# Client card — shared card anatomy. Bottom band: action circles
+   (connected / configure / reboot — the last two for ESP32 clients). #}
+{% set is_esp32 = details.client_type == 'esp32' %}
 <div class="card device-card">
     <div class="card-body d-flex flex-column p-3">
-        {# top band #}
-        <div class="d-flex justify-content-between align-items-center">
+        {# top band: type badge + attached speaker #}
+        <div class="d-flex justify-content-between align-items-center gap-1">
             <span class="device-type-badge"><i class="mdi mdi-web"></i> {{ details.client_type|e }}</span>
-            <div class="d-flex align-items-center gap-1">
-                {% if details.ws_active %}
-                <span class="device-link-pill link-connected" title="Connected"><i class="mdi mdi-check"></i></span>
-                {% else %}
-                <span class="device-link-pill link-paired" title="Disconnected"><i class="mdi mdi-close-circle"></i></span>
-                {% endif %}
-            </div>
+            {% if details.speaker_info and details.speaker_info.speaker_name %}
+            <span class="device-player-pill player-idle" title="Attached speaker">
+                <i class="mdi mdi-speaker me-1"></i>{{ details.speaker_info.speaker_name|e }}
+            </span>
+            {% endif %}
         </div>
+
         {# center band #}
         <div class="text-center my-3">
+            {% if is_esp32 %}
+            <div class="icon-tile mx-auto mb-2"><i class="mdi mdi-chip"></i></div>
+            {% else %}
             <div class="icon-tile mx-auto mb-2"><i class="mdi mdi-web"></i></div>
+            {% endif %}
             <div class="fw-bold text-truncate" title="{{ details.user_name|e }}">{{ details.user_name|e }}</div>
             <div class="device-meta">{{ details.client_ip|e }}</div>
             <div class="device-meta" title="Last connection">{{ details.connected_at | datetimeformat }}</div>
         </div>
-        {# bottom band #}
-        <div class="device-card-footer mt-auto pt-2 d-flex flex-column align-items-center gap-1">
-            <span class="device-meta text-truncate w-100" style="overflow-wrap: break-word;">{{ details.client_id|e }}</span>
-            {% if details.speaker_info and details.speaker_info.speaker_name %}
-            <span class="small text-muted"><i class="mdi mdi-speaker me-1"></i>{{ details.speaker_info.speaker_name }}</span>
+
+        {# bottom band: action circles #}
+        <div class="device-card-footer mt-auto pt-2 d-flex justify-content-center align-items-center gap-2">
+            {% if details.ws_active %}
+            <span class="device-link-pill link-connected" title="Connected"><i class="mdi mdi-lan-connect"></i></span>
+            {% else %}
+            <span class="device-link-pill link-paired" title="Disconnected"><i class="mdi mdi-lan-disconnect"></i></span>
+            {% endif %}
+            {% if is_esp32 %}
+            <a href="/kiosk/configure/{{ details.client_id|e }}" class="device-link-pill link-action"
+               data-action="click->navigation#load" title="Configure client"><i class="mdi mdi-cog"></i></a>
+            <button type="button" class="device-link-pill link-action"
+                    data-controller="clientactions"
+                    data-action="click->clientactions#reboot:stop"
+                    data-clientactions-client-id-param="{{ details.client_id|e }}"
+                    data-clientactions-client-name-param="{{ details.user_name|e }}"
+                    title="Reboot client"><i class="mdi mdi-restart"></i></button>
             {% endif %}
         </div>
     </div>
