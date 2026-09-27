@@ -9,11 +9,11 @@
 :root {
     /* state/accent palette (identical in both themes - the semantics
        green=playing/connected, amber=handover/warning survive the skin) */
-    --jk-accent-cc: #6366F1;        /* Chromecast: indigo */
-    --jk-accent-bt: #06B6D4;        /* Bluetooth: electric cyan */
-    --jk-success-rgb: 16, 185, 129; /* emerald: playing / connected */
-    --jk-warning-rgb: 245, 158, 11; /* industrial amber: handover / paused */
-    --jk-danger-rgb: 239, 68, 68;   /* crimson: destructive */
+    --jk-accent-cc: #c0c1ff;        /* Chromecast: soft indigo (bright on dark) */
+    --jk-accent-bt: #4cd7f6;        /* Bluetooth: electric cyan (bright) */
+    --jk-success-rgb: 52, 211, 153; /* bright emerald: playing / connected */
+    --jk-warning-rgb: 251, 191, 36; /* bright amber: handover / paused */
+    --jk-danger-rgb: 248, 113, 113; /* bright crimson: destructive */
 }
 
 [data-bs-theme="dark"] {
@@ -21,11 +21,11 @@
     --bs-body-bg: #0B0F19;                 /* absolute deep midnight navy */
     --bs-body-color: #F8FAFC;              /* text primary */
     --bs-secondary-color: #94A3B8;         /* text secondary / muted */
-    --bs-tertiary-bg: #111827;             /* surface elevation 1 (cards, tiles) */
+    --bs-tertiary-bg: #171b26;             /* surface-container-low: cards sit lighter than the page */
     --bs-secondary-bg: #1E293B;            /* surface elevation 2 (popovers, inputs) */
     --bs-border-color: rgba(255, 255, 255, .08);
     --bs-emphasis-color: #F8FAFC;
-    --bs-card-bg: #111827;
+    --bs-card-bg: #171b26;
     --bs-card-border-color: rgba(255, 255, 255, .08);
 
     /* accents */
