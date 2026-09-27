@@ -62,6 +62,20 @@ def discovered_names() -> set:
     return names
 
 
+def discovered_hosts() -> Dict[str, str]:
+    """friendly_name → host (IP) for devices currently visible to the
+    persistent discovery browser (read-only, no network wait). Used for the
+    CC device cards' address line."""
+    browser = _get_global_browser()
+    hosts = {}
+    for _uuid, cast_info in browser.services.items():
+        name = getattr(cast_info, "friendly_name", None)
+        host = getattr(cast_info, "host", None)
+        if name and host:
+            hosts[name] = str(host)
+    return hosts
+
+
 def discover_devices(timeout: Optional[float] = None) -> List[Dict]:
     """One scan of the persistent global discovery browser (blocking, network
     I/O — call off the event loop). Returns

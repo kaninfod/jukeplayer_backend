@@ -182,6 +182,13 @@ class SpeakerManagerService:
             if speaker.type == "chromecast":
                 if cc_names is not None:
                     speaker.available = normalize_speaker_name(speaker.speaker_name) in cc_names
+                try:
+                    hosts = {normalize_speaker_name(n): h for n, h in cc_mod.discovered_hosts().items()}
+                    host = hosts.get(normalize_speaker_name(speaker.speaker_name))
+                    if host:
+                        speaker.cc_host = host  # keep the last-known address when offline
+                except Exception as e:
+                    logger.debug(f"[SpeakerManager] CC host lookup unavailable: {e}")
                 backend = getattr(speaker.mediaplayer, "playback_backend", None) if speaker.mediaplayer else None
                 conn = getattr(backend, "is_connected", None)
                 speaker.connected = bool(conn and conn())

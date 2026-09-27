@@ -909,7 +909,7 @@ span.kiosk-round-btn {
     font-size: .72rem;
     color: var(--bs-secondary-color);
 }
-.device-mac {
+.device-meta {
     font-family: var(--bs-font-monospace);
     font-size: .65rem;
     letter-spacing: .5px;

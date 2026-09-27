@@ -20,6 +20,7 @@ class Speaker:
         self.bt_mac = None                  # MAC for bluetooth-backed speakers
         self.battery = None                 # battery % (bluetooth, when clearly reported)
         self.user_disconnected = False      # user handed this BT speaker to another device
+        self.cc_host = None                 # host (IP) of the chromecast device, when seen
         self.clients = set()
 
     def to_dict(self):
@@ -38,6 +39,7 @@ class Speaker:
             "bt_mac": self.bt_mac,
             "battery": self.battery,
             "user_disconnected": self.user_disconnected,
+            "cc_host": self.cc_host,
             "clients": list(self.clients),
             "mediaplayer": {
                 "status": context.get("status"),

@@ -65,7 +65,11 @@
             <div class="fw-bold text-truncate" title="{{ (details.display_name or details.speaker_name)|e }}">{{ (details.display_name or details.speaker_name)|e }}</div>
             <div class="device-tech-name text-truncate" title="{{ details.speaker_name|e }}">{{ details.speaker_name|e }}</div>
             {% if details.bt_mac %}
-            <div class="device-mac">{{ details.bt_mac|e }}</div>
+            <div class="device-meta">{{ details.bt_mac|e }}</div>
+            {% elif details.cc_host %}
+            <div class="device-meta" title="Cast device IP">{{ details.cc_host|e }}</div>
+            {% else %}
+            <div class="device-meta">—</div>
             {% endif %}
         </div>
 
