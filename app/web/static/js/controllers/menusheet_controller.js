@@ -41,4 +41,16 @@ export default class extends Controller {
         this.close()
         window.dispatchEvent(new CustomEvent("nav:go", { detail: url }))
     }
+
+    playlist(event) {
+        // the playlist view needs the client id injected (same as the
+        // navigation controller's injectClientId pattern)
+        if (event && typeof event.preventDefault === "function") event.preventDefault()
+        const raw = event.currentTarget.getAttribute("data-navigation-url-value") || "/kiosk/playlist"
+        this.close()
+        const url = new URL(raw, window.location.origin)
+        const clientId = localStorage.getItem("clientId")
+        if (clientId) url.searchParams.append("injected_client_id", clientId)
+        window.dispatchEvent(new CustomEvent("nav:go", { detail: url.pathname + url.search }))
+    }
 }
