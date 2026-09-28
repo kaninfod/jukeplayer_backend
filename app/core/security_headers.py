@@ -14,7 +14,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response: Response = await call_next(request)
         response.headers.setdefault("x-content-type-options", "nosniff")
-        response.headers.setdefault("x-frame-options", "DENY")
+        # SAMEORIGIN (not DENY): the styleguide's live phone preview embeds
+        # the app in a same-origin iframe - DENY blocks even that, while
+        # cross-site framing stays prohibited. frame-ancestors mirrors it.
+        response.headers.setdefault("x-frame-options", "SAMEORIGIN")
         response.headers.setdefault("referrer-policy", "no-referrer")
 
         # Build a CSP that allows images from self, data:, and (optionally) the Subsonic/Gonic host
@@ -88,6 +91,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         csp = (
             "default-src 'self' data:; "
+            "frame-ancestors 'self'; "
             f"img-src {' '.join(img_sources)}; "
             f"style-src {' '.join(style_sources)}; "
             f"script-src {' '.join(script_sources)}; "
