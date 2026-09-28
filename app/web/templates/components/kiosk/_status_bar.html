@@ -26,20 +26,20 @@
             <i data-nowplaying-target="wsstatus" class="mdi mdi-search_web"></i>
         </button>
 
-        <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm" data-action="click->navigation#load" data-nowplaying-target="currentdevice">
+        <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" data-action="click->navigation#load" data-nowplaying-target="currentdevice">
             <i class="mdi mdi-cast"></i>
             <span>Active Device</span>
         </button>
 
-        {# mobile-only: the menu sheet button (M3) #}
-        <button type="button" class="btn btn-sm kiosk-device-selector d-md-none menusheet-toggle"
-                data-controller="menusheet" data-action="click->menusheet#open:stop"
-                title="Menu">
-            <i class="mdi mdi-menu"></i>
-        </button>
+        <div class="d-md-none position-relative" data-controller="menusheet">
+            <button type="button" class="kiosk-device-selector btn btn-sm menusheet-toggle"
+                    data-action="click->menusheet#open:stop" title="Menu">
+                <i class="mdi mdi-menu"></i>
+            </button>
+            <div class="menu-sheet hidden" data-menusheet-target="panel">
+                <div data-menusheet-target="body"></div>
+            </div>
+        </div>
     </div>
-    {# the slide-over sheet (mobile) #}
-    <div class="menu-sheet hidden" data-menusheet-target="panel">
-        <div data-menusheet-target="body"></div>
-    </div>
-</div>
+</div>FIN
+echo "status bar restructured"
