@@ -1271,25 +1271,27 @@ body:has(.htmx-request) #page-busy {
     }
 }
 
-/* Volume popover: vertical slider + meta column */
+/* Volume popover: slim column — % readout above, vertical slider,
+   mute below; anchored to the right edge so it never leaves the screen */
 .volume-pop {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: .75rem;
-    padding: .9rem;
-    width: auto;
+    gap: .5rem;
+    padding: .6rem .45rem;
+    width: 3.5rem;
+    right: 0;
+    left: auto;
+    transform: none;
 }
 .volume-pop-slider {
     writing-mode: vertical-lr;
     direction: rtl;
     height: 7rem;
-    width: 1.75rem;
+    width: 1.5rem;
+    margin: 0;
     accent-color: #22d3ee;
 }
 .volume-pop-meta {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: .5rem;
+    display: contents;
 }
-.volume-pop .link-action { cursor: pointer; }

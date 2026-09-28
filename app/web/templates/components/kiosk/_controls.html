@@ -22,17 +22,13 @@
             <i data-volumepop-target="icon" class="mdi mdi-volume-high"></i>
         </button>
         <div data-volumepop-target="panel" class="volume-pop hidden">
+            <small data-volumepop-target="readout" class="device-meta">—</small>
             <input type="range" min="0" max="100" value="0" class="volume-pop-slider"
                    data-volumepop-target="slider" data-action="input->volumepop#setVolume" aria-label="Speaker volume">
-            <div class="volume-pop-meta">
-                <small data-volumepop-target="readout" class="device-meta">—</small>
-                <button type="button" class="device-link-pill link-action" data-action="click->volumepop#toggleMute" title="Mute">
-                    <i class="mdi mdi-volume-mute"></i>
-                </button>
-            </div>
-            <small class="text-muted d-block device-meta" style="max-width: 4rem;">Speaker volume</small>
+            <button type="button" class="device-link-pill link-action" data-action="click->volumepop#toggleMute" title="Mute">
+                <i class="mdi mdi-volume-mute"></i>
+            </button>
         </div>
     </div>
 
-</div>FIN
-echo "controls updated"
+</div>
