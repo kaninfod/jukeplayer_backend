@@ -10,6 +10,9 @@ export default class extends Controller {
         if (event) event.stopPropagation()
         const panel = this.panelTarget
         const opening = panel.classList.contains("hidden")
+        if (!opening) {
+            this._flushVolume()  // closing: deliver any pending level
+        }
         if (opening) {
             // initialise from the last known level (the nowplaying state)
             const current = parseInt(window.appState?.volume) || 0
@@ -24,9 +27,28 @@ export default class extends Controller {
         const value = parseInt(event.target.value) || 0
         this.readoutTarget.textContent = `${value}%`
         this._iconFor(value)
+        // debounce: dragging fires one input event per step - the speaker
+        // would be spammed with every intermediate value. Send once after
+        // the drag settles (300ms); the readout stays live.
+        clearTimeout(this._sendTimer)
+        this._sendTimer = setTimeout(() => {
+            this._sendTimer = null
+            this._sendVolume(value)
+        }, 300)
+    }
+
+    _sendVolume(value) {
         window.dispatchEvent(new CustomEvent("ws:send", {
             detail: { type: "volume", payload: { value } }
         }))
+    }
+
+    _flushVolume() {
+        if (this._sendTimer) {
+            clearTimeout(this._sendTimer)
+            this._sendTimer = null
+            this._sendVolume(parseInt(this.sliderTarget.value) || 0)
+        }
     }
 
     toggleMute() {
@@ -37,6 +59,7 @@ export default class extends Controller {
 
     close(event) {
         if (!event || !this.element.contains(event.target)) {
+            this._flushVolume()  // outside click: deliver any pending level
             this.panelTarget.classList.add("hidden")
         }
     }
