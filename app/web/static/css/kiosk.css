@@ -1295,3 +1295,31 @@ body:has(.htmx-request) #page-busy {
 .volume-pop-meta {
     display: contents;
 }
+
+/* ============================================================
+   M4 — mobile page layouts: cards become phone-sized
+   ============================================================ */
+@media (max-width: 767.98px) {
+    /* device cards: full-width rows (the bands reflow; not square) */
+    .device-card {
+        width: 100% !important;
+        aspect-ratio: auto !important;
+        min-height: 0;
+    }
+    /* library cards (albums/artists/groups): 2-up squares */
+    .card-grid .list-card, .album-card, .device-card.album-card {
+        width: calc(50% - .375rem) !important;
+        aspect-ratio: 1 / 1 !important;
+    }
+
+    /* player page: the art leads, the details stack under it */
+    .kiosk-player-status { flex-direction: column; }
+    .kiosk-player-status > .flex-row { flex-direction: column !important; gap: .5rem; }
+    .kiosk-album-art { padding: .5rem; max-width: 60%; margin: 0 auto; }
+    .kiosk-track-details h1 { font-size: 1.6rem; }
+    .kiosk-track-details h3 { font-size: 1.15rem; }
+    .kiosk-track-details h4 { font-size: 1rem; }
+
+    /* playlist: tighter rows */
+    .kiosk-component-container { padding: 12px; }
+}

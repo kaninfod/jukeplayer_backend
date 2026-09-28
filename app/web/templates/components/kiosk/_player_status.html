@@ -29,6 +29,15 @@
         </div>
     </div>    
 
+    {# M4: repeat quick-toggle (mobile-only; mute lives in the volume popover) #}
+    <div class="d-md-none d-flex justify-content-center mt-2">
+        <button type="button" class="device-link-pill link-action"
+                data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState"
+                title="Repeat">
+            <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
+        </button>
+    </div>
+
     <div class="row kiosk-progress-container w-100 d-none">
         <div class="col-12 kiosk-progress-bar">
             <div id="kiosk-progress-fill" class="kiosk-progress-fill"></div>
