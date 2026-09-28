@@ -1147,6 +1147,11 @@ body:has(.htmx-request) #page-busy {
     }
     html.kiosk-mode { height: 100svh; }
 
+    /* the root containers use bootstrap's vh-100 (100vh = taller than the
+       visible screen on phones) - pin them to the small viewport */
+    .vh-100 { height: 100svh !important; }
+    .min-vh-100 { min-height: 100svh !important; }
+
     /* status bar → compact now-playing line */
     .kiosk-status-bar {
         height: 46px !important;
