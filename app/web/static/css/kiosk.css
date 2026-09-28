@@ -1270,3 +1270,26 @@ body:has(.htmx-request) #page-busy {
         justify-content: center;
     }
 }
+
+/* Volume popover: vertical slider + meta column */
+.volume-pop {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .9rem;
+    width: auto;
+}
+.volume-pop-slider {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    height: 7rem;
+    width: 1.75rem;
+    accent-color: #22d3ee;
+}
+.volume-pop-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+}
+.volume-pop .link-action { cursor: pointer; }

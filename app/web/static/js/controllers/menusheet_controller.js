@@ -15,12 +15,14 @@ export default class extends Controller {
             this.bodyTarget.innerHTML = html
             if (window.htmx) window.htmx.process(this.bodyTarget)
             this.panelTarget.classList.remove("hidden")
+            this.panelTarget.classList.add("open")
         } catch (e) {
             console.warn("[menu-sheet] open failed:", e)
         }
     }
 
     close() {
+        this.panelTarget.classList.remove("open")
         this.panelTarget.classList.add("hidden")
     }
 

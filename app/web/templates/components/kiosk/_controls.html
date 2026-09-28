@@ -1,4 +1,4 @@
-<!-- Kiosk Media Controls (persistent bottom bar) — the volume pair is now a single button opening a slider + mute popover -->
+<!-- Kiosk Media Controls (persistent bottom bar) — the volume pair is now a single button opening a vertical slider + mute popover -->
 <div data-playercontrols-target="controlspanel" class="kiosk-controls d-flex justify-content-center align-items-center gap-3 p-2 ">
     
     <button data-action="click->playercontrols#previous" class="btn btn-primary btn-media-control" title="Previous Track">
@@ -14,7 +14,7 @@
         <i class="mdi mdi-stop"></i>
     </button>
 
-    <!-- Volume popover: one button opens the slider + mute flyout -->
+    <!-- Volume popover: one button opens the vertical slider + mute flyout -->
     <div class="volume-pop-wrap" data-controller="volumepop"
          data-action="click@window->volumepop#close">
         <button type="button" class="btn btn-primary btn-media-control volume-btn"
@@ -22,16 +22,17 @@
             <i data-volumepop-target="icon" class="mdi mdi-volume-high"></i>
         </button>
         <div data-volumepop-target="panel" class="volume-pop hidden">
-            <input type="range" min="0" max="100" value="0" class="form-range volume-pop-slider"
+            <input type="range" min="0" max="100" value="0" class="volume-pop-slider"
                    data-volumepop-target="slider" data-action="input->volumepop#setVolume" aria-label="Speaker volume">
-            <div class="d-flex justify-content-between align-items-center mt-1">
+            <div class="volume-pop-meta">
                 <small data-volumepop-target="readout" class="device-meta">—</small>
-                <button type="button" class="btn btn-sm btn-link p-0 text-muted" data-action="click->volumepop#toggleMute" title="Mute">
-                    <i class="mdi mdi-volume-mute fs-5"></i>
+                <button type="button" class="device-link-pill link-action" data-action="click->volumepop#toggleMute" title="Mute">
+                    <i class="mdi mdi-volume-mute"></i>
                 </button>
             </div>
-            <small class="text-muted d-block device-meta">Speaker volume</small>
+            <small class="text-muted d-block device-meta" style="max-width: 4rem;">Speaker volume</small>
         </div>
     </div>
 
-</div>
+</div>FIN
+echo "controls updated"
