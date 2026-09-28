@@ -6,23 +6,23 @@
         <span>Now Playing</span>
     </div>
 
-    <div class="d-flex justify-content-end gap-2">
+    <div class="d-flex justify-content-end gap-2 align-items-center">
         <button class="kiosk-device-selector btn btn-sm" data-action="click->playercontrols#playPause" >
             <i data-nowplaying-target="playerstatus" class="mdi mdi-play"></i>
         </button>
 
-        <button data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState" class="kiosk-device-selector btn btn-sm" >
+        <button data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" >
             <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
             
         </button>
 
-        <button data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState" class="kiosk-device-selector btn btn-sm" >
+        <button data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" >
             <i data-nowplaying-target="volumetext mutestate" class="mdi mdi-volume-high">27%</i>
             
         </button>
 
 
-        <button data-action="ws-status@window->nowplaying#updateSocketStatus" class="kiosk-device-selector btn btn-sm" >
+        <button data-action="ws-status@window->nowplaying#updateSocketStatus" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" >
             <i data-nowplaying-target="wsstatus" class="mdi mdi-search_web"></i>
         </button>
 
@@ -30,5 +30,16 @@
             <i class="mdi mdi-cast"></i>
             <span>Active Device</span>
         </button>
+
+        {# mobile-only: the menu sheet button (M3) #}
+        <button type="button" class="btn btn-sm kiosk-device-selector d-md-none menusheet-toggle"
+                data-controller="menusheet" data-action="click->menusheet#open:stop"
+                title="Menu">
+            <i class="mdi mdi-menu"></i>
+        </button>
+    </div>
+    {# the slide-over sheet (mobile) #}
+    <div class="menu-sheet hidden" data-menusheet-target="panel">
+        <div data-menusheet-target="body"></div>
     </div>
 </div>

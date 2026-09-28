@@ -322,3 +322,16 @@ async def test_styleguide_page_renders(initialized_app):
         partial = await client.get("/kiosk/styleguide", headers={"HX-Request": "true"})
         assert partial.status_code == 200
         assert "swatch-grid" in partial.text
+
+@pytest.mark.asyncio
+async def test_menu_sheet_renders_speaker_quick_select(initialized_app):
+    """The mobile menu sheet: the speaker quick-select + the content links."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/kiosk/system/connect/add-cc", data={"name": "living_room"})
+
+        resp = await client.get("/kiosk/menu-sheet", headers={"HX-Request": "true"})
+        assert resp.status_code == 200
+        html = " ".join(resp.text.split())
+        assert "menu-sheet-speaker" in html
+        assert "living_room" in html
+        assert "Media Library" in html and "Playlist" in html and "Output Devices" in html
