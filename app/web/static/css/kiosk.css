@@ -1323,3 +1323,55 @@ body:has(.htmx-request) #page-busy {
     /* playlist: tighter rows */
     .kiosk-component-container { padding: 12px; }
 }
+
+/* ============================================================
+   M4b — mobile library: slim rows instead of squares
+   ============================================================ */
+@media (max-width: 767.98px) {
+    /* page header: smaller title block */
+    .page-header h3 { font-size: 1.15rem; }
+    .page-header .text-muted { font-size: .8rem; }
+
+    /* groups + artists: slim full-width rows */
+    .card-grid .device-card:not(.album-card) {
+        width: 100% !important;
+        aspect-ratio: auto !important;
+    }
+    .card-grid .device-card:not(.album-card) .card-body {
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        gap: .75rem;
+        padding: .5rem .75rem !important;
+    }
+    .card-grid .device-card:not(.album-card) .card-body i.mdi {
+        font-size: 1.5rem !important;
+    }
+    .card-grid .device-card:not(.album-card) .card-body h5 {
+        font-size: 1rem;
+        margin: 0 !important;
+        min-width: 0;
+    }
+    .card-grid .device-card:not(.album-card) .card-body small { display: none; }
+
+    /* albums: cover left, name right — nfc + year hidden */
+    .device-card.album-card {
+        display: flex !important;
+        flex-direction: row !important;
+        width: 100% !important;
+        aspect-ratio: auto !important;
+    }
+    .device-card.album-card .album-cover { width: 4.5rem !important; flex-shrink: 0; }
+    .device-card.album-card .album-cover .album-cover-play { display: none !important; }
+    .device-card.album-card .card-body {
+        display: flex !important;
+        align-items: center !important;
+        padding: .3rem .6rem !important;
+        min-width: 0;
+    }
+    .device-card.album-card .card-body > div:first-child {
+        overflow: hidden;
+    }
+    .device-card.album-card .device-card-footer { display: none !important; }
+}
