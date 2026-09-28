@@ -580,7 +580,7 @@ async def kiosk_styleguide(request: Request):
             name="components/kiosk/shared/_styleguide.html", context={"request": request})
     return templates.TemplateResponse(request=request,
         name="pages/kiosk/styleguide.html",
-        context={"request": request, "kiosk_mode": True})
+        context={"request": request, "kiosk_mode": True, "embed": request.query_params.get("embed")})
 
 
 @router.get("/kiosk/devices", response_class=HTMLResponse)

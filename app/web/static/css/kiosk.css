@@ -1375,3 +1375,20 @@ body:has(.htmx-request) #page-busy {
     }
     .device-card.album-card .device-card-footer { display: none !important; }
 }
+
+/* Styleguide: the live phone-preview frame (M6) */
+.styleguide-phone {
+    width: 390px;
+    max-width: 100%;
+    height: 720px;
+    border-radius: 2rem;
+    border: 6px solid #1c1f2a;
+    box-shadow: 0 0 0 2px rgba(76, 215, 246, .3), 0 8px 24px rgba(0, 0, 0, .5);
+    overflow: hidden;
+    background: #0B0F19;
+}
+.styleguide-phone iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}

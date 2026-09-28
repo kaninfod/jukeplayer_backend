@@ -102,7 +102,20 @@
             </div>
         </div>
 
-        {# THEME TOGGLE #}
+        {# LIVE MOBILE PREVIEW (M6): the page embeds itself at phone width -
+       the <768px media queries apply inside the iframe for real #}
+    {% if not embed %}
+    <h6 class="text-muted mb-2"><i class="mdi mdi-cellphone"></i> Mobile (&lt;768px) — live preview</h6>
+    <div class="mb-4 d-flex flex-column gap-2">
+        <small class="text-muted">The page embeds itself at 390px: the compact top bar, the slim library rows, the cover-left album rows, the 5-button control bar with the volume popover and the ≡ menu sheet are all live in the frame.</small>
+        <div class="styleguide-phone">
+            <iframe src="/kiosk/styleguide?embed=1" title="Mobile preview"></iframe>
+        </div>
+    </div>
+
+    {% endif %}
+
+    {# THEME TOGGLE #}
         <h6 class="text-muted mb-2"><i class="mdi mdi-theme-light-dark"></i> Theme</h6>
         <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
             <button type="button" class="btn btn-sm btn-outline-secondary" data-action="click->styleguide#toggleTheme">
