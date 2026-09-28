@@ -642,7 +642,7 @@ span.kiosk-round-btn {
 
 /* Kiosk toast with larger font for 5" displays */
 .kiosk-toast {
-    font-size: 24px;  /* Adjust this value to experiment with readability */
+    font-size: 18px;  /* Adjust this value to experiment with readability */
     line-height: 1.4;
     letter-spacing: 0.5px;
 }
@@ -1130,3 +1130,50 @@ body:has(.htmx-request) #page-busy {
 }
 
 .system-action-card.glyph-palette .mdi { color: #a78bfa; }
+
+/* ============================================================
+   MOBILE (phone browsers, <768px) — UI harmonisation phase M1
+   The wall display keeps its fixed 720px kiosk layout; phones go
+   fluid. The vertical nav hides (access moves to the menu sheet in
+   M3); the status bar compacts; safe areas respected.
+   ============================================================ */
+@media (max-width: 767.98px) {
+    body.kiosk-layout {
+        height: 100vh !important;
+        height: 100dvh !important;
+        width: 100vw !important;
+    }
+    html.kiosk-mode { height: 100dvh; }
+
+    /* status bar → compact now-playing line */
+    .kiosk-status-bar {
+        height: 46px !important;
+        max-height: 46px !important;
+        min-height: 46px !important;
+        padding: 0 10px !important;
+        padding-top: env(safe-area-inset-top) !important;
+        box-sizing: border-box;
+    }
+    .kiosk-breadcrumb { font-size: 15px; }
+
+    /* the vertical nav sidebar hides — Library/Playlist/Devices move to
+       the menu sheet (phase M3); the player is the now-playing anchor tap */
+    .kiosk-nav-sidebar { display: none !important; }
+
+    /* volume sidebar hides: the volume returns as the popover (M2) */
+    .kiosk-volume-sidebar { display: none !important; }
+
+    /* media controls → thumb-sized band with safe-area bottom */
+    .media-controls {
+        height: auto !important;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+    }
+    .btn-media-control {
+        width: 54px;
+        height: 54px;
+        font-size: 20px;
+    }
+
+    /* content container: tighter padding on phones */
+    .kiosk-component-container { padding: 12px; }
+}
