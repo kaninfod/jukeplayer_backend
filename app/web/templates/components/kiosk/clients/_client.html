@@ -1,7 +1,9 @@
 {# Client card — shared card anatomy. Bottom band: action circles
-   (connected / configure / reboot — the last two for ESP32 clients). #}
+   (connected / configure / reboot — the last two for ESP32 clients).
+   data-keyboard-enter: the enter-key walks this card to the configure page
+   when the client is an ESP32; other client types stay no-ops. #}
 {% set is_esp32 = details.client_type == 'esp32' %}
-<div class="card device-card">
+<div class="card device-card"{% if is_esp32 %} data-keyboard-enter="/kiosk/configure/{{ details.client_id|e }}"{% endif %}{{ ' title="Enter: configure"' if is_esp32 }}>
     <div class="card-body d-flex flex-column p-3">
         {# top band: type badge + attached speaker #}
         <div class="d-flex justify-content-between align-items-center gap-1">

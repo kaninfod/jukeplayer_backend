@@ -32,6 +32,7 @@ export default class extends Controller {
     }
 
     onKey(event) {
+        console.log("[kb] key:", event.key, "target:", event.target.tagName)
         if (event.ctrlKey || event.metaKey || event.altKey) return
         const t = event.target
         if (t.matches("input:not([type=checkbox]), textarea, select, [contenteditable]") || t.isContentEditable) return
@@ -87,7 +88,15 @@ export default class extends Controller {
             const card = this._focusedCard()
             if (card) {
                 event.preventDefault()
-                card.click()
+                // generic enter-action: a card may declare a destination
+                // (client cards: the esp32 configure page); otherwise the
+                // click()'s own data-action runs
+                const destination = card.dataset.keyboardEnter
+                if (destination) {
+                    window.dispatchEvent(new CustomEvent("nav:go", { detail: destination }))
+                } else {
+                    card.click()
+                }
             }
         }
     }
