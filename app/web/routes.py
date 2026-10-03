@@ -732,6 +732,7 @@ async def kiosk_library_partial(
     artist_id: str | None = Query(None),
     artist_name: str | None = Query(None),
     search: str | None = Query(None),
+    genre: str | None = Query(None),
 ):
     subsonic_service = get_service("subsonic_service")
     artist_metadata = get_service("artist_metadata_service")
@@ -756,6 +757,25 @@ async def kiosk_library_partial(
             "back_url": "/kiosk/library",
             "artists": artists,
             "search_query": search,
+        })
+        if _is_htmx_request(request):
+            return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
+        context["kiosk_mode"] = True
+        return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
+
+    if genre:
+        # genre chip drill-down: album grid for one genre (getAlbumList2 byGenre)
+        albums = await asyncio.to_thread(subsonic_service.list_albums_by_genre, genre)
+        artist_count = len({a["artist"] for a in albums if a.get("artist")})
+        context.update({
+            "title": genre,
+            "subtitle": (
+                f"{len(albums)} album{'s' if len(albums) != 1 else ''}"
+                + (f" · {artist_count} artist{'s' if artist_count != 1 else ''}" if artist_count else "")
+            ),
+            "content_template": "components/kiosk/media_library/_albums_container.html",
+            "back_url": "/kiosk/library",
+            "albums": albums or [],
         })
         if _is_htmx_request(request):
             return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)

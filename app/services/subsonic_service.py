@@ -422,6 +422,28 @@ class SubsonicService:
             })
         return result
 
+    def list_albums_by_genre(self, genre: str, limit: int = 500) -> list:
+        """Album grid for the A-Z directory's genre chips (target = ?genre=).
+        getAlbumList2 type=byGenre returns the same al-* id-space the artist
+        view plays from. Measured on gonic 0.22: chip albumCount matches the
+        returned rows exactly (Rock 178 = 178), rows carry artist/year and
+        come alphabetical, slash-genres ('Rock/Pop') work, so a single
+        size=500 call covers the whole genre — no pagination for this
+        collection's scale."""
+        data = self._api_request("getAlbumList2", {"type": "byGenre", "genre": genre, "size": limit})
+        albums = data.json().get("subsonic-response", {}).get("albumList2", {}).get("album", [])
+        result = []
+        for album in albums:
+            aid = album.get("id")
+            result.append({
+                "id": aid,
+                "name": album.get("name"),
+                "artist": album.get("artist"),  # multi-artist grid: artist must show
+                "year": album.get("year"),
+                "cover_url": self.get_cover_proxy_url(aid),
+            })
+        return result
+
     @lru_cache(maxsize=128)
     def get_song_info(self, track_id: str) -> Optional[Dict[str, str]]:
         """

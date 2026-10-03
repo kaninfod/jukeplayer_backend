@@ -9,7 +9,7 @@
         </div>
         <div class="genre-chip-row">
             {% for g in genres %}
-            <a class="genre-chip" href="/kiosk/library?genre={{ g.value|e }}">{{ g.value|e }} <small>{{ g.albumCount }}</small></a>
+            <a class="genre-chip" href="/kiosk/library?genre={{ g.value|urlencode }}">{{ g.value|e }} <small>{{ g.albumCount }}</small></a>
             {% endfor %}
         </div>
     </div>
