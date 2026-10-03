@@ -376,6 +376,25 @@ class SubsonicService:
             for g in genres
         ]
 
+    def list_all_albums(self, page_size: int = 10000) -> list:
+        """Every album in the collection in one response. Measured on gonic
+        0.22: 608 albums arrived whole for size=10000 — so the warm-up's
+        per-artist dominant-genre vote is a loop over THIS list instead of
+        a getMusicDirectory + getAlbum call per artist. The offset loop
+        only exists so a much larger library pages cleanly."""
+        offset, out = 0, []
+        while True:
+            data = self._api_request(
+                "getAlbumList2",
+                {"type": "alphabeticalByName", "size": page_size, "offset": offset},
+            ).json()
+            batch = data.get("subsonic-response", {}).get("albumList2", {}).get("album", []) or []
+            out.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
+        return out
+
     def artist_dominant_genre(self, dir_id: str) -> Optional[str]:
         """The artist's primary genre = the most common genre among the
         artist's albums (each album's genres ride its own tags, exposed via
