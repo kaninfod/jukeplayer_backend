@@ -729,14 +729,16 @@ async def kiosk_library_partial(
     search: str | None = Query(None),
 ):
     subsonic_service = get_service("subsonic_service")
+    artist_metadata = get_service("artist_metadata_service")
 
     context = {
         "request": request,
         "config": config,
         "title": "Music Library",
-        "content_template": "components/kiosk/media_library/_groups_container.html",
+        "content_template": "components/kiosk/media_library/_artist_directory.html",
         "back_url": None,
-        "groups": [{"name": name} for name in GROUP_RANGES.keys()],
+        "letter_groups": [],
+        "genres": artist_metadata.genres(),
     }
 
     if search:
@@ -755,36 +757,37 @@ async def kiosk_library_partial(
         context["kiosk_mode"] = True
         return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
-    if group and not artist_id:
-        # Offloaded: blocking HTTP call, must not stall the event loop
-        all_artists = await asyncio.to_thread(subsonic_service.list_artists)
-        artists = _filter_artists_by_group(group, all_artists or [])
+    if artist_id:
+        albums = await asyncio.to_thread(subsonic_service.list_albums_for_artist, artist_id)
         context.update({
-            "title": f"Music Library — {group}",
-            "content_template": "components/kiosk/media_library/_artists_container.html",
+            "title": artist_name or "Albums",
+            "content_template": "components/kiosk/media_library/_albums_container.html",
             "back_url": "/kiosk/library",
-            "artists": artists,
-            "group": group,
+            "albums": albums or [],
+            "artist": {"name": artist_name or "Unknown Artist"},
         })
         if _is_htmx_request(request):
             return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
         context["kiosk_mode"] = True
         return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
-    if artist_id:
-        albums = await asyncio.to_thread(subsonic_service.list_albums_for_artist, artist_id)
-        context.update({
-            "title": artist_name or "Albums",
-            "content_template": "components/kiosk/media_library/_albums_container.html",
-            "back_url": f"/kiosk/library?group={group}" if group else "/kiosk/library",
-            "albums": albums or [],
-            "artist": {"name": artist_name or "Unknown Artist"},
-            "group": group,
+    # default: the artist directory — letter-grouped slim rows (genre chips
+    # render their own row), driven by the cached metadata
+    rows = []
+    for artist in artist_metadata.artists():
+        rows.append({
+            "name": artist["name"],
+            "dir_id": artist["dir_id"],
+            "count": artist.get("count", 0),
+            "genre": artist_metadata.genre_chip(artist["name"]),
         })
-        if _is_htmx_request(request):
-            return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
-        context["kiosk_mode"] = True
-        return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
+    rows.sort(key=lambda a: a["name"].upper())
+    letter_groups = []
+    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        group = [a for a in rows if a["name"].upper().startswith(letter)]
+        if group:
+            letter_groups.append({"letter": letter, "rows": group, "count": len(group)})
+    context["letter_groups"] = letter_groups
 
     if _is_htmx_request(request):
         return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
