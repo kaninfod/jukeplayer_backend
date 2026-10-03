@@ -1322,8 +1322,11 @@ body:has(.htmx-request) #page-busy {
     font-size: 19px; cursor: pointer; padding: 0;
 }
 .dir-seg-toggle:hover { color: var(--bs-body-color); background: var(--bs-secondary-bg); }
-.dir-seg { display: none; flex: 1 1 auto; min-width: 0; }
-.dir-bar[data-dirfilter-open-value="alpha"]  .dir-seg-alpha  { display: flex; }
+/* the segments also carry their legacy classes (.alpha-bar/.genre-chip-row
+   = display:flex) — bar-scoping + the attribute-open rules must out-rank
+   those single-class rules or they'd be visible all at once */
+.dir-bar .dir-seg { display: none; flex: 1 1 auto; min-width: 0; }
+.dir-bar[data-dirfilter-open-value="alpha"] .dir-seg-alpha { display: flex; }
 .dir-bar[data-dirfilter-open-value="genres"] .dir-seg-genres { display: flex; }
 .dir-bar[data-dirfilter-open-value="search"] .dir-seg-search { display: block; }
 .dir-bar[data-dirfilter-open-value="alpha"]  .dir-seg-toggle[data-seg="alpha"],
