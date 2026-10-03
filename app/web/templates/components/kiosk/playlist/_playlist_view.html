@@ -7,7 +7,8 @@
         <small id="kiosk-playlist-info" class="text-muted">{{ (playlist|length) if playlist else 0 }} tracks</small>
     </div>
     
-    <div id="kiosk-playlist-container" class="list-group list-group-flush flex-grow-1 h-100">
+    <div id="kiosk-playlist-container" class="list-group list-group-flush flex-grow-1 h-100"
+         data-keyboard-cards=".kiosk-playlist-item">
         {% include 'components/kiosk/playlist/_playlist_container.html' %}
     </div>
 </div>

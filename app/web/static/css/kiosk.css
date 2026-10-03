@@ -1301,6 +1301,13 @@ body:has(.htmx-request) #page-busy {
     display: contents;
 }
 
+/* keyboard navigation focus ring (the .kb-focus class on walked cards) */
+.kb-focus {
+    outline: 3px solid #22d3ee;
+    outline-offset: 2px;
+    border-radius: inherit;
+}
+
 /* ============================================================
    M4 — mobile page layouts: cards become phone-sized
    ============================================================ */

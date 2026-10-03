@@ -5,7 +5,7 @@
               <p class="mt-3">No albums found</p>
           </div>
           {% else %}
-          <div class="card-grid">
+          <div class="card-grid" data-keyboard-cards=".list-card">
               {% for album in albums %}
                   {% include 'components/kiosk/media_library/_album.html' %}
               {% endfor %}
