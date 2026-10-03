@@ -143,6 +143,15 @@ async def startup_event():
     import asyncio
     from app.core import event_bus
     event_bus.set_main_loop(asyncio.get_running_loop())
+    # Step 1.6: Warm the cached artist metadata (counts + genres) in the
+    # background — gonic calls must never delay startup
+    async def _warm_artist_metadata():
+        try:
+            summary = await asyncio.to_thread(global_container.get('artist_metadata_service').refresh)
+            logging.info(f"🎨 Artist metadata warmed: {summary}")
+        except Exception as e:
+            logging.warning(f"Artist metadata warm-up failed (the UI's refresh button can retry): {e}")
+    asyncio.create_task(_warm_artist_metadata())
     # Step 2: Resolve all main services
     playback_service = global_container.get('playback_service')
     

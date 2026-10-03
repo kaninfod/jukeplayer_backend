@@ -317,10 +317,12 @@ class SubsonicService:
         album = data.get("subsonic-response", {}).get("album", {})
         return album
 
-    @lru_cache(maxsize=128)
     def list_artists(self) -> list:
         """
         Return a list of all artists from Subsonic (id, name).
+        NOTE: deliberately NOT lru_cached — the artist list must reflect new
+        gonic albums without a restart; caching/refresh is the
+        ArtistMetadataService's job now.
         """
         data = self._api_request("getMusicDirectory", {"id": "al-1"})
         data = data.json()
@@ -348,7 +350,53 @@ class SubsonicService:
         logger.info(f"SubsonicService: search2 '{query}' -> {len(artists)} artists")
         return artists
 
-    @lru_cache(maxsize=128)
+    def artists_with_counts(self) -> list:
+        """getArtists returns the entity-space (ar-* ids) WITH albumCount —
+        richer metadata; the caller joins by name onto the directory flow."""
+        data = self._api_request("getArtists").json()
+        index = data.get("subsonic-response", {}).get("artists", {}).get("index", []) or []
+        flat = []
+        for block in index:
+            for artist in block.get("artist", []) or []:
+                flat.append({
+                    "id": artist.get("id"),
+                    "name": artist.get("name"),
+                    "albumCount": artist.get("albumCount", 0),
+                })
+        return flat
+
+    def list_genres(self) -> list:
+        """getGenres rows (the genre chips' data): value, albumCount, songCount."""
+        data = self._api_request("getGenres").json()
+        genres = data.get("subsonic-response", {}).get("genres", {}).get("genre", []) or []
+        return [
+            {"value": g.get("value"),
+             "albumCount": g.get("albumCount", 0),
+             "songCount": g.get("songCount", 0)}
+            for g in genres
+        ]
+
+    def artist_dominant_genre(self, dir_id: str) -> Optional[str]:
+        """The artist's primary genre = the most common genre among the
+        artist's albums (each album's genres ride its own tags, exposed via
+        getAlbum). Returns None when nothing has genre data."""
+        from collections import Counter
+        counter: Counter = Counter()
+        data = self._api_request("getMusicDirectory", {"id": dir_id}).json()
+        children = data.get("subsonic-response", {}).get("directory", {}).get("child", []) or []
+        album_ids = [c.get("id") for c in children if c.get("isDir")]
+        for album_id in album_ids:
+            try:
+                album = self.get_album_info(album_id)
+                for genre in (album.get("genres") or []):
+                    if genre.get("name"):
+                        counter[genre["name"]] += 1
+            except Exception as e:
+                logger.debug(f"artist_dominant_genre: album {album_id} failed: {e}")
+        if not counter:
+            return None
+        return counter.most_common(1)[0][0]
+
     def list_albums_for_artist(self, artist_id: str) -> list:
         """
         Return a list of all albums for a given artist (id, name).

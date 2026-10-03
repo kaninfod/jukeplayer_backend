@@ -209,6 +209,18 @@ def _render_speakers_card(request: Request, **ctx):
 # scan → pair = pair+trust+connect+add-as-speaker). Managed speakers are
 # hidden from both lists with a names note.
 
+@router.post("/kiosk/system/refresh-subsonic")
+async def kiosk_refresh_subsonic():
+    """The config's "Refresh subsonic data" button: re-runs the cached artist
+    metadata (counts/genres) so new gonic albums show without a restart."""
+    import asyncio
+    svc = get_service("artist_metadata_service")
+    try:
+        summary = await asyncio.to_thread(svc.refresh)
+        return HTMLResponse(f"Refreshed: {summary['artists']} artists, {summary['genres']} genres")
+    except Exception as e:
+        return HTMLResponse(f"Refresh failed: {e}", status_code=500)
+
 def _connect_card_context(message: str | None = None, error: str | None = None,
                           cc_devices=None, cc_scanned: bool = False,
                           bt_devices=None, bt_scanned: bool = False) -> dict:
