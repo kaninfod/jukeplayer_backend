@@ -48,6 +48,23 @@ export default class extends Controller {
         }
 
         this.updatePlayerControls();
+        this.updatePlaylistHighlight();
+    }
+
+    // playlist page: keep the playing track's row highlighted + in view;
+    // the render-time highlight gets stale as tracks advance
+    updatePlaylistHighlight() {
+        const data = window.appState.lastTrackData;
+        const trackNumber = data && data.track_number;
+        if (!trackNumber) return;
+        const rows = document.querySelectorAll(".kiosk-playlist-item");
+        if (!rows.length) return;
+        rows.forEach((row) => {
+            const idx = Number(row.dataset.playercontrolsTrackIndexParam);
+            row.classList.toggle("active", idx === trackNumber - 1);
+        });
+        const active = document.querySelector(".kiosk-playlist-item.active");
+        if (active) active.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
 
     renderState(hasTrack) {

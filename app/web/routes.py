@@ -614,12 +614,14 @@ async def kiosk_playlist_partial(request: Request, injected_client_id: str = Que
 
     player = speaker.mediaplayer if speaker else None
     playlist = player.playlist_manager.to_dict() if player and player.playlist_manager else []
-    current_track_index = player.playlist_manager.current_index if player and player.playlist_manager else None
+    # pass the real current-track OBJECT so the template's compare works
+    # (render-time highlight; a 0-based index has no .track_number)
+    current_track = player.playlist_manager.current_track if player and player.playlist_manager else None
     context = {
         "request": request,
         "config": config,
         "playlist": playlist,
-        "current_track": current_track_index,
+        "current_track": current_track,
     }
 
     if _is_htmx_request(request):
