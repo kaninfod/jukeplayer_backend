@@ -356,3 +356,34 @@ async def test_speakers_card_table_renders_without_status(initialized_app):
         # status badges are gone from the setup page (devices page owns state)
         assert "Connected</span>" not in html
         assert "Available</span>" not in html
+
+
+# --- Subsonic metadata refresh (kiosk config button) ----------------------------
+
+@pytest.mark.asyncio
+async def test_refresh_subsonic_toasts_counts(monkeypatch, tmp_path, initialized_app):
+    from app.core.service_container import get_service
+    svc = get_service("artist_metadata_service")
+    monkeypatch.setattr(svc, "refresh", lambda: {"artists": 42, "genres": 60})
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # the button lives on the music-source card of the config page
+        page = await client.get("/kiosk/config")
+        assert "Refresh subsonic data" in page.text
+
+        resp = await client.post("/kiosk/system/refresh-subsonic")
+        assert resp.status_code == 200
+        trigger = json.loads(resp.headers["HX-Trigger"])["kioskToast"]
+        assert trigger["message"] == "Refreshed: 42 artists, 60 genres"
+        assert trigger["theme"] == "success"
+
+        # a failing refresh still toasts with theme=error — the endpoint must
+        # stay 200 or htmx would drop the header and the button would go silent
+        def boom():
+            raise RuntimeError("gonic down")
+        monkeypatch.setattr(svc, "refresh", boom)
+        bad = await client.post("/kiosk/system/refresh-subsonic")
+        assert bad.status_code == 200
+        trigger = json.loads(bad.headers["HX-Trigger"])["kioskToast"]
+        assert trigger["theme"] == "error"
+        assert "gonic down" in trigger["message"]

@@ -213,13 +213,18 @@ def _render_speakers_card(request: Request, **ctx):
 async def kiosk_refresh_subsonic():
     """The config's "Refresh subsonic data" button: re-runs the cached artist
     metadata (counts/genres) so new gonic albums show without a restart."""
-    import asyncio
-    svc = get_service("artist_metadata_service")
     try:
+        svc = get_service("artist_metadata_service")
         summary = await asyncio.to_thread(svc.refresh)
-        return HTMLResponse(f"Refreshed: {summary['artists']} artists, {summary['genres']} genres")
+    except KeyError:
+        message, theme = "Metadata service not initialized — restart the server first", "error"
     except Exception as e:
-        return HTMLResponse(f"Refresh failed: {e}", status_code=500)
+        message, theme = f"Refresh failed: {e}", "error"
+    else:
+        message, theme = f"Refreshed: {summary['artists']} artists, {summary['genres']} genres", "success"
+    # Always 200: htmx ignores response headers on error statuses, so a 500
+    # here would swallow the toast and leave the kiosk button silently dead.
+    return _with_toast(HTMLResponse(""), message, theme=theme)
 
 def _connect_card_context(message: str | None = None, error: str | None = None,
                           cc_devices=None, cc_scanned: bool = False,

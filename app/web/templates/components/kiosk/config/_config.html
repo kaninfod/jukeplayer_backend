@@ -41,7 +41,14 @@
                         <input type="text" name="api_version" class="form-control form-control-sm" value="{{ config.subsonic.api_version }}">
                     </div>
                 </div>
-                <button type="submit" class="btn btn-sm btn-primary mt-3"><i class="mdi mdi-content-save"></i> Save</button>
+                <div class="d-flex align-items-center gap-2 mt-3">
+                    <button type="submit" class="btn btn-sm btn-primary"><i class="mdi mdi-content-save"></i> Save</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            hx-post="/kiosk/system/refresh-subsonic" hx-swap="none"
+                            title="Re-read artists, album counts and genres from gonic">
+                        <i class="mdi mdi-refresh"></i> Refresh subsonic data
+                    </button>
+                </div>
             </div>
         </form>
 
