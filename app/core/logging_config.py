@@ -4,8 +4,21 @@ import socket
 import os
 from app.config import config
 
-# Log file lives under logs/ (rotated). Honors LOG_FILE env var when set.
-DEFAULT_LOG_FILE = os.getenv("LOG_FILE", "logs/jukebox.log")
+# Log file lives under logs/ (rotated). LOG_FILE env: unset -> default path,
+# empty string -> file logging disabled (console + syslog only).
+DEFAULT_LOG_FILE = "logs/jukebox.log"
+
+
+def resolve_log_file(log_file=None):
+    """Log file target: caller override wins; then the LOG_FILE env var —
+    unset -> the default path, empty string -> None (file logging disabled,
+    syslog-only operation, e.g. a device writing to an SD card)."""
+    if log_file:
+        return log_file
+    env_value = os.getenv("LOG_FILE")
+    if env_value is None:
+        return DEFAULT_LOG_FILE
+    return env_value or None
 
 def boot_log_level():
     """Boot-time log level: the config store's logging.level wins, then
@@ -27,7 +40,8 @@ def setup_logging(log_file=None, level=logging.INFO):
     syslog driver is deliberately NOT used — the app owns its syslog identity
     (facility local0, tag jukeplayer_backend, hostname jukeplayer-backend)."""
     if not log_file:
-        log_file = DEFAULT_LOG_FILE
+        log_file = None
+    log_file = resolve_log_file(log_file)
 
     # 1. TRULY clear everything attached to the root logger first
     # This wipes out Uvicorn defaults and previous setups cleanly.
@@ -71,15 +85,18 @@ def setup_logging(log_file=None, level=logging.INFO):
         delayed_logs.append(("debug", "[SYSLOG] not configured (LOG_SERVER_HOST empty)"))
 
     # === FILE HANDLER (container-local, rotated) ===
-    try:
-        os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
-        )
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-    except Exception as e:
-        delayed_logs.append(("warning", f"[FILE] could not create log file: {e}"))
+    if log_file:
+        try:
+            os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+            )
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+        except Exception as e:
+            delayed_logs.append(("warning", f"[FILE] could not create log file: {e}"))
+    else:
+        delayed_logs.append(("info", "[FILE] file logging disabled (LOG_FILE empty) — console + syslog only"))
 
     # === CONSOLE HANDLER (stdout — visible via `docker logs`, NOT syslog) ===
     screen_handler = logging.StreamHandler()

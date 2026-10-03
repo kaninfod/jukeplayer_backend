@@ -13,6 +13,14 @@ from app.services.bluetooth_service import BluetoothAudioChecker
 
 logger = logging.getLogger(__name__)
 
+# mpv log-message levels -> app logger levels (delivered per request-log-messages)
+MPV_LOG_LEVEL_MAP = {
+    "fatal": logging.CRITICAL,
+    "error": logging.ERROR,
+    "warn": logging.WARNING,
+    "info": logging.INFO,
+}
+
 
 class MPVService(PlaybackBackend):
     """Local playback backend powered by python-mpv-jsonipc.
@@ -25,6 +33,16 @@ class MPVService(PlaybackBackend):
         self.device_name = self.config.MPV_DEVICE_NAME
         self._bt_checker = BluetoothAudioChecker()
 
+        # python-mpv-jsonipc wires mpv's log stream via CONSTRUCTOR kwargs only
+        # (log_handler + loglevel -> mpv's request-log-messages); assigning the
+        # attribute post-construction is a silent no-op. loglevel "warn"
+        # delivers warn/error/fatal (no v/debug firehose).
+        def _mpv_log(level, prefix, text):
+            logger.log(
+                MPV_LOG_LEVEL_MAP.get(level, logging.DEBUG),
+                f"[mpv:{self.device_name}] {level}: {text}".strip(),
+            )
+
         mpv_kwargs = dict(
             ipc_socket=self.config.MPV_IPC_SOCKET,
             idle="yes",
@@ -32,35 +50,25 @@ class MPVService(PlaybackBackend):
             force_window="no",
             really_quiet=True,
             ytdl=False,
-            log_file=self.config.MPV_LOG_FILE if self.config.MPV_LOG_FILE else None,
+            log_handler=_mpv_log,
+            loglevel="warn",
             cache="yes" if self.config.MPV_CACHE_ENABLED else "no",
             cache_secs=max(5, self.config.MPV_CACHE_SECS),
             demuxer_max_bytes=self.config.MPV_DEMUXER_MAX_BYTES,
             demuxer_max_back_bytes=self.config.MPV_DEMUXER_MAX_BACK_BYTES,
             audio_buffer=max(0.2, float(self.config.MPV_AUDIO_BUFFER_SECONDS)),
         )
+        # Only attach --log-file when explicitly configured. A None kwarg leaks
+        # through the wrapper as a literal --log-file=None (mpv then opens a
+        # file named "None"); mpv log routing goes through the app logger.
+        if self.config.MPV_LOG_FILE:
+            mpv_kwargs["log_file"] = self.config.MPV_LOG_FILE
         # Reserved for the USB-DAC output backburner item: direct ALSA output.
         audio_device = getattr(self.config, "MPV_AUDIO_DEVICE", "") or ""
         if audio_device:
             mpv_kwargs["audio_device"] = audio_device
 
         self.player = mpv.MPV(**mpv_kwargs)
-
-        # Route mpv's internal log stream into the app logger — mpv-internal
-        # errors (e.g. write failures on a dead BT sink) were invisible before
-        # (mpv ran with --log-file=None and no log handler).
-        try:
-            self.player.request_log_levels(["info", "warn", "error", "fatal"])
-
-            def _mpv_log(level, prefix, text):
-                mapping = {"fatal": logging.CRITICAL, "error": logging.ERROR,
-                           "warn": logging.WARNING, "info": logging.INFO}
-                logger.log(mapping.get(level, logging.DEBUG),
-                           f"[mpv:{self.device_name}] {level}: {text}".strip())
-
-            self.player.log_handler = _mpv_log
-        except Exception as e:
-            logger.debug(f"Could not register mpv log handler: {e}")
 
         # Explicitly unmute MPV on startup
         try:
