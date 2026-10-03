@@ -37,6 +37,6 @@ application.register("styleguide", StyleguideController)
 application.register("volumepop", VolumePopController)
 application.register("menusheet", MenuSheetController)
 application.register("keyboard", KeyboardController)
-application.register("librarysearch", LibrarySearchController)
+application.register("library-search", LibrarySearchController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

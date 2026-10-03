@@ -155,36 +155,42 @@ export default class extends Controller {
         let index = focused ? cards.indexOf(focused)
             : activeRow ? cards.indexOf(activeRow)   // start at the playing track
             : (this._index >= 0 && this._index < cards.length ? this._index : -1)
-        if (index < 0) return
 
         const key = event.key
         const step = (key === "ArrowLeft" || key === "ArrowRight") ? delta : delta * cols
-        let next = index + step
+        let next_index = null
 
-        // row-edges stop left/right; top/bottom edges stop up/down
-        const col = index % cols
-        if (key === "ArrowLeft" && col === 0) return
-        if (key === "ArrowRight" && col === cols - 1) return
-        if (next < 0) {
-            // above the first row: hand up to a declared focus target
-            const up = container.dataset.keyboardFocusUp
-            if (up && key === "ArrowUp") {
+        if (index < 0) {
+            // fresh walk-in: up hands over to a declared focus target (search)
+            // any other arrow lands the focus on the first card
+            if (key === "ArrowUp") {
+                const up = container.dataset.keyboardFocusUp
+                if (!up) return
                 const field = document.querySelector(up)
-                if (field) {
-                    this._clearFocus(container)
-                    this._container = null
-                    field.focus()
-                    event.preventDefault()
-                }
+                if (!field) return
+                this._clearFocus(container)
+                this._container = null
+                field.focus()
+                event.preventDefault()
+                return
             }
-            return
+            index = 0
+            next_index = 0
         }
-        if (next >= cards.length) return
+
+        if (next_index === null) {
+            const col = index % cols
+            if (key === "ArrowLeft" && col === 0) return
+            if (key === "ArrowRight" && col === cols - 1) return
+            const next = index + step
+            if (next < 0 || next >= cards.length) return
+            next_index = next
+        }
 
         cards.forEach((c) => c.classList.remove("kb-focus"))
-        cards[next].classList.add("kb-focus")
-        this._index = next
-        cards[next].scrollIntoView({ block: "nearest", behavior: "smooth" })
+        cards[next_index].classList.add("kb-focus")
+        this._index = next_index
+        cards[next_index].scrollIntoView({ block: "nearest", behavior: "smooth" })
         event.preventDefault()
     }
 
