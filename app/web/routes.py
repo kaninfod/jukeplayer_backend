@@ -50,12 +50,15 @@ def config_get(config, dotted_path: str, fallback=""):
 templates.env.filters["config_get"] = config_get
 
 GROUP_RANGES = {
-    'A-D': ['A', 'E'],
-    'E-H': ['E', 'I'],
-    'I-L': ['I', 'M'],
-    'M-P': ['M', 'Q'],
-    'Q-T': ['Q', 'U'],
-    'U-Z': ['U', '[']
+    'A-C': ['A', 'D'],
+    'D-F': ['D', 'G'],
+    'G-I': ['G', 'J'],
+    'J-L': ['J', 'M'],
+    'M-O': ['M', 'P'],
+    'P-R': ['P', 'S'],
+    'S-U': ['S', 'V'],
+    'V-X': ['V', 'Y'],
+    'Y-Z': ['Y', '[']  # '[' = the sentinel after Z, so Z artists are included
 }
 
 
