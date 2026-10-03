@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-nowplaying-target' in the HTML
-    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus", "speakerscard", "speakername", "speakerstate", "speakericon", "speakertile", "speakertype", "speakertypeicon", "speakertypetext" ]
+    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus", "speakerscard", "speakername", "speakerstate", "speakericon", "speakertile", "speakertype", "speakertypeicon", "speakertypetext", "speakerclients" ]
 
     connect() {
         console.log("Now Playing Controller connected to the DOM", window.appState.lastTrackData);
@@ -239,6 +239,10 @@ export default class extends Controller {
         }
         if (this.hasSpeakertypetextTarget) {
             this.speakertypetextTarget.textContent = spec.label;
+        }
+        if (this.hasSpeakerclientsTarget) {
+            const n = (info && info.clients) ?? 0;
+            this.speakerclientsTarget.textContent = `${n} client${n === 1 ? "" : "s"}`;
         }
 
         if (this.hasSpeakerstateTarget) {

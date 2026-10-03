@@ -36,6 +36,7 @@ def _speaker_map() -> dict:
             "display_name": sp.display_name or name,
             "type": sp.type,
             "icon": sp.icon,
+            "clients": len(sp.clients),   # render-time count (the devices page is live for clients)
         }
         for name, sp in speakers.items()
     }

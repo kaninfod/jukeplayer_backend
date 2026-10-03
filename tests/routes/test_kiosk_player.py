@@ -28,9 +28,15 @@ async def test_player_page_carries_speakers_card_and_map(initialized_app):
         assert "np-speaker-card" in html
         assert "data-nowplaying-speakers-map" in html
 
-        # the card's map attr parses as JSON even with an empty registry
-        match = html.split('data-nowplaying-speakers-map="', 1)[1].split('"', 1)[0]
-        assert json.loads(match) == {}
+        # the card's map attr: single-quoted (JSON's double quotes must not
+        # terminate the attribute), parses as JSON even with an empty registry
+        raw = html.split('data-nowplaying-speakers-map=', 1)[1]
+        assert raw.startswith("'")
+        parsed = json.loads(raw[1:raw.index("'", 1)])
+        assert parsed == {}
+
+        # meta row: type badge + clients count line
+        assert 'data-nowplaying-target="speakerclients"' in html
 
         # the status chip keeps its cast icon; the name lives in the span
         assert 'data-nowplaying-target="currentdevice"' in html
