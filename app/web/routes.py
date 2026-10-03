@@ -69,34 +69,6 @@ def config_get(config, dotted_path: str, fallback=""):
 
 templates.env.filters["config_get"] = config_get
 
-GROUP_RANGES = {
-    'A-C': ['A', 'D'],
-    'D-F': ['D', 'G'],
-    'G-I': ['G', 'J'],
-    'J-L': ['J', 'M'],
-    'M-O': ['M', 'P'],
-    'P-R': ['P', 'S'],
-    'S-U': ['S', 'V'],
-    'V-X': ['V', 'Y'],
-    'Y-Z': ['Y', '[']  # '[' = the sentinel after Z, so Z artists are included
-}
-
-
-def _filter_artists_by_group(group_name: str, artists: list) -> list:
-    group_range = GROUP_RANGES.get(group_name)
-    if not group_range:
-        return []
-
-    filtered_artists = []
-    for artist in artists:
-        name = artist.get('name') if isinstance(artist, dict) else getattr(artist, 'name', '')
-        if not name:
-            continue
-        first = name.upper()[0]
-        if first >= group_range[0] and first < group_range[1]:
-            filtered_artists.append(artist)
-    return filtered_artists
-
 
 def _is_htmx_request(request: Request) -> bool:
     return request.headers.get("HX-Request", "").lower() == "true"
@@ -751,7 +723,6 @@ async def kiosk_clients_partial(request: Request):
 @router.get("/kiosk/library", response_class=HTMLResponse)
 async def kiosk_library_partial(
     request: Request,
-    group: str | None = Query(None),
     artist_id: str | None = Query(None),
     artist_name: str | None = Query(None),
     search: str | None = Query(None),
@@ -768,10 +739,11 @@ async def kiosk_library_partial(
         "back_url": None,
         "letter_groups": [],
         "genres": artist_metadata.genres(),
+        "dir_bar_open": "alpha",
     }
 
     if search:
-        # artist search: search3 with the album/song sections zeroed out
+        # artist search: search2 with the album/song sections zeroed out
         artists = await asyncio.to_thread(subsonic_service.search_artists, search)
         context.update({
             "title": f"Artists matching “{search}”",
@@ -780,6 +752,7 @@ async def kiosk_library_partial(
             "back_url": "/kiosk/library",
             "artists": artists,
             "search_query": search,
+            "dir_bar_open": "search",   # the bar keeps the term + segment open
         })
         if _is_htmx_request(request):
             return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)

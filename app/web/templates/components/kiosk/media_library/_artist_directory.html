@@ -1,21 +1,10 @@
 <div class="artist-directory">
-    {# two stacked jump-bars: letters (scroll-jump) + genre chips (filter) #}
-    <div class="dir-nav">
-        <div class="alpha-bar">
-            {% for l in ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'] %}
-            <button type="button" class="alpha-btn" data-letter="{{ l }}"
-                    onclick="document.getElementById('letter-{{ l }}')?.scrollIntoView({block:'start',behavior:'smooth'})">{{ l }}</button>
-            {% endfor %}
-        </div>
-        <div class="genre-chip-row">
-            {% for g in genres %}
-            <a class="genre-chip" href="/kiosk/library?genre={{ g.value|urlencode }}">{{ g.value|e }} <small>{{ g.albumCount }}</small></a>
-            {% endfor %}
-        </div>
-    </div>
+    {# one-row filter bar: search / genres / A-Z — exactly one expanded #}
+    {% include 'components/kiosk/media_library/_dir_bar.html' %}
 
     {# slim artist rows, letter-sectioned; the whole section = the anchors #}
-    <div class="dir-rows" data-keyboard-cards=".artist-row">
+    <div class="dir-rows" data-keyboard-cards=".artist-row"
+         data-keyboard-focus-up="#dir-bar-search-toggle">
         {% for lg in letter_groups %}
         {# sections dissolve into the grid (display: contents); the letter
            head spans the full row and carries the alpha-bar scroll anchor #}

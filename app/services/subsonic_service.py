@@ -485,59 +485,6 @@ class SubsonicService:
             logger.error(f"SubsonicService: Failed to fetch song info for id {track_id}: {e}")
             return None
 
-
-    def get_alphabetical_groups(self) -> List[Dict[str, str]]:
-        """
-        Return alphabetical groups for organizing artists.
-        
-        Returns:
-            List of dicts with 'name' and 'range' keys
-        """
-        return [
-            {"name": "A-D", "range": ("A", "D")},
-            {"name": "E-H", "range": ("E", "H")},
-            {"name": "I-L", "range": ("I", "L")},
-            {"name": "M-P", "range": ("M", "P")},
-            {"name": "Q-T", "range": ("Q", "T")},
-            {"name": "U-Z", "range": ("U", "Z")}
-        ]
-
-    def get_artists_in_range(self, start_letter: str, end_letter: str) -> List[Dict[str, Any]]:
-        """
-        Get all artists whose names start with letters in the given range.
-        
-        Args:
-            start_letter: Starting letter (e.g., 'A')
-            end_letter: Ending letter (e.g., 'D')
-            
-        Returns:
-            List of artist dicts with 'id' and 'name'
-        """
-        if not hasattr(self, '_cached_artists') or not self._cached_artists:
-            self._cached_artists = self.list_artists()
-        
-        filtered_artists = []
-        for artist in self._cached_artists:
-            name = artist.get('name', '').upper()
-            if name and start_letter <= name[0] <= end_letter:
-                filtered_artists.append(artist)
-        
-        # Sort alphabetically
-        filtered_artists.sort(key=lambda x: x.get('name', '').upper())
-        return filtered_artists
-
-    def cache_artists_data(self) -> None:
-        """
-        Cache all artists data for faster menu navigation.
-        """
-        logger.info("Caching artists data from Subsonic...")
-        try:
-            self._cached_artists = self.list_artists()
-            logger.info(f"Cached {len(self._cached_artists)} artists")
-        except Exception as e:
-            logger.error(f"Failed to cache artists data: {e}")
-            self._cached_artists = []
-
     def scrobble_now_playing(self, track_id: str) -> bool:
         """
         Notify Subsonic that a track is now playing (scrobble to Last.fm if configured).
