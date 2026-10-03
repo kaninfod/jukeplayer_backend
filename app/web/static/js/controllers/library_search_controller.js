@@ -31,7 +31,7 @@ export default class extends Controller {
         }
         // otherwise collapse the filter bar back to the alpha segment
         const bar = this.element.closest(".dir-bar")
-        if (bar) bar.dataset.dirfilterOpenValue = "alpha"
+        if (bar) bar.dataset.dirFilterOpenValue = "alpha"
         window.dispatchEvent(new CustomEvent("kb-enter-cards"))
     }
 }

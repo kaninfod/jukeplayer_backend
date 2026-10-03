@@ -47,12 +47,32 @@ async def test_genre_branch_renders_album_grid_with_artist(monkeypatch, tmp_path
         html = " ".join(resp.text.split())
         assert "A Love Supreme" in html           # the grid renders
         assert "John Coltrane" in html            # artist line present on the card
+        assert "data-dir-filter-open-value" not in html   # grids carry no filter bar
 
 
 @pytest.mark.asyncio
-async def test_default_view_shows_empty_cache_hint(monkeypatch, tmp_path, initialized_app):
+async def test_default_view_shows_filter_bar_and_empty_cache_hint(monkeypatch, tmp_path, initialized_app):
     _stub_metadata(monkeypatch)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/kiosk/library")
         assert resp.status_code == 200
-        assert "Refresh subsonic data" in resp.text
+        html = resp.text
+        # the one-row filter bar: alpha open, the other two tucked as toggles
+        assert 'data-dir-filter-open-value="alpha"' in html
+        assert 'id="dir-bar-search-toggle"' in html
+        assert "Refresh subsonic data" in html
+
+
+@pytest.mark.asyncio
+async def test_search_view_keeps_bar_open_with_the_term(monkeypatch, tmp_path, initialized_app):
+    _stub_metadata(monkeypatch)
+    _stub_subsonic(monkeypatch, search_artists=lambda query, count=50: [
+        {"id": "al-1", "name": "Jean Michel Jarre"}])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/kiosk/library", params={"search": "Jarre"})
+        assert resp.status_code == 200
+        html = resp.text
+        assert 'data-dir-filter-open-value="search"' in html
+        assert 'data-dirfilter-results="1"' in html
+        assert 'value="Jarre"' in html
+        assert "Jean Michel Jarre" in html

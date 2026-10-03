@@ -6,7 +6,7 @@
    esc = back to alpha — or straight out of the results view (the flag).
    Context vars: dir_bar_open ("alpha"|"genres"|"search"), search_query. #}
 <div class="dir-bar mb-3 flex-shrink-0" id="dir-bar" data-controller="dir-filter"
-     data-dirfilter-open-value="{{ dir_bar_open or 'alpha' }}">
+     data-dir-filter-open-value="{{ dir_bar_open or 'alpha' }}">
     <button type="button" id="dir-bar-search-toggle" class="dir-seg-toggle"
             data-seg="search" data-action="dir-filter#openToSearch" title="Search artists">
         <i class="mdi mdi-magnify"></i>

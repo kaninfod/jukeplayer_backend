@@ -1326,12 +1326,12 @@ body:has(.htmx-request) #page-busy {
    = display:flex) — bar-scoping + the attribute-open rules must out-rank
    those single-class rules or they'd be visible all at once */
 .dir-bar .dir-seg { display: none; flex: 1 1 auto; min-width: 0; }
-.dir-bar[data-dirfilter-open-value="alpha"] .dir-seg-alpha { display: flex; }
-.dir-bar[data-dirfilter-open-value="genres"] .dir-seg-genres { display: flex; }
-.dir-bar[data-dirfilter-open-value="search"] .dir-seg-search { display: block; }
-.dir-bar[data-dirfilter-open-value="alpha"]  .dir-seg-toggle[data-seg="alpha"],
-.dir-bar[data-dirfilter-open-value="genres"] .dir-seg-toggle[data-seg="genres"],
-.dir-bar[data-dirfilter-open-value="search"] .dir-seg-toggle[data-seg="search"] {
+.dir-bar[data-dir-filter-open-value="alpha"] .dir-seg-alpha { display: flex; }
+.dir-bar[data-dir-filter-open-value="genres"] .dir-seg-genres { display: flex; }
+.dir-bar[data-dir-filter-open-value="search"] .dir-seg-search { display: block; }
+.dir-bar[data-dir-filter-open-value="alpha"]  .dir-seg-toggle[data-seg="alpha"],
+.dir-bar[data-dir-filter-open-value="genres"] .dir-seg-toggle[data-seg="genres"],
+.dir-bar[data-dir-filter-open-value="search"] .dir-seg-toggle[data-seg="search"] {
     color: #4cd7f6; border-color: rgba(76, 215, 246, .45);
     background: rgba(76, 215, 246, .07);
 }
