@@ -88,17 +88,23 @@ export default class extends Controller {
             const card = this._focusedCard()
             if (card) {
                 event.preventDefault()
-                // generic enter-action: a card may declare a destination
-                // (client cards: the esp32 configure page); otherwise the
-                // click()'s own data-action runs
-                const destination = card.dataset.keyboardEnter
-                if (destination) {
-                    window.dispatchEvent(new CustomEvent("nav:go", { detail: destination }))
-                } else {
-                    card.click()
-                }
+                this._select(card)
             }
         }
+    }
+
+    _select(card) {
+        // 1. a card may declare a keyboard destination (client cards -> configure)
+        const destination = card.dataset.keyboardEnter
+        if (destination) {
+            window.dispatchEvent(new CustomEvent("nav:go", { detail: destination }))
+            return
+        }
+        // 2. the card's own action, else the first child that carries one — in
+        // most card anatomies the actionable element is a child (album cover
+        // plays, card body navigates) and a click on the parent never reaches it
+        const actionable = card.hasAttribute("data-action") ? card : card.querySelector("[data-action]")
+        actionable?.click()
     }
 
     _walk(event, delta) {
