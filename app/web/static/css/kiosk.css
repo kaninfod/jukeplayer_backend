@@ -209,13 +209,16 @@ body.kiosk-layout {
     position: relative;
     align-items: center;
     justify-content: center;
-    /* wrap-stacking: the cover|info row owns line 1 (flex-basis 100%);
-       the speaker card, repeat pill and progress bar wrap onto their own
-       (centered) lines below — the row's sizing behavior stays untouched */
-    flex-wrap: wrap;
     overflow: hidden;
 }
-.kiosk-player-status > .flex-row { flex: 0 0 100%; }
+/* wrap-stacking on wide screens only: the cover|info row owns line 1
+   (flex-basis 100%) and the speaker card wraps onto its own centered line
+   below. The mobile fold is a flex-column (unconditional media rule at the
+   bottom) — flex-basis there would act on the vertical axis and break it. */
+@media (min-width: 768px) {
+    .kiosk-player-status { flex-wrap: wrap; }
+    .kiosk-player-status > .flex-row { flex: 0 0 100%; }
+}
 
 .kiosk-album-art {
     /* width: 450px;

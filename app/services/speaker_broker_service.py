@@ -76,8 +76,12 @@ class SpeakerBrokerService:
             logger.info(f"[SpeakerBrokerService] Ignoring stale unregister for client_id: {client_id} — id re-registered on a newer connection")
             return
 
+        old_speaker = self.get_speaker_for_client(client_id)
         self._remove_client_from_speakers(client_id)
         self.control_clients.unregister(client_id)
+        # the leftover control group is one member smaller — tell it
+        if old_speaker:
+            await self.broadcast_clients_count_to_clients(old_speaker)
 
     async def handle_assign_speaker(self, event: Event):
         payload = event.payload
@@ -87,6 +91,7 @@ class SpeakerBrokerService:
         if not client_id or not speaker_name:
             return {"ok": False, "error": "ASSIGN_SPEAKER needs both client_id and speaker_name"}
 
+        old_speaker = self.get_speaker_for_client(client_id)
         self._remove_client_from_speakers(client_id)
         if client_id not in self.control_clients._clients:
             logger.warning(f"[SpeakerBrokerService] ASSIGN_SPEAKER for unknown client_id: {client_id} — ignoring")
@@ -96,6 +101,10 @@ class SpeakerBrokerService:
             # store the canonical registry name, not the payload's display form
             self.control_clients._clients[client_id].speaker_name = speaker.speaker_name
             await self.broadcast_context_to_clients(speaker)
+            await self.broadcast_clients_count_to_clients(speaker)
+            # the speaker the client LEFT is one member smaller — tell it too
+            if old_speaker is not None and old_speaker is not speaker:
+                await self.broadcast_clients_count_to_clients(old_speaker)
             return {"ok": True, "speaker": speaker.speaker_name,
                     "message": f"Client '{client_id}' assigned to '{speaker.speaker_name}'"}
         return {"ok": False, "error": f"Unknown speaker '{speaker_name}'"}
@@ -124,6 +133,7 @@ class SpeakerBrokerService:
             logger.info(f"[SpeakerBrokerService] Re-homed client_id: {client_id} after speaker '{removed_speaker.speaker_name}' was removed")
         if target:
             await self.broadcast_context_to_clients(target)
+            await self.broadcast_clients_count_to_clients(target)
 
 
     def _remove_client_from_speakers(self, client_id):
@@ -176,6 +186,27 @@ class SpeakerBrokerService:
                 continue
             result_payload = self._get_mediaplayer_context_for_client(client)
             await client.send_callback({"type": "current_track", "payload": result_payload})
+
+    async def broadcast_clients_count_to_clients(self, speaker: Speaker):
+        """The speaker's control-group size changed — register, assign
+        (attach + detach), unregister or re-home all funnel through here.
+        One small message per client so cards showing the client count keep
+        a live number (render-time snapshots freeze it)."""
+        if not speaker:
+            return
+        live = []
+        for client_id in list(speaker.clients):
+            client = self.control_clients._clients.get(client_id)
+            if not client:
+                logger.warning(f"[SpeakerBrokerService] Purging unknown client_id: {client_id} from speaker {speaker.speaker_name}")
+                speaker.clients.discard(client_id)
+                continue
+            live.append(client)
+        count = len(live)
+        logger.info(f"[SpeakerBrokerService] Broadcasting clients count: {speaker.speaker_name} -> {count}")
+        for client in live:
+            await client.send_callback({"type": "speaker_clients_changed", "payload": {
+                "speaker_name": speaker.speaker_name, "clients_count": count}})
 
     async def broadcast_volume_to_clients(self, speaker: Speaker):
         if not speaker:

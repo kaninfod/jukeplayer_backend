@@ -140,6 +140,12 @@ export default class extends Controller {
             this.broadcast("device-reset-response", { response: msg.payload });
         }
 
+        if (msg.type === 'speaker_clients_changed') {
+            // {speaker_name, clients_count}: the speaker's control group
+            // changed size — the now-playing card re-dresses if it's active
+            this.broadcast("speakers-clients-changed", { response: msg.payload });
+        }
+
         if (msg.type === 'nfc_encoding_started') {
             this.broadcast("nfc-encoding-started", { response: msg.payload });
         }

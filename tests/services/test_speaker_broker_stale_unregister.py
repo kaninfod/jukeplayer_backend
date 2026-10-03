@@ -107,7 +107,10 @@ async def test_assign_speaker_sets_speaker_name_and_broadcasts():
 
     assert client.speaker_name == "kitchen"
     assert client_id in speaker.clients
-    send_callback.assert_awaited_once()
+    # the context pass (current_track) + the clients-count pass
+    assert send_callback.await_count == 2
+    types = [call.args[0]["type"] for call in send_callback.await_args_list]
+    assert types == ["current_track", "speaker_clients_changed"]
 
 
 async def test_broadcast_purges_ghost_clients():

@@ -23,6 +23,36 @@ export default class extends Controller {
                 this.handleExternalUpdate(event);
             }
         });
+        // speaker_clients_changed (WS): the client count of the active
+        // speaker moved — keep the card's count honest
+        window.addEventListener("speakers-clients-changed", (event) =>
+            this.updateSpeakerClients(event));
+    }
+
+    updateSpeakerClients(evt) {
+        if (!this.hasSpeakerscardTarget) return;
+        const response = (evt.detail || {}).response || {};
+        const count = response.clients_count;
+        if (typeof count !== "number") return;
+        const fold = this._fold;
+        const active = [
+            fold(window.appState.deviceName),
+            fold(window.appState.mediaplayerInstanceName),
+        ].filter(Boolean);
+        if (!active.includes(fold(response.speaker_name))) return;
+
+        // refresh the map's count so later lookups reuse the fresh value
+        const map = this._speakerMap();
+        for (const [name, entry] of Object.entries(map)) {
+            if (active.includes(fold(name))) {
+                entry.clients = count;
+                this.speakerscardTarget.dataset.nowplayingSpeakersMap = JSON.stringify(map);
+                break;
+            }
+        }
+        if (this.hasSpeakerclientsTarget) {
+            this.speakerclientsTarget.textContent = `${count} client${count === 1 ? "" : "s"}`;
+        }
     }
 
     update() {
@@ -179,6 +209,8 @@ export default class extends Controller {
         }
     }
 
+    _fold = (s) => (s || "").toString().replace(/[\s_]+/g, " ").trim().toLowerCase();
+
     _speakerInfo() {
         // appState.deviceName = output_device (the technical store name);
         // mediaplayerInstanceName is a display-form transform (underscores →
@@ -187,7 +219,7 @@ export default class extends Controller {
         const key = (window.appState.deviceName || "").toString();
         if (!key) return null;
         const map = this._speakerMap();
-        const fold = (s) => (s || "").toString().replace(/[\s_]+/g, " ").trim().toLowerCase();
+        const fold = this._fold;
         const wanted = [key, fold(key), fold(window.appState.mediaplayerInstanceName)];
         for (const w of wanted) {
             if (!w) continue;
