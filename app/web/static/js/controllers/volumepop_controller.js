@@ -72,6 +72,13 @@ export default class extends Controller {
         }))
     }
 
+    // keyboard ESC route: same cleanup as an outside click, no event knowledge
+    forceClose() {
+        if (!this.hasPanelTarget) return
+        this._flushVolume()
+        this.panelTarget.classList.add("hidden")
+    }
+
     close(event) {
         if (!event || !this.element.contains(event.target)) {
             this._flushVolume()  // outside click: deliver any pending level

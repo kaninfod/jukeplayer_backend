@@ -13,6 +13,7 @@ import BtSpeakerController from "./controllers/bt_speaker_controller.js"
 import StyleguideController from "./controllers/styleguide_controller.js"
 import VolumePopController from "./controllers/volumepop_controller.js"
 import MenuSheetController from "./controllers/menusheet_controller.js"
+import KeyboardController from "./controllers/keyboard_controller.js"
 
 const application = Application.start()
 
@@ -34,5 +35,6 @@ application.register("btspeaker", BtSpeakerController)
 application.register("styleguide", StyleguideController)
 application.register("volumepop", VolumePopController)
 application.register("menusheet", MenuSheetController)
+application.register("keyboard", KeyboardController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

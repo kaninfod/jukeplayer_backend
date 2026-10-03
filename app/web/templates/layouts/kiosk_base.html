@@ -21,14 +21,16 @@
     <link rel="stylesheet" href="/static/css/nfc-client-select.css">
     {% block head_extra %}{% endblock %}
 </head>
-<body class="" 
-    data-controller="websocket navigation playercontrols device nowplaying logging"
+<body class=""
+    data-controller="websocket navigation playercontrols device nowplaying logging keyboard"
     data-action="
       ws:send@window->websocket#handleOutgoing
       nav:go@window->navigation#load
       nowplaying-update@window->nowplaying#handleExternalUpdate
       volume-change@window->nowplaying#updateVolume
       switch-device-response@window->nowplaying#updateDevice
+      keydown@window->keyboard#onKey
+      volume-pop-close@window->volumepop#forceClose
       "
 >
 

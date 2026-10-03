@@ -1301,6 +1301,14 @@ body:has(.htmx-request) #page-busy {
     display: contents;
 }
 
+/* keyboard navigation focus ring — same marker style as the active speaker
+   card in the devices view: a border (inside the card edge, so the container's
+   overflow never clips it) plus its emerald glow */
+.kb-focus {
+    border: 3px solid #10B981;
+    box-shadow: 0 0 15px rgba(16, 185, 129, .35);
+}
+
 /* ============================================================
    M4 — mobile page layouts: cards become phone-sized
    ============================================================ */
