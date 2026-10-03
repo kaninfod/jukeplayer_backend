@@ -29,6 +29,26 @@ export default class extends Controller {
     connect() {
         this._container = null
         this._index = -1
+        // the search field's arrow-down hands the walk back in; the focus
+        // lands on the first card — or the currently-playing row if present
+        this._enterCards = () => {
+            const container = document.querySelector("[data-keyboard-cards]")
+            if (!container) return
+            this._container = container
+            const selector = container.dataset.keyboardCards || ":scope > *"
+            const cards = [...container.querySelectorAll(selector)]
+            if (!cards.length) return
+            const activeRow = cards.find((c) => c.classList.contains("active"))
+            this._index = activeRow ? cards.indexOf(activeRow) : 0
+            this._clearFocus(container)
+            cards[this._index].classList.add("kb-focus")
+            cards[this._index].scrollIntoView({ block: "nearest", behavior: "smooth" })
+        }
+        window.addEventListener("kb-enter-cards", this._enterCards)
+    }
+
+    disconnect() {
+        if (this._enterCards) window.removeEventListener("kb-enter-cards", this._enterCards)
     }
 
     onKey(event) {
@@ -122,19 +142,54 @@ export default class extends Controller {
         const cards = [...container.querySelectorAll(selector)]
         if (!cards.length) return
 
+        // spatial walk: the grid's real column count (1 for lists) decides
+        // how far up/down move; left/right always move one card
+        let cols = 1
+        try {
+            const template = getComputedStyle(container).gridTemplateColumns
+            if (template && template !== "none") cols = Math.max(1, template.trim().split(/\s+/).length)
+        } catch (_e) { /* non-grid containers stay one lane */ }
+
         const focused = cards.find((c) => c.classList.contains("kb-focus"))
         const activeRow = cards.find((c) => c.classList.contains("active"))
         let index = focused ? cards.indexOf(focused)
             : activeRow ? cards.indexOf(activeRow)   // start at the playing track
-            : (this._index >= 0 ? this._index : -1)
-        index = (index + delta) % cards.length
-        if (index < 0) index = cards.length - 1
+            : (this._index >= 0 && this._index < cards.length ? this._index : -1)
+        if (index < 0) return
+
+        const key = event.key
+        const step = (key === "ArrowLeft" || key === "ArrowRight") ? delta : delta * cols
+        let next = index + step
+
+        // row-edges stop left/right; top/bottom edges stop up/down
+        const col = index % cols
+        if (key === "ArrowLeft" && col === 0) return
+        if (key === "ArrowRight" && col === cols - 1) return
+        if (next < 0) {
+            // above the first row: hand up to a declared focus target
+            const up = container.dataset.keyboardFocusUp
+            if (up && key === "ArrowUp") {
+                const field = document.querySelector(up)
+                if (field) {
+                    this._clearFocus(container)
+                    this._container = null
+                    field.focus()
+                    event.preventDefault()
+                }
+            }
+            return
+        }
+        if (next >= cards.length) return
 
         cards.forEach((c) => c.classList.remove("kb-focus"))
-        cards[index].classList.add("kb-focus")
-        this._index = index
-        cards[index].scrollIntoView({ block: "nearest", behavior: "smooth" })
+        cards[next].classList.add("kb-focus")
+        this._index = next
+        cards[next].scrollIntoView({ block: "nearest", behavior: "smooth" })
         event.preventDefault()
+    }
+
+    _clearFocus(container) {
+        container.querySelectorAll(".kb-focus").forEach((c) => c.classList.remove("kb-focus"))
     }
 
     _focusedCard() {
