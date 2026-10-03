@@ -27,7 +27,29 @@
             <h1 class="display-1" class="">No Music Playing</h1>
             <h3  class="">Insert a card...</h3>
         </div>
-    </div>    
+    </div>
+
+    {# current-speaker card: the devices-page anatomy in one horizontal row
+       (glyph · display name · type pill · live state pill · chevron). The
+       speakers-map attr (name → display/type/icon, server-rendered) lets the
+       nowplaying controller re-dress the card live after a device switch —
+       no reload. Tapping navigates to /kiosk/devices, where switching lives. #}
+    <div class="np-speaker-card card device-card"
+         data-nowplaying-target="speakerscard"
+         data-action="click->navigation#load" href="/kiosk/devices"
+         data-nowplaying-speakers-map="{{ speakers_map|tojson }}"
+         title="The speaker playback is running on — tap to manage speakers">
+        <div class="icon-tile tile-cc flex-shrink-0" data-nowplaying-target="speakertile">
+            <i class="mdi mdi-cast" data-nowplaying-target="speakericon"></i>
+        </div>
+        <div class="np-speaker-name fw-bold" data-nowplaying-target="speakername">—</div>
+        <span class="device-type-badge type-cc flex-shrink-0" data-nowplaying-target="speakertype">
+            <i class="mdi mdi-cast" data-nowplaying-target="speakertypeicon"></i>
+            <span data-nowplaying-target="speakertypetext">—</span>
+        </span>
+        <span class="device-player-pill player-idle flex-shrink-0" data-nowplaying-target="speakerstate">—</span>
+        <i class="mdi mdi-chevron-right np-speaker-chevron flex-shrink-0"></i>
+    </div>
 
     {# M4: repeat quick-toggle (mobile-only; mute lives in the volume popover) #}
     <div class="d-md-none d-flex justify-content-center mt-2">

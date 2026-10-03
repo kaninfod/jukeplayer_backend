@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-nowplaying-target' in the HTML
-    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus" ]
+    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus", "speakerscard", "speakername", "speakerstate", "speakericon", "speakertile", "speakertype", "speakertypeicon", "speakertypetext" ]
 
     connect() {
         console.log("Now Playing Controller connected to the DOM", window.appState.lastTrackData);
@@ -158,10 +158,97 @@ export default class extends Controller {
     }  
 
     updateDevice() {
+        const info = this._speakerInfo();
+        // status-bar chip: the cast icon stays, the span names the speaker
         if (this.hasCurrentdeviceTarget) {
-            this.currentdeviceTarget.textContent = window.appState.mediaplayerInstanceName;
-        } else {
-            console.log("Device UI span not found on this page.");
+            this.currentdeviceTarget.textContent =
+                (info && info.display_name)
+                || window.appState.mediaplayerInstanceName
+                || "Active Device";
+        }
+        this.updateSpeakerCard();
+    }
+
+    _speakerMap() {
+        if (!this.hasSpeakerscardTarget) return {};
+        try {
+            return JSON.parse(this.speakerscardTarget.dataset.nowplayingSpeakersMap || "{}");
+        } catch (e) {
+            console.warn("nowplaying: speakers-map attr unparsable", e);
+            return {};
+        }
+    }
+
+    _speakerInfo() {
+        // appState.deviceName = output_device (the technical store name);
+        // mediaplayerInstanceName is a display-form transform (underscores →
+        // Title Case, mpv speakers can be display-form natively) — so both
+        // forms and a folded comparison are tried before giving up
+        const key = (window.appState.deviceName || "").toString();
+        if (!key) return null;
+        const map = this._speakerMap();
+        const fold = (s) => (s || "").toString().replace(/[\s_]+/g, " ").trim().toLowerCase();
+        const wanted = [key, fold(key), fold(window.appState.mediaplayerInstanceName)];
+        for (const w of wanted) {
+            if (!w) continue;
+            for (const [name, info] of Object.entries(map)) {
+                if (name === w || fold(name) === w) return info;
+            }
+        }
+        return null;
+    }
+
+    updateSpeakerCard() {
+        // guarded — the card lives only on the player page
+        if (!this.hasSpeakerscardTarget) return;
+        const info = this._speakerInfo();
+        const status = (window.appState.playerStatus || "idle").toLowerCase();
+
+        if (this.hasSpeakernameTarget) {
+            this.speakernameTarget.textContent =
+                (info && info.display_name)
+                || window.appState.mediaplayerInstanceName
+                || window.appState.deviceName
+                || "No speaker configured";
+        }
+
+        const type = (info && info.type) || "local";
+        const spec = {
+            chromecast: { icon: (info && info.icon) || "mdi-cast", tile: "tile-cc",
+                          badge: "type-cc", badgeIcon: "mdi-cast", label: "Chromecast" },
+            bluetooth:  { icon: (info && info.icon) || "mdi-bluetooth", tile: "tile-bt",
+                          badge: "type-bt", badgeIcon: "mdi-bluetooth", label: "BT" },
+            local:      { icon: (info && info.icon) || "mdi-speaker", tile: "tile-audio",
+                          badge: "type-audio", badgeIcon: "mdi-speaker", label: "Audio" },
+        }[type] || { icon: "mdi-speaker", tile: "tile-audio",
+                     badge: "type-audio", badgeIcon: "mdi-speaker", label: "Audio" };
+
+        if (this.hasSpeakertileTarget) {
+            ["tile-cc", "tile-bt", "tile-audio"].forEach(c =>
+                this.speakertileTarget.classList.toggle(c, c === spec.tile));
+        }
+        if (this.hasSpeakericonTarget) {
+            this.speakericonTarget.className = "mdi " + spec.icon;
+        }
+        if (this.hasSpeakertypeTarget) {
+            ["type-cc", "type-bt", "type-audio"].forEach(c =>
+                this.speakertypeTarget.classList.toggle(c, c === spec.badge));
+        }
+        if (this.hasSpeakertypeiconTarget) {
+            this.speakertypeiconTarget.className = "mdi " + spec.badgeIcon;
+        }
+        if (this.hasSpeakertypetextTarget) {
+            this.speakertypetextTarget.textContent = spec.label;
+        }
+
+        if (this.hasSpeakerstateTarget) {
+            const pill = {
+                playing: { cls: "player-playing", label: "Playing" },
+                paused:  { cls: "player-paused",  label: "Paused" },
+                idle:    { cls: "player-idle",    label: "Idle" },
+            }[status] || { cls: "player-idle", label: "Idle" };
+            this.speakerstateTarget.className = "device-player-pill " + pill.cls;
+            this.speakerstateTarget.textContent = pill.label;
         }
     }
 

@@ -1409,6 +1409,28 @@ body:has(.htmx-request) #page-busy {
 .artist-row .row-sub { font-size: 14px; }
 .artist-row .mdi-chevron-right { color: var(--bs-secondary-color); }
 
+/* current-speaker card on the now-playing page: devices-anatomy horizontal
+   (not square), fixed max width, centered under cover+info in both fold
+   modes. Class vocabulary is the shared one (tile/badge/pill); the JS
+   re-dresses pill/type/glyph live from appState + the speakers map. */
+.np-speaker-card {
+    width: min(480px, 100%);
+    margin: 1.25rem auto 0;
+    display: flex; align-items: center; gap: .8rem;
+    text-align: left;
+    aspect-ratio: auto !important;
+    padding: .65rem .9rem;
+    cursor: pointer;
+}
+.np-speaker-card .icon-tile { width: 44px; height: 44px; font-size: 1.4rem; }
+.np-speaker-name { min-width: 0; flex: 1; font-size: 1.02rem; }
+.np-speaker-chevron { color: var(--bs-secondary-color); }
+.icon-tile.tile-audio {
+    background: rgba(148, 163, 184, .12);
+    border-color: rgba(148, 163, 184, .25);
+    color: #cbd5e1;
+}
+
 /* ============================================================
    M4 — mobile page layouts: cards become phone-sized
    ============================================================ */

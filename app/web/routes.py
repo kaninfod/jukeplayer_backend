@@ -22,6 +22,25 @@ def _with_toast(response, message: str, theme: str = "success"):
     return response
 
 
+def _speaker_map() -> dict:
+    """name → {display_name, type, icon} for the now-playing card's
+    speakers-map attribute (the JS re-dresses the card live on device
+    switches without a reload). Direct registry reads — no get_context()
+    calls, so rendering the player page never touches the playbacks."""
+    try:
+        speakers = get_service("speakers_service").get_all_speakers()
+    except Exception:
+        return {}
+    return {
+        name: {
+            "display_name": sp.display_name or name,
+            "type": sp.type,
+            "icon": sp.icon,
+        }
+        for name, sp in speakers.items()
+    }
+
+
 def format_iso_string(date_str: str, fmt: str = "%Y-%m-%d %H:%M") -> str:
     if not date_str:
         return ""
@@ -560,16 +579,19 @@ async def status_page(request: Request, kiosk: bool = False):
     return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={
         "request": request,
         "kiosk_mode": True,
-        "config": config
+        "config": config,
+        "speakers_map": _speaker_map(),
     })
 
 
 @router.get("/kiosk/player", response_class=HTMLResponse)
 async def kiosk_player_partial(request: Request):
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html", context={"request": request, "config": config},
+        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html",
+            context={"request": request, "config": config, "speakers_map": _speaker_map()},
         )
-    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={"request": request, "config": config, "kiosk_mode": True},
+    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html",
+        context={"request": request, "config": config, "kiosk_mode": True, "speakers_map": _speaker_map()},
     )
 
 
@@ -828,8 +850,10 @@ async def kiosk_library_play_album(request: Request, album_id: str):
         raise HTTPException(status_code=400, detail=f"Failed to load album {album_id}")
 
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html", context={"request": request, "config": config})
-    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={"request": request, "config": config, "kiosk_mode": True},
+        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html",
+            context={"request": request, "config": config, "speakers_map": _speaker_map()})
+    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html",
+        context={"request": request, "config": config, "kiosk_mode": True, "speakers_map": _speaker_map()},
     )
 
 
