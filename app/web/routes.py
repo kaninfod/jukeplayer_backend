@@ -209,6 +209,23 @@ def _render_speakers_card(request: Request, **ctx):
 # scan → pair = pair+trust+connect+add-as-speaker). Managed speakers are
 # hidden from both lists with a names note.
 
+@router.post("/kiosk/system/refresh-subsonic")
+async def kiosk_refresh_subsonic():
+    """The config's "Refresh subsonic data" button: re-runs the cached artist
+    metadata (counts/genres) so new gonic albums show without a restart."""
+    try:
+        svc = get_service("artist_metadata_service")
+        summary = await asyncio.to_thread(svc.refresh)
+    except KeyError:
+        message, theme = "Metadata service not initialized — restart the server first", "error"
+    except Exception as e:
+        message, theme = f"Refresh failed: {e}", "error"
+    else:
+        message, theme = f"Refreshed: {summary['artists']} artists, {summary['genres']} genres", "success"
+    # Always 200: htmx ignores response headers on error statuses, so a 500
+    # here would swallow the toast and leave the kiosk button silently dead.
+    return _with_toast(HTMLResponse(""), message, theme=theme)
+
 def _connect_card_context(message: str | None = None, error: str | None = None,
                           cc_devices=None, cc_scanned: bool = False,
                           bt_devices=None, bt_scanned: bool = False) -> dict:
@@ -715,16 +732,19 @@ async def kiosk_library_partial(
     artist_id: str | None = Query(None),
     artist_name: str | None = Query(None),
     search: str | None = Query(None),
+    genre: str | None = Query(None),
 ):
     subsonic_service = get_service("subsonic_service")
+    artist_metadata = get_service("artist_metadata_service")
 
     context = {
         "request": request,
         "config": config,
         "title": "Music Library",
-        "content_template": "components/kiosk/media_library/_groups_container.html",
+        "content_template": "components/kiosk/media_library/_artist_directory.html",
         "back_url": None,
-        "groups": [{"name": name} for name in GROUP_RANGES.keys()],
+        "letter_groups": [],
+        "genres": artist_metadata.genres(),
     }
 
     if search:
@@ -743,16 +763,19 @@ async def kiosk_library_partial(
         context["kiosk_mode"] = True
         return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
-    if group and not artist_id:
-        # Offloaded: blocking HTTP call, must not stall the event loop
-        all_artists = await asyncio.to_thread(subsonic_service.list_artists)
-        artists = _filter_artists_by_group(group, all_artists or [])
+    if genre:
+        # genre chip drill-down: album grid for one genre (getAlbumList2 byGenre)
+        albums = await asyncio.to_thread(subsonic_service.list_albums_by_genre, genre)
+        artist_count = len({a["artist"] for a in albums if a.get("artist")})
         context.update({
-            "title": f"Music Library — {group}",
-            "content_template": "components/kiosk/media_library/_artists_container.html",
+            "title": genre,
+            "subtitle": (
+                f"{len(albums)} album{'s' if len(albums) != 1 else ''}"
+                + (f" · {artist_count} artist{'s' if artist_count != 1 else ''}" if artist_count else "")
+            ),
+            "content_template": "components/kiosk/media_library/_albums_container.html",
             "back_url": "/kiosk/library",
-            "artists": artists,
-            "group": group,
+            "albums": albums or [],
         })
         if _is_htmx_request(request):
             return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
@@ -764,15 +787,32 @@ async def kiosk_library_partial(
         context.update({
             "title": artist_name or "Albums",
             "content_template": "components/kiosk/media_library/_albums_container.html",
-            "back_url": f"/kiosk/library?group={group}" if group else "/kiosk/library",
+            "back_url": "/kiosk/library",
             "albums": albums or [],
             "artist": {"name": artist_name or "Unknown Artist"},
-            "group": group,
         })
         if _is_htmx_request(request):
             return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
         context["kiosk_mode"] = True
         return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
+
+    # default: the artist directory — letter-grouped slim rows (genre chips
+    # render their own row), driven by the cached metadata
+    rows = []
+    for artist in artist_metadata.artists():
+        rows.append({
+            "name": artist["name"],
+            "dir_id": artist["dir_id"],
+            "count": artist.get("count", 0),
+            "genre": artist_metadata.genre_chip(artist["name"]),
+        })
+    rows.sort(key=lambda a: a["name"].upper())
+    letter_groups = []
+    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        group = [a for a in rows if a["name"].upper().startswith(letter)]
+        if group:
+            letter_groups.append({"letter": letter, "rows": group, "count": len(group)})
+    context["letter_groups"] = letter_groups
 
     if _is_htmx_request(request):
         return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)

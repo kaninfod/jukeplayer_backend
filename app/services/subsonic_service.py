@@ -317,10 +317,12 @@ class SubsonicService:
         album = data.get("subsonic-response", {}).get("album", {})
         return album
 
-    @lru_cache(maxsize=128)
     def list_artists(self) -> list:
         """
         Return a list of all artists from Subsonic (id, name).
+        NOTE: deliberately NOT lru_cached — the artist list must reflect new
+        gonic albums without a restart; caching/refresh is the
+        ArtistMetadataService's job now.
         """
         data = self._api_request("getMusicDirectory", {"id": "al-1"})
         data = data.json()
@@ -348,7 +350,72 @@ class SubsonicService:
         logger.info(f"SubsonicService: search2 '{query}' -> {len(artists)} artists")
         return artists
 
-    @lru_cache(maxsize=128)
+    def artists_with_counts(self) -> list:
+        """getArtists returns the entity-space (ar-* ids) WITH albumCount —
+        richer metadata; the caller joins by name onto the directory flow."""
+        data = self._api_request("getArtists").json()
+        index = data.get("subsonic-response", {}).get("artists", {}).get("index", []) or []
+        flat = []
+        for block in index:
+            for artist in block.get("artist", []) or []:
+                flat.append({
+                    "id": artist.get("id"),
+                    "name": artist.get("name"),
+                    "albumCount": artist.get("albumCount", 0),
+                })
+        return flat
+
+    def list_genres(self) -> list:
+        """getGenres rows (the genre chips' data): value, albumCount, songCount."""
+        data = self._api_request("getGenres").json()
+        genres = data.get("subsonic-response", {}).get("genres", {}).get("genre", []) or []
+        return [
+            {"value": g.get("value"),
+             "albumCount": g.get("albumCount", 0),
+             "songCount": g.get("songCount", 0)}
+            for g in genres
+        ]
+
+    def list_all_albums(self, page_size: int = 10000) -> list:
+        """Every album in the collection in one response. Measured on gonic
+        0.22: 608 albums arrived whole for size=10000 — so the warm-up's
+        per-artist dominant-genre vote is a loop over THIS list instead of
+        a getMusicDirectory + getAlbum call per artist. The offset loop
+        only exists so a much larger library pages cleanly."""
+        offset, out = 0, []
+        while True:
+            data = self._api_request(
+                "getAlbumList2",
+                {"type": "alphabeticalByName", "size": page_size, "offset": offset},
+            ).json()
+            batch = data.get("subsonic-response", {}).get("albumList2", {}).get("album", []) or []
+            out.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
+        return out
+
+    def artist_dominant_genre(self, dir_id: str) -> Optional[str]:
+        """The artist's primary genre = the most common genre among the
+        artist's albums (each album's genres ride its own tags, exposed via
+        getAlbum). Returns None when nothing has genre data."""
+        from collections import Counter
+        counter: Counter = Counter()
+        data = self._api_request("getMusicDirectory", {"id": dir_id}).json()
+        children = data.get("subsonic-response", {}).get("directory", {}).get("child", []) or []
+        album_ids = [c.get("id") for c in children if c.get("isDir")]
+        for album_id in album_ids:
+            try:
+                album = self.get_album_info(album_id)
+                for genre in (album.get("genres") or []):
+                    if genre.get("name"):
+                        counter[genre["name"]] += 1
+            except Exception as e:
+                logger.debug(f"artist_dominant_genre: album {album_id} failed: {e}")
+        if not counter:
+            return None
+        return counter.most_common(1)[0][0]
+
     def list_albums_for_artist(self, artist_id: str) -> list:
         """
         Return a list of all albums for a given artist (id, name).
@@ -371,6 +438,28 @@ class SubsonicService:
                 "name": album.get("title"),
                 "year": album.get("year"),
                 "cover_url": cover_small,
+            })
+        return result
+
+    def list_albums_by_genre(self, genre: str, limit: int = 500) -> list:
+        """Album grid for the A-Z directory's genre chips (target = ?genre=).
+        getAlbumList2 type=byGenre returns the same al-* id-space the artist
+        view plays from. Measured on gonic 0.22: chip albumCount matches the
+        returned rows exactly (Rock 178 = 178), rows carry artist/year and
+        come alphabetical, slash-genres ('Rock/Pop') work, so a single
+        size=500 call covers the whole genre — no pagination for this
+        collection's scale."""
+        data = self._api_request("getAlbumList2", {"type": "byGenre", "genre": genre, "size": limit})
+        albums = data.json().get("subsonic-response", {}).get("albumList2", {}).get("album", [])
+        result = []
+        for album in albums:
+            aid = album.get("id")
+            result.append({
+                "id": aid,
+                "name": album.get("name"),
+                "artist": album.get("artist"),  # multi-artist grid: artist must show
+                "year": album.get("year"),
+                "cover_url": self.get_cover_proxy_url(aid),
             })
         return result
 
