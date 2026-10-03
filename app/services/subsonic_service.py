@@ -334,16 +334,19 @@ class SubsonicService:
         ]
 
     def search_artists(self, query: str, count: int = 50) -> list:
-        """search3 restricted to ARTISTS ONLY: albumCount/songCount = 0 makes
-        those sections come back empty; artistCount caps the result list."""
+        """search ARTISTS ONLY. IMPORTANT (measured on gonic 0.22): search2
+        returns artist ids in the DIRECTORY-TREE id-space ('al-*') — the same
+        space the library's artist cards / getMusicDirectory flow uses.
+        search3/getArtists return entity ids ('ar-*') that getMusicDirectory
+        resolves to an album+tracks instead — so search2 is the RIGHT call."""
         data = self._api_request(
-            "search3",
+            "search2",
             {"query": query, "artistCount": count, "albumCount": 0, "songCount": 0},
         ).json()
-        results = data.get("subsonic-response", {}).get("searchResult3", {}) or {}
-        artists = results.get("artist", []) or []
-        logger.info(f"SubsonicService: search3 '{query}' -> {len(artists)} artists")
-        return [{"id": a.get("id"), "name": a.get("name")} for a in artists]
+        raw = data.get("subsonic-response", {}).get("searchResult2", {}).get("artist", []) or []
+        artists = [{"id": a.get("id"), "name": a.get("name")} for a in raw]
+        logger.info(f"SubsonicService: search2 '{query}' -> {len(artists)} artists")
+        return artists
 
     @lru_cache(maxsize=128)
     def list_albums_for_artist(self, artist_id: str) -> list:
