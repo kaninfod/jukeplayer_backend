@@ -4,6 +4,7 @@
         {% from "components/kiosk/shared/ui.html" import page_header %}
         {{ page_header(icon="mdi-folder-music",
                        title=title or "Music Library",
+                       subtitle=subtitle,
                        back=back_url if back_url else None) }}
 
 

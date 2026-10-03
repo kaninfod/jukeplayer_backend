@@ -14,6 +14,7 @@ import StyleguideController from "./controllers/styleguide_controller.js"
 import VolumePopController from "./controllers/volumepop_controller.js"
 import MenuSheetController from "./controllers/menusheet_controller.js"
 import KeyboardController from "./controllers/keyboard_controller.js"
+import LibrarySearchController from "./controllers/library_search_controller.js"
 
 const application = Application.start()
 
@@ -36,5 +37,6 @@ application.register("styleguide", StyleguideController)
 application.register("volumepop", VolumePopController)
 application.register("menusheet", MenuSheetController)
 application.register("keyboard", KeyboardController)
+application.register("library-search", LibrarySearchController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

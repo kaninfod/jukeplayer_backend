@@ -1309,6 +1309,28 @@ body:has(.htmx-request) #page-busy {
     box-shadow: 0 0 15px rgba(16, 185, 129, .35);
 }
 
+/* library artist search field (groups view, full width above the cards) */
+.library-search {
+    margin: 0 0 1rem;
+}
+.library-search-field {
+    width: 100%;
+    font-size: 24px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    border: 2px solid var(--bs-border-color);
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-body-color);
+}
+.library-search-field:focus {
+    outline: none;
+    border-color: #22d3ee;
+    box-shadow: 0 0 12px rgba(34, 211, 238, .25);
+}
+.library-search-field::placeholder {
+    color: var(--bs-secondary-color);
+}
+
 /* ============================================================
    M4 — mobile page layouts: cards become phone-sized
    ============================================================ */

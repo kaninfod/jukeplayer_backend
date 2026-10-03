@@ -714,6 +714,7 @@ async def kiosk_library_partial(
     group: str | None = Query(None),
     artist_id: str | None = Query(None),
     artist_name: str | None = Query(None),
+    search: str | None = Query(None),
 ):
     subsonic_service = get_service("subsonic_service")
 
@@ -725,6 +726,22 @@ async def kiosk_library_partial(
         "back_url": None,
         "groups": [{"name": name} for name in GROUP_RANGES.keys()],
     }
+
+    if search:
+        # artist search: search3 with the album/song sections zeroed out
+        artists = await asyncio.to_thread(subsonic_service.search_artists, search)
+        context.update({
+            "title": f"Artists matching “{search}”",
+            "subtitle": f"{len(artists)} artist{'s' if len(artists) != 1 else ''} found",
+            "content_template": "components/kiosk/media_library/_artists_container.html",
+            "back_url": "/kiosk/library",
+            "artists": artists,
+            "search_query": search,
+        })
+        if _is_htmx_request(request):
+            return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
+        context["kiosk_mode"] = True
+        return templates.TemplateResponse(request=request, name="pages/kiosk/library.html", context=context)
 
     if group and not artist_id:
         # Offloaded: blocking HTTP call, must not stall the event loop
