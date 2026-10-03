@@ -17,8 +17,10 @@
     {# slim artist rows, letter-sectioned; the whole section = the anchors #}
     <div class="dir-rows" data-keyboard-cards=".artist-row">
         {% for lg in letter_groups %}
-        <div class="dir-letter-section" id="letter-{{ lg.letter }}">
-            <div class="dir-letter-head"><span class="dir-letter">{{ lg.letter }}</span><span class="device-meta">{{ lg.count }} artists</span></div>
+        {# sections dissolve into the grid (display: contents); the letter
+           head spans the full row and carries the alpha-bar scroll anchor #}
+        <div class="dir-letter-section">
+            <div class="dir-letter-head" id="letter-{{ lg.letter }}"><span class="dir-letter">{{ lg.letter }}</span><span class="device-meta">{{ lg.count }} artists</span></div>
             {% for a in lg.rows %}
             <div class="artist-row device-row"
                  data-keyboard-enter="/kiosk/library?artist_id={{ a.dir_id }}&artist_name={{ a.name|e }}"
@@ -37,7 +39,7 @@
         </div>
         {% endfor %}
         {% if not letter_groups %}
-        <div class="text-center text-muted py-5">
+        <div class="dir-empty text-center text-muted py-5">
             <i class="mdi mdi-music-off" style="font-size: 48px;"></i>
             <p class="mt-3">No artists in the cache — hit "Refresh subsonic data" in the config</p>
         </div>

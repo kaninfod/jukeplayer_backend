@@ -1362,17 +1362,30 @@ body:has(.htmx-request) #page-busy {
 .genre-chip small { color: var(--bs-secondary-color); }
 .genre-chip:hover { border-color: rgba(76, 215, 246, .45); }
 
-.dir-rows { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* .dir-rows = the keyboard-walk container AND the packing grid: letter
+   sections dissolve (display: contents) so every artist row packs into
+   auto-fill columns that re-count with the window width; heads span the
+   full row. The keyboard walk reads gridTemplateColumns off this element,
+   so arrows stay spatial across letter boundaries too. */
+.dir-rows {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    display: grid; gap: .15rem .6rem;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    align-content: start;
+}
 
-.dir-letter-section { margin-bottom: .5rem; }
+.dir-letter-section { display: contents; }
 .dir-letter-head {
     position: sticky; top: 0; z-index: 5;
+    grid-column: 1 / -1;
     display: flex; align-items: center; gap: .75rem;
-    padding: .45rem .75rem; margin-bottom: .3rem;
+    padding: .45rem .75rem; margin-bottom: .25rem;
     background: color-mix(in srgb, var(--bs-secondary-bg) 88%, transparent);
     backdrop-filter: blur(6px);
     border-radius: 8px;
 }
+.dir-letter-head:first-child { margin-top: .1rem; }
+.dir-empty { grid-column: 1 / -1; }
 .dir-letter { font-weight: 800; font-size: 21px; color: #22d3ee; }
 
 .artist-row {
