@@ -57,6 +57,21 @@ export default class extends Controller {
         }))
     }
 
+    volumeUp() { this._step(5) }
+
+    volumeDown() { this._step(-5) }
+
+    _step(delta) {
+        // optimistic ±5; the server's volume_changed broadcast corrects it
+        const value = Math.min(100, Math.max(0, (parseInt(this.sliderTarget.value) || 0) + delta))
+        this.sliderTarget.value = value
+        this.readoutTarget.textContent = `${value}%`
+        this._iconFor(value)
+        window.dispatchEvent(new CustomEvent("ws:send", {
+            detail: { type: delta > 0 ? "volume_up" : "volume_down", payload: {} }
+        }))
+    }
+
     close(event) {
         if (!event || !this.element.contains(event.target)) {
             this._flushVolume()  // outside click: deliver any pending level

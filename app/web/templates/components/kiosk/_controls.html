@@ -23,8 +23,14 @@
         </button>
         <div data-volumepop-target="panel" class="volume-pop hidden">
             <small data-volumepop-target="readout" class="device-meta">—</small>
+            <button type="button" class="device-link-pill link-action" data-action="click->volumepop#volumeUp" title="Volume up">
+                <i class="mdi mdi-plus"></i>
+            </button>
             <input type="range" min="0" max="100" value="0" class="volume-pop-slider"
                    data-volumepop-target="slider" data-action="input->volumepop#setVolume" aria-label="Speaker volume">
+            <button type="button" class="device-link-pill link-action" data-action="click->volumepop#volumeDown" title="Volume down">
+                <i class="mdi mdi-minus"></i>
+            </button>
             <button type="button" class="device-link-pill link-action" data-action="click->volumepop#toggleMute" title="Mute">
                 <i class="mdi mdi-volume-mute"></i>
             </button>

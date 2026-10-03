@@ -1283,14 +1283,19 @@ body:has(.htmx-request) #page-busy {
     right: 0;
     left: auto;
     transform: none;
+    /* ≈75% of the content area between the status bar and the controls on
+       the kiosk display — the parent anchor is the tiny footer, so vh it is */
+    height: 60vh;
 }
 .volume-pop-slider {
     writing-mode: vertical-lr;
     direction: rtl;
-    height: 7rem;
-    width: 1.5rem;
+    width: 2rem;
     margin: 0;
     accent-color: #22d3ee;
+    /* eat the popup's extra height */
+    flex: 1 1 auto;
+    min-height: 8rem;
 }
 .volume-pop-meta {
     display: contents;
