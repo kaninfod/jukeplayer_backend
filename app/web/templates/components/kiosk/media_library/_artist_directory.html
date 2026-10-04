@@ -2,16 +2,18 @@
     {# one-row filter bar: search / genres / A-Z — exactly one expanded #}
     {% include 'components/kiosk/media_library/_dir_bar.html' %}
 
-    {# slim artist rows, letter-sectioned; the whole section = the anchors #}
+    {# slim artist rows, letter-sectioned: real section boxes (the sticky
+     head's range + the scroll anchors need them) each packing its rows into
+     the shared auto-fill grid #}
     <div class="dir-rows" data-keyboard-cards=".artist-row"
+         data-keyboard-cols-from=".dir-rows-grid"
          data-keyboard-focus-up="#dir-bar-search-toggle">
         {% for lg in letter_groups %}
-        {# sections dissolve into the grid (display: contents); the letter
-           head spans the full row and carries the alpha-bar scroll anchor #}
-        <div class="dir-letter-section">
-            <div class="dir-letter-head" id="letter-{{ lg.letter }}"><span class="dir-letter">{{ lg.letter }}</span><span class="device-meta">{{ lg.count }} artists</span></div>
-            {% for a in lg.rows %}
-            <div class="artist-row device-row"
+        <div class="dir-letter-section" id="letter-{{ lg.letter }}">
+            <div class="dir-letter-head"><span class="dir-letter">{{ lg.letter }}</span><span class="device-meta">{{ lg.count }} artists</span></div>
+            <div class="dir-rows-grid">
+                {% for a in lg.rows %}
+                <div class="artist-row device-row"
                  data-keyboard-enter="/kiosk/library?artist_id={{ a.dir_id }}&artist_name={{ a.name|e }}"
                  data-action="click->navigation#load"
                  href="/kiosk/library?artist_id={{ a.dir_id }}&artist_name={{ a.name|e }}">
@@ -23,12 +25,13 @@
                     </div>
                 </div>
                 <i class="mdi mdi-chevron-right"></i>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
         {% endfor %}
         {% if not letter_groups %}
-        <div class="dir-empty text-center text-muted py-5">
+        <div class="text-center text-muted py-5">
             <i class="mdi mdi-music-off" style="font-size: 48px;"></i>
             <p class="mt-3">No artists in the cache — hit "Refresh subsonic data" in the config</p>
         </div>
