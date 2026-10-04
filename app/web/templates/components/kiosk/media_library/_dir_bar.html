@@ -7,24 +7,26 @@
    Context vars: dir_bar_open ("alpha"|"genres"|"search"), search_query. #}
 <div class="dir-bar mb-3 flex-shrink-0" id="dir-bar" data-controller="dir-filter"
      data-dir-filter-open-value="{{ dir_bar_open or 'alpha' }}">
-    <button type="button" id="dir-bar-search-toggle" class="dir-seg-toggle"
-            data-seg="search" data-action="dir-filter#openToSearch" title="Search artists">
-        <i class="mdi mdi-magnify"></i>
-    </button>
-    <button type="button" class="dir-seg-toggle"
-            data-seg="genres" data-action="dir-filter#openToGenres" title="Browse genres">
-        <i class="mdi mdi-tag-multiple-outline"></i>
-    </button>
-    <button type="button" class="dir-seg-toggle"
-            data-seg="alpha" data-action="dir-filter#openToAlpha" title="Browse A-Z">
-        <i class="mdi mdi-alphabetical"></i>
-    </button>
+    <div class="dir-seg-group" role="group" aria-label="Filter mode">
+        <button type="button" id="dir-bar-search-toggle" class="dir-seg-toggle"
+                data-seg="search" data-action="dir-filter#openToSearch" title="Search artists">
+            <i class="mdi mdi-magnify"></i>
+        </button>
+        <button type="button" class="dir-seg-toggle"
+                data-seg="genres" data-action="dir-filter#openToGenres" title="Browse genres">
+            <i class="mdi mdi-tag-multiple-outline"></i>
+        </button>
+        <button type="button" class="dir-seg-toggle"
+                data-seg="alpha" data-action="dir-filter#openToAlpha" title="Browse A-Z">
+            <i class="mdi mdi-alphabetical"></i>
+        </button>
+    </div>
 
-    {# A-Z segment: the letter buttons scroll-jump to their anchor sections #}
+    {# A-Z segment: letter buttons jump to their anchor sections #}
     <div class="dir-seg dir-seg-alpha alpha-bar" role="group" aria-label="Browse A-Z">
         {% for l in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' %}
         <button type="button" class="alpha-btn" data-letter="{{ l }}"
-                onclick="document.getElementById('letter-{{ l }}')?.scrollIntoView({block:'start',behavior:'smooth'})">{{ l }}</button>
+                data-action="dir-filter#jumpLetter" data-dirfilter-letter-param="{{ l }}">{{ l }}</button>
         {% endfor %}
     </div>
 

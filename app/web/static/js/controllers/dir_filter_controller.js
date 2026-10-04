@@ -21,4 +21,19 @@ export default class extends Controller {
     openToAlpha() {
         this.openValue = "alpha"
     }
+
+    jumpLetter({ params }) {
+        // deterministic jump: pure geometry instead of scrollIntoView —
+        // upward jumps into a bar-top were getting eaten (target computed as
+        // "already at the top edge"). offset = the head's viewport position
+        // relative to the scroll container + what's already scrolled.
+        const head = document.getElementById("letter-" + params.letter)
+        if (!head) return   // letters without artists have no section
+        const scroller = document.querySelector(".dir-rows")
+        if (!scroller) return
+        const top = head.getBoundingClientRect().top
+            - scroller.getBoundingClientRect().top
+            + scroller.scrollTop
+        scroller.scrollTo({ top: Math.max(0, top - 8), behavior: "smooth" })
+    }
 }
