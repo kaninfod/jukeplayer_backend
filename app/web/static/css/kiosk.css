@@ -1314,12 +1314,6 @@ body:has(.htmx-request) #page-busy {
 /* library filter bar: search / genres / A-Z segments share ONE row; the
    attribute decides which expands, the other two stay compact icon toggles */
 .dir-bar { display: flex; align-items: center; gap: .45rem; min-width: 0; }
-/* the three mode toggles joined as one button group */
-.dir-seg-group { display: inline-flex; align-items: center; flex-shrink: 0; }
-.dir-seg-group .dir-seg-toggle { border-radius: 0; }
-.dir-seg-group .dir-seg-toggle:first-child { border-radius: 9px 0 0 9px; }
-.dir-seg-group .dir-seg-toggle:last-child { border-radius: 0 9px 9px 0; }
-.dir-seg-group .dir-seg-toggle + .dir-seg-toggle { border-left-width: 0; }
 .dir-seg-toggle {
     flex-shrink: 0; width: 42px; height: 38px;
     display: inline-flex; align-items: center; justify-content: center;
