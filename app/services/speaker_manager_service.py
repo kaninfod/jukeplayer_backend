@@ -322,6 +322,31 @@ class SpeakerManagerService:
         logger.info(f"[SpeakerManager] '{name}' disconnected by user — player stopped, auto-reconnect paused (handover)")
         return {"name": name, "connected": result["connected"]}
 
+    async def set_sound_profile(self, name: str, profile: Dict[str, Any]) -> Dict[str, Any]:
+        """Per-speaker EQ: validate → persist the option in the store →
+        hot-apply to the live mpv over json-IPC. mpv-backed speakers only
+        (bluetooth + local); a Chromecast receiver does its own DSP."""
+        from app.playback_backends.mpv import MPVService
+        store_name = normalize_speaker_name(name)
+        speaker = self.speakers.get_speaker(speaker_name=store_name)
+        if not speaker:
+            raise ValueError(f"Speaker '{name}' is not configured")
+        if not isinstance(speaker.mediaplayer.playback_backend, MPVService):
+            raise ValueError(f"'{speaker.speaker_name}' is not an mpv-backed speaker "
+                             f"(backend: {speaker.backend}) — EQ lives on the local path")
+
+        result = await speaker.mediaplayer.playback_backend.apply_sound_profile(profile)
+        if not result.get("ok"):
+            return result   # nothing persisted for a rejected profile
+        # an all-empty profile = the reset: drop the stored option entirely
+        if result.get("af") == "":
+            self.store.set_speaker_option(store_name, "sound_profile", None)
+        else:
+            self.store.set_speaker_option(store_name, "sound_profile", profile)
+        logger.info(f"[SpeakerManager] Sound profile applied to '{store_name}': "
+                    f"{result.get('af') or '(cleared)'}")
+        return {"ok": True, "name": store_name, "af": result.get("af", "")}
+
     def set_speaker_icon(self, name: str, icon: str) -> Dict[str, Any]:
         """Set a speaker's glyph (validated against the curated whitelist).
         Persisted as a speaker option; the devices page renders it."""

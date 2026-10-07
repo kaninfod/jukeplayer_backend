@@ -10,6 +10,7 @@ import python_mpv_jsonipc as mpv
 from app.config import config
 from app.playback_backends.base import PlaybackBackend
 from app.services.bluetooth_service import BluetoothAudioChecker
+from app.services.sound_profile import compile_snd_profile
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,18 @@ class MPVService(PlaybackBackend):
         if audio_device:
             mpv_kwargs["audio_device"] = audio_device
 
+        # The speaker's sound profile (EQ) compiled once for spawn — the same
+        # filter chain the hot-apply path sets over json-IPC. Validation and
+        # the chain live in app/services/sound_profile.py.
+        profile = getattr(self.config, "MPV_SOUND_PROFILE", None)
+        if profile:
+            af, errors = compile_snd_profile(profile)
+            if errors:
+                logger.warning(f"[mpv:{self.device_name}] sound profile rejected: {errors}")
+            elif af:
+                mpv_kwargs["af"] = af
+                logger.info(f"[mpv:{self.device_name}] sound profile: {af}")
+
         self.player = mpv.MPV(**mpv_kwargs)
 
         # Explicitly unmute MPV on startup
@@ -117,6 +130,22 @@ class MPVService(PlaybackBackend):
         reason = event.get("reason")
         if reason in ("eof", "error"):
             self._emit_track_finished(reason, error=event.get("file_error"))
+
+    async def apply_sound_profile(self, profile: dict) -> Dict:
+        """Live EQ: validate, compile, set the 'af' property on the RUNNING
+        mpv over json-IPC (persisting to the speaker's store option is the
+        manager's job — this call only touches the live process). An empty
+        compiled chain clears any applied profile."""
+        af, errors = compile_snd_profile(profile)
+        if errors:
+            return {"ok": False, "errors": errors}
+        try:
+            self.player.af = af   # property set via json-IPC wrapper
+            logger.info(f"[mpv:{self.device_name}] sound profile applied: {af or '(cleared)'}")
+            return {"ok": True, "af": af, "supported": True}
+        except Exception as e:
+            logger.warning(f"[mpv:{self.device_name}] af set failed: {e}")
+            return {"ok": False, "errors": [f"mpv rejected the filter chain: {e}"]}
 
     async def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
         readiness = self.get_output_readiness()

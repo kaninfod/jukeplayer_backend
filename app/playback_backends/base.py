@@ -50,3 +50,8 @@ class PlaybackBackend(ABC):
     @abstractmethod
     async def cleanup(self):
         pass
+
+    async def apply_sound_profile(self, profile: dict) -> Dict:
+        """Per-speaker EQ (mpv-backed speakers). Default = unsupported."""
+        return {"ok": False, "errors": ["sound profile is not supported on this backend"],
+                "supported": False}

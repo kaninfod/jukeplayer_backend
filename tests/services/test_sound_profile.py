@@ -1,0 +1,145 @@
+"""Sound profiles: the compiler + the apply chain (manager → live mpv)."""
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from app.main import app, startup_event
+from app.services.sound_profile import compile_snd_profile
+
+PROFILE = {
+    "preamp_db": "-3",
+    "bands_db": {"63": "1.5", "125": "1", "16000": "-2.5"},
+    "low_shelf_db": "",
+    "high_shelf_db": "-1",
+}
+
+EXPECTED_AF = ("volume=-3dB,treble=f=8000:w=0.2:g=-1,"
+               "equalizer=f=63:t=q:w=2:g=+1.5,equalizer=f=125:t=q:w=2:g=+1,"
+               "equalizer=f=16000:t=q:w=2:g=-2.5")
+
+
+def test_compiler_output_shape():
+    af, errors = compile_snd_profile(PROFILE)
+    assert errors == []
+    assert af == EXPECTED_AF           # zero low-shelf skipped, bands low→high
+
+
+def test_empty_profile_compiles_to_clear():
+    af, errors = compile_snd_profile({})
+    assert af == "" and errors == []
+
+
+def test_range_and_bandname_validation():
+    bad = {"preamp_db": "5", "bands_db": {"1600": "2", "63": "99"}}
+    af, errors = compile_snd_profile(bad)
+    assert af == ""
+    assert any("preamp" in e for e in errors)
+    assert any("unknown band" in e for e in errors)
+    assert any("63" in e for e in errors)
+
+
+def test_zero_bands_left_out():
+    ten = {b: "0" for b in ("31", "63", "125", "250", "500", "1000",
+                            "2000", "4000", "8000", "16000")}
+    assert compile_snd_profile({"bands_db": ten}) == ("", [])
+
+
+# --- the apply chain -------------------------------------------------------------
+
+class FakeMpv:
+    def __init__(self):
+        self.af = ""
+
+
+def _inject_speaker(speakers_service, store, name="test_bt", backend_name="mpv"):
+    """A registry speaker whose mpv backend exists in stub form (no real
+    mpv spawn — __new__ skips the constructor, the fake player records the
+    'af' property sets)."""
+    from app.playback_backends.mpv import MPVService
+    from app.services.speakers_service import Speaker
+    backend = MPVService.__new__(MPVService)
+    backend.device_name = name
+    backend.player = FakeMpv()
+    player = SimpleNamespace(playback_backend=backend, device_name=name, stop=None)
+    speaker = Speaker("sp-1", name, backend_name, player)
+    speakers_service._speakers[name] = speaker
+    store.add_speaker(name, backend=backend_name)
+    return speaker
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.fixture
+async def initialized_app(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.config.config.CONFIG_FILE", str(tmp_path / "config.json"))
+    await startup_event()   # builds the service container (empty store in tmp)
+
+
+def _services():
+    from app.core.service_container import get_service
+    return (get_service("config_store"), get_service("speakers_service"),
+            get_service("speaker_manager"))
+
+
+@pytest.mark.asyncio
+async def test_set_sound_profile_persists_and_hot_sets(initialized_app):
+    store, speakers_service, manager = _services()
+    speaker = _inject_speaker(speakers_service, store)
+
+    result = await manager.set_sound_profile("test_bt", PROFILE)
+    assert result["ok"] is True
+    assert result["af"] == EXPECTED_AF
+    backend = speaker.mediaplayer.playback_backend
+    assert backend.player.af == EXPECTED_AF   # the live mpv got the chain
+
+    persisted = store.section("speakers")[0]
+    assert persisted["options"]["sound_profile"]["bands_db"]["63"] == "1.5"
+
+
+@pytest.mark.asyncio
+async def test_empty_profile_removes_the_option(initialized_app):
+    store, speakers_service, manager = _services()
+    _inject_speaker(speakers_service, store)
+    empty = {"preamp_db": "", "bands_db": {}, "low_shelf_db": "", "high_shelf_db": ""}
+    result = await manager.set_sound_profile("test_bt", empty)
+    assert result["ok"] is True and result["af"] == ""
+    assert "sound_profile" not in store.section("speakers")[0]["options"]
+
+
+@pytest.mark.asyncio
+async def test_set_sound_profile_refuses_chromecast(initialized_app):
+    store, speakers_service, manager = _services()
+    from app.services.speakers_service import Speaker
+    store.add_speaker("cast", backend="chromecast")
+    speakers_service._speakers["cast"] = Speaker(
+        "sp-2", "cast", "chromecast", SimpleNamespace(playback_backend=SimpleNamespace()))
+    with pytest.raises(ValueError):
+        await manager.set_sound_profile("cast", PROFILE)
+
+
+@pytest.mark.asyncio
+async def test_sound_profile_route_toasts(initialized_app):
+    from app.core.service_container import get_service
+    store, speakers_service, manager = _services()
+    _inject_speaker(speakers_service, store)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/kiosk/config/speakers/test_bt/sound-profile",
+            data={"preamp_db": "-3", "band_63": "1.5", "high_shelf_db": "-1",
+                  **{"band_" + b: "" for b in ("31", "125", "250", "500", "1000",
+                                               "2000", "4000", "8000", "16000")}})
+        assert resp.status_code == 200
+        assert "Sound profile applied to test_bt" in resp.headers["HX-Trigger"]
+        # out-of-range → the error toast, nothing persisted
+        bad = await client.post(
+            "/kiosk/config/speakers/test_bt/sound-profile",
+            data={"band_63": "99"})
+        trigger = bad.headers["HX-Trigger"]
+        assert "error" in trigger
+        entry = store.section("speakers")[0]
+        assert entry["options"]["sound_profile"]["bands_db"]["63"] == "1.5"

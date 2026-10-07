@@ -446,6 +446,31 @@ async def kiosk_speakers_icon(name: str, request: Request):
         return _with_toast(resp, str(e), theme="error")
 
 
+_BANDS = ("31", "63", "125", "250", "500", "1000", "2000", "4000", "8000", "16000")
+
+
+@router.post("/kiosk/config/speakers/{name}/sound-profile")
+async def kiosk_speaker_sound_profile(name: str, request: Request):
+    """The sound-profile dialog's apply: validate, persist, hot-set mpv."""
+    form = await request.form()
+    profile = {
+        "preamp_db": str(form.get("preamp_db") or "").strip() or None,
+        "bands_db": {b: str(form.get(f"band_{b}") or "").strip() or None for b in _BANDS},
+        "low_shelf_db": str(form.get("low_shelf_db") or "").strip() or None,
+        "high_shelf_db": str(form.get("high_shelf_db") or "").strip() or None,
+    }
+    manager = get_service("speaker_manager")
+    try:
+        result = await manager.set_sound_profile(name, profile)
+    except ValueError as e:
+        return _with_toast(HTMLResponse(""), str(e), theme="error")
+    if not result.get("ok"):
+        return _with_toast(HTMLResponse(""), "; ".join(result.get("errors", [])), theme="error")
+    message = (f"Sound profile applied to {result['name']}"
+               if result.get("af") else f"Sound profile cleared on {result['name']}")
+    return _with_toast(HTMLResponse(""), message)
+
+
 @router.post("/kiosk/config/speakers/default")
 async def kiosk_speakers_default_dropdown(request: Request):
     """Default-speaker dropdown under the table (replaces the star column)."""
