@@ -91,197 +91,20 @@ class SubsonicService:
         url = f"{self.base_url.rstrip('/')}/rest/stream?{urlencode(params)}"
         return url
         
-    def get_cover_url(self, album_id: str) -> str:
-        params = self._api_params()
-        params['id'] = album_id
-        # Remove 'f' param for binary endpoints
-        params.pop('f', None)
-        from urllib.parse import urlencode
-        url = f"{self.base_url}/rest/getCoverArt?{urlencode(params)}"
-        return url
-
     def get_cover_proxy_url(self, album_id: str) -> str:
         """
         Return the local proxy URL for cover art so the browser never hits Subsonic directly.
         This avoids Basic Auth prompts and respects CSP by staying same-origin.
+        The proxy ROUTE and all image/cache work live in CoverService
+        (app/services/cover_service.py) — this URL string is that route's
+        contract and is built here because gonic-side album methods embed it.
         """
         return f"/api/subsonic/cover/{album_id}"
 
-    # --- New unified cover pipeline helpers ---
-    def _cover_dir(self, album_id: str) -> str:
-        import os
-        base = getattr(self.config, "STATIC_FILE_PATH", "static_files")
-        return os.path.join(base, "covers", str(album_id))
-
-    def _default_cover_dir(self) -> str:
-        import os
-        base = getattr(self.config, "STATIC_FILE_PATH", "static_files")
-        return os.path.join(base, "covers", "_default")
-
-    def _cover_paths(self, album_id: str, size: int) -> dict:
-        import os
-        d = self._cover_dir(album_id)
-        return {
-            "webp": os.path.join(d, f"cover-{size}.webp"),
-            "jpg": os.path.join(d, f"cover-{size}.jpg"),
-        }
-
-    def _default_cover_paths(self, size: int) -> dict:
-        import os
-        d = self._default_cover_dir()
-        return {
-            "webp": os.path.join(d, f"cover-{size}.webp"),
-            "jpg": os.path.join(d, f"cover-{size}.jpg"),
-        }
-
-    def _ensure_dir(self, path: str) -> None:
-        import os
-        os.makedirs(path, exist_ok=True)
-
-    def _center_square(self, image):
-        w, h = image.size
-        if w == h:
-            return image
-        side = min(w, h)
-        left = (w - side) // 2
-        top = (h - side) // 2
-        return image.crop((left, top, left + side, top + side))
-
-    def _save_variants(self, pil_image, out_paths: dict, size: int) -> None:
-        from PIL import Image
-        img = self._center_square(pil_image.convert("RGB")).resize((size, size), Image.Resampling.LANCZOS)
-        # Save WebP and JPEG
-        try:
-            img.save(out_paths["webp"], format="WEBP", quality=80)
-        except Exception:
-            pass
-        try:
-            img.save(out_paths["jpg"], format="JPEG", quality=85)
-        except Exception:
-            pass
-
-    def _ensure_default_placeholder(self, size: int) -> None:
-        # Generate a simple placeholder if not present
-        from PIL import Image, ImageDraw
-        import os
-        paths = self._default_cover_paths(size)
-        self._ensure_dir(self._default_cover_dir())
-        if not (os.path.exists(paths["webp"]) or os.path.exists(paths["jpg"])):
-            img = Image.new("RGB", (size, size), color=(240, 240, 240))
-            draw = ImageDraw.Draw(img)
-            # Simple music note placeholder
-            draw.rectangle([(size*0.25, size*0.25), (size*0.75, size*0.75)], outline=(200,200,200), width=2)
-            self._save_variants(img, paths, size)
-
-    def ensure_cover(self, album_id: str, size: int = 180) -> str:
-        """
-        Ensure a static cover exists at static_files/covers/{album_id}/cover-{size}.webp|jpg.
-        Returns a relative URL to the preferred WebP file if available, else JPEG, else default placeholder.
-        """
-        from io import BytesIO
-        from PIL import Image
-        import os
-
-        # If file exists, return URL immediately
-        paths = self._cover_paths(album_id, size)
-        self._ensure_dir(self._cover_dir(album_id))
-        if os.path.exists(paths["webp"]) or os.path.exists(paths["jpg"]):
-            return self._cover_url(album_id, size)
-
-        # Try to fetch original from Subsonic and generate variants
-        try:
-            resp = self._api_request("getCoverArt", {"id": album_id})
-            img = Image.open(BytesIO(resp.content))
-            self._save_variants(img, paths, size)
-            return self._cover_url(album_id, size)
-        except Exception:
-            # Fallback to default placeholder
-            self._ensure_default_placeholder(size)
-            return self._default_cover_url(size)
-
-    def ensure_cover_variants(self, album_id: str, sizes=(180, 512)) -> None:
-        for s in sizes:
-            try:
-                self.ensure_cover(album_id, s)
-            except Exception:
-                pass
-
-    def _cover_url(self, album_id: str, size: int, prefer: str = "webp") -> str:
-        # Return relative URL under /assets
-        ext = "webp" if prefer == "webp" else "jpg"
-        # Prefer the one that exists
-        import os
-        paths = self._cover_paths(album_id, size)
-        chosen = f"/assets/covers/{album_id}/cover-{size}.{ext}"
-        if prefer == "webp" and not os.path.exists(paths["webp"]) and os.path.exists(paths["jpg"]):
-            chosen = f"/assets/covers/{album_id}/cover-{size}.jpg"
-        return chosen
-
-    def _default_cover_url(self, size: int, prefer: str = "webp") -> str:
-        import os
-        paths = self._default_cover_paths(size)
-        if prefer == "webp" and os.path.exists(paths["webp"]):
-            return f"/assets/covers/_default/cover-{size}.webp"
-        if os.path.exists(paths["jpg"]):
-            return f"/assets/covers/_default/cover-{size}.jpg"
-        # As a last resort, point to a proxy (should rarely happen)
-        return f"/assets/covers/_default/cover-{size}.jpg"
-
-    def get_cover_static_url(self, album_id: str, size: int = 180, absolute: bool = False, prefer: str = "webp") -> str:
-        """Return a ready-to-use URL (ensuring generation if missing)."""
-        import os
-        rel = self.ensure_cover(album_id, size)
-        if not absolute:
-            return rel
-        base = getattr(self.config, "PUBLIC_BASE_URL", "").rstrip("/")
-        return f"{base}{rel}" if base else rel
-
-
-    def get_cover_rgb565(self, album_id: str, size: int = 180) -> Optional[bytes]:
-        """
-        Return a size x size RGB565 raw image for the ILI9488 display.
-        Device expects framebuf.RGB565: two bytes per pixel, little-endian.
-        """
-        from PIL import Image
-        import os
-
-        self.ensure_cover(album_id, size)
-
-        paths = self._cover_paths(album_id, size)
-        img_path = None
-        for candidate in ("webp", "jpg"):
-            p = paths.get(candidate)
-            if p and os.path.exists(p):
-                img_path = p
-                break
-
-        if not img_path:
-            self._ensure_default_placeholder(size)
-            paths = self._default_cover_paths(size)
-            for candidate in ("webp", "jpg"):
-                p = paths.get(candidate)
-                if p and os.path.exists(p):
-                    img_path = p
-                    break
-
-        if not img_path:
-            logger.error(f"[COVER] no image file found for {album_id}")
-            return None
-
-        try:
-            img = Image.open(img_path).convert("RGB").resize((size, size), Image.Resampling.LANCZOS)
-        except Exception:
-            logger.exception(f"[COVER] failed to open {img_path}")
-            return None
-
-        packed = bytearray()
-        for r, g, b in img.getdata():
-            rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-            packed.append(rgb565 & 0xFF)       # low byte first (little-endian)
-            packed.append((rgb565 >> 8) & 0xFF) # high byte second
-
-        return bytes(packed)
-
+    def cover_art_bytes(self, album_id: str) -> bytes:
+        """The RAW getCoverArt response — CoverService's fetch seam (the
+        API client owns auth/transport; the image/caching work is not)."""
+        return self._api_request("getCoverArt", {"id": album_id}).content
 
     @lru_cache(maxsize=128)
     def search_song(self, query: str) -> Dict[str, Any]:
