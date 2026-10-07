@@ -1427,6 +1427,29 @@ body:has(.htmx-request) #page-busy {
 .artist-row .row-sub { font-size: 14px; }
 .artist-row .mdi-chevron-right { color: var(--bs-secondary-color); }
 
+/* sound-profile dialog (the speakers card's EQ button) */
+#sound-profile-dialog {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    min-width: min(420px, 92vw);
+}
+#sound-profile-dialog::backdrop { background: rgba(6, 8, 16, .55); backdrop-filter: blur(2px); }
+.sp-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .5rem .75rem;
+    margin-bottom: .5rem;
+}
+.sp-grid label {
+    display: flex; flex-direction: column; gap: .25rem;
+    font-size: .78rem; color: var(--bs-secondary-color);
+}
+.sp-grid .sp-pre { grid-column: 1 / 2; color: var(--bs-body-color); font-weight: 600; }
+.sp-grid input { width: 100%; }
+
 /* current-speaker card on the now-playing page: devices-anatomy horizontal
    (not square), fixed max width, centered under cover+info in both fold
    modes. Class vocabulary is the shared one (tile/badge/pill); the JS

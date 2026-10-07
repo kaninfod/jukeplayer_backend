@@ -169,6 +169,7 @@ def _speakers_card_context(message: str | None = None, error: str | None = None)
             "icon": getattr(speaker, "icon", None) if speaker else None,
             "bt_mac": getattr(speaker, "bt_mac", None) if speaker else None,
             "cc_host": getattr(speaker, "cc_host", None) if speaker else None,
+            "sound_profile": (entry.get("options") or {}).get("sound_profile") or None,
             "address": (getattr(speaker, "bt_mac", None) if speaker else None)
                        or (getattr(speaker, "cc_host", None) if speaker else None),
         })
