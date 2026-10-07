@@ -1,9 +1,6 @@
-from io import BytesIO
-
 import requests
 from typing import List, Dict, Any, Optional
 import logging
-from functools import lru_cache
 import time
 
 logger = logging.getLogger(__name__)
@@ -106,7 +103,6 @@ class SubsonicService:
         API client owns auth/transport; the image/caching work is not)."""
         return self._api_request("getCoverArt", {"id": album_id}).content
 
-    @lru_cache(maxsize=128)
     def search_song(self, query: str) -> Dict[str, Any]:
         logger.info(f"SubsonicService: Searching for song: {query}")
         data = self._api_request("search3", {"query": query})
@@ -117,7 +113,6 @@ class SubsonicService:
             raise Exception("No songs found.")
         return songs[0]
 
-    @lru_cache(maxsize=128)
     def get_album_tracks(self, album_id: str) -> List[Dict[str, Any]]:
         logger.info(f"SubsonicService: Getting album tracks for album_id: {album_id}")
         data = self._api_request("getMusicDirectory", {"id": album_id})
@@ -132,7 +127,12 @@ class SubsonicService:
         logger.info(f"SubsonicService: Found {len(songs)} tracks for album_id: {album_id}")
         return songs
 
-    @lru_cache(maxsize=128)
+    # All four reads below (search_song / get_album_tracks / get_album_info /
+    # get_song_info) are deliberately NOT lru_cached: album-level tag data
+    # changes out of band now (tagtool consolidations, gonic rescans) and a
+    # method cache holds it until restart — the same stale-until-restart bug
+    # the artist listing had. Cross-request caching belongs to the
+    # service-level cache owners (ArtistMetadataService), not to decorators.
     def get_album_info(self, album_id: str) -> Dict[str, Any]:
         logger.info(f"SubsonicService: Getting album info for album_id: {album_id}")
         data = self._api_request("getAlbum", {"id": album_id})
@@ -286,7 +286,6 @@ class SubsonicService:
             })
         return result
 
-    @lru_cache(maxsize=128)
     def get_song_info(self, track_id: str) -> Optional[Dict[str, str]]:
         """
         Fetch song info from Subsonic using getSong endpoint.
