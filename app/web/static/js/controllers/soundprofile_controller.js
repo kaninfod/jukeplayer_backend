@@ -1,12 +1,12 @@
 import { Controller } from "@hotwired/stimulus"
 
-// sound profile: one dialog PER speaker row, its hx-post rendered statically
-// (the dynamic-attribute variant submitted into nothing — see the lesson in
-// the card's header comment). The controller only opens/closes and closes
-// after a successful apply; prefills come from the server render, so the
-// dialog always shows the speaker's currently stored values.
+// sound dialogs: one per speaker (the config's room-correction row dialog
+// and the devices card's DSP dialog); hx-post rendered statically (the
+// dynamic-attribute variant submitted into nothing — the lesson). The
+// controller opens/closes, closes after a successful apply, and on the DSP
+// dialog gates the preset dropdown behind the Use-DSP checkbox.
 export default class extends Controller {
-    static targets = ["dialog", "form"]
+    static targets = ["dialog", "form", "dspflag", "preset"]
 
     open() {
         this.dialogTarget.showModal()
@@ -14,6 +14,12 @@ export default class extends Controller {
 
     cancel() {
         this.dialogTarget.close()
+    }
+
+    dspToggle() {
+        // the bypass disables the preset select; a disabled select isn't
+        // posted, so the stored choice survives being bypassed
+        if (this.hasPresetTarget) this.presetTarget.disabled = !this.dspflagTarget.checked
     }
 
     connect() {
