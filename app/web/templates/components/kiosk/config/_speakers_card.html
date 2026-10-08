@@ -80,7 +80,10 @@
                                 data-action="click->soundprofile#open:stop">
                             <i class="mdi mdi-equalizer"></i>
                         </button>
-                        <dialog class="sound-profile-dialog" data-soundprofile-target="dialog">
+                        {# clicks/changes/keys swallowed at the dialog — see
+                           the devices card's dialog comment (bubbling lesson) #}
+                        <dialog class="sound-profile-dialog" data-soundprofile-target="dialog"
+                                data-action="click->soundprofile#swallow change->soundprofile#swallow keydown->soundprofile#swallow">
                             <form hx-post="/kiosk/config/speakers/{{ s.name }}/sound-profile"
                                   hx-swap="none">
                                 {# PREFILLED server-side from the speaker's stored profile #}

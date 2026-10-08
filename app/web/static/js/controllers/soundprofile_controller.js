@@ -28,6 +28,18 @@ export default class extends Controller {
         if (this.hasPresetTarget) this.presetTarget.disabled = !this.dspflagTarget.checked
     }
 
+    swallow(event) {
+        // Dialog-local by construction: every click/change/keypress inside a
+        // sound dialog stops at the dialog element. The dialogs are DOM
+        // children of interactive cards (the devices card carries
+        // click->device#switchDevice) and event bubbling follows the DOM
+        // tree, NOT the <dialog> top layer — without this, a click on the
+        // DSP checkbox switched the speaker AND navigated away, destroying
+        // the open dialog. Esc still cancels natively (that is the dialog's
+        // own cancel event, not a keydown that needs to propagate).
+        event.stopPropagation()
+    }
+
     connect() {
         this._closeAfter = false
         this._after = (event) => {

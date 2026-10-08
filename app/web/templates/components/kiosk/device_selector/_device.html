@@ -113,9 +113,15 @@
     {# DSP dialog (mpv-backed cards only): the master toggle + the preset.
        hx-post is STATIC again (the empty-path lesson). Unchecking the box
        disables the select; the disabled select isn't posted, so the stored
-       choice survives a bypass. Apply = hot-set the composed chain. #}
+       choice survives a bypass. Apply = hot-set the composed chain.
+       Every click/change/keypress inside is SWALLOWED at the dialog: the
+       dialog is a DOM child of the card and event bubbling follows the DOM
+       tree, not the <dialog> top layer — without the swallow a click on the
+       checkbox reached the card's click->device#switchDevice, switched the
+       speaker AND navigated to /kiosk/player (destroying the open dialog). #}
     {% if details.backend == 'mpv' %}
-    <dialog class="sound-profile-dialog" data-soundprofile-target="dialog" data-action="close->soundprofile#cancel">
+    <dialog class="sound-profile-dialog" data-soundprofile-target="dialog"
+            data-action="close->soundprofile#cancel click->soundprofile#swallow change->soundprofile#swallow keydown->soundprofile#swallow">
         <form hx-post="/kiosk/devices/sound-setting" hx-swap="none"
               data-soundprofile-target="form">
             <h6 class="mb-2"><i class="mdi mdi-equalizer"></i> Sound — {{ (details.display_name or details.speaker_name)|e }}</h6>
