@@ -45,6 +45,10 @@ class SpeakerManagerService:
         self.bluetooth_service = bluetooth_service
         # reconnect backoff state per MAC (BT watchdog)
         self._reconnect_state: Dict[str, Dict[str, Any]] = {}
+        # the startup loop, captured when the link watch registers: worker
+        # threads (D-Bus link-down, the to_thread state pass) schedule the
+        # stop-if-playing coroutine onto it
+        self._stop_loop: Optional[asyncio.AbstractEventLoop] = None
 
     # --- read --------------------------------------------------------------------
     def configured(self) -> List[Dict[str, Any]]:
@@ -210,6 +214,11 @@ class SpeakerManagerService:
                     continue  # backing off after failed reconnects
                 sink = self.bluetooth_service.sink_for_device(mac)
                 bt_info = self.bluetooth_service.info(mac)
+                # ghost net: sink gone in this pass (missed link-down event or
+                # the BlueZ ghost state: sink vanished while Device1 still
+                # says connected) while PLAYING → stop before the reconnect
+                if sink is None:
+                    self.request_stop_if_playing(speaker, reason="sink gone in state pass (ghost/missed event)")
                 speaker.connected = sink is not None
                 speaker.available = bool(bt_info.get("paired")) or sink is not None
                 speaker.battery = self.bluetooth_service.battery_percent(mac, bt_info.get("uuids"))
@@ -254,6 +263,10 @@ class SpeakerManagerService:
         """Wire the event-driven reconnect: the D-Bus layer calls back the
         moment a Device1 link drops; the 30s state pass remains as the
         safety net (battery/availability refresh)."""
+        try:
+            self._stop_loop = asyncio.get_running_loop()   # startup runs on the loop
+        except RuntimeError:
+            self._stop_loop = None   # no loop context (unit tests): stop degrades
         if not self.bluetooth_service:
             return
         try:
@@ -261,13 +274,68 @@ class SpeakerManagerService:
         except Exception as e:
             logger.warning(f"[SpeakerManager] link watch unavailable: {e}")
 
+    # --- the no-silent-handoff rule -------------------------------------------------
+    def _is_playing(self, mediaplayer) -> bool:
+        """True when this speaker's player is audibly playing (PLAY).
+        Tolerant of string statuses (test doubles); PAUSE/STOP = not playing."""
+        from app.core.player_status import PlayerStatus
+        status = getattr(mediaplayer, "status", None)
+        if status is None:
+            return False
+        if status == PlayerStatus.PLAY:
+            return True
+        if isinstance(status, str):
+            return status.lower() in ("play", "playing")
+        return getattr(status, "name", "") == "PLAY" or \
+            getattr(status, "value", "") in ("play", "playing")
+
+    async def stop_if_playing(self, speaker, reason: str) -> bool:
+        """THE no-silent-handoff rule (2026-10-08: powering the headphones off
+        kept the music playing — PulseAudio re-homes the stream of a removed
+        sink onto the fallback sink, so the audio silently walked onto the
+        GVAUDIO sink while the UI still showed it on the headphones and the
+        stream was uncontrollable). When this speaker's player is PLAYING and
+        its sink is going away, stop the playback the same way the WS Stop
+        button does (broker path = stop + client broadcast), BEFORE any
+        reconnect. The reconnect brings the LINK back but never resumes the
+        music by itself. Paused/stopped speakers: nothing to do."""
+        mediaplayer = getattr(speaker, "mediaplayer", None)
+        if not mediaplayer or not self._is_playing(mediaplayer):
+            return False
+        broker = getattr(self, "broker", None)
+        if broker is not None and hasattr(broker, "handle_stop"):
+            from app.core.event_bus import Event
+            await broker.handle_stop(Event(type="stop", payload={"device_name": speaker.speaker_name}))
+        else:
+            await mediaplayer.stop()   # broker-less setups (unit tests)
+        logger.info(f"[SpeakerManager] '{speaker.speaker_name}' was PLAYING while its sink went away ({reason}) "
+                    f"— stopped playback (no silent handoff to another speaker's sink)")
+        return True
+
+    def request_stop_if_playing(self, speaker, reason: str) -> None:
+        """Worker-thread entry point (the D-Bus link-down thread and the
+        to_thread state pass): schedules stop_if_playing on the startup loop.
+        Cheap pre-check so a non-playing speaker never schedules anything."""
+        mediaplayer = getattr(speaker, "mediaplayer", None)
+        if not mediaplayer or not self._is_playing(mediaplayer):
+            return
+        loop = self._stop_loop
+        if loop is not None and loop.is_running():
+            asyncio.run_coroutine_threadsafe(self.stop_if_playing(speaker, reason), loop)
+        else:
+            logger.warning(f"[SpeakerManager] no event loop captured — stop for '{speaker.speaker_name}' "
+                           f"deferred to the next state pass")
+
     def _handle_bt_link_down(self, mac: str) -> None:
         """Runs on a worker thread the moment a BT link drops (D-Bus
-        signal). Respects the user handover marker + backoff, then attempts
-        an immediate reconnect."""
+        signal). STOP-while-playing first (the no-silent-handoff rule: the
+        sink vanishes with the link and PulseAudio would re-home the stream
+        onto the fallback sink), then the user handover marker + backoff
+        policy decides the reconnect."""
         for speaker in self.speakers.get_all_speakers().values():
             if getattr(speaker, "bt_mac", None) != mac:
                 continue
+            self.request_stop_if_playing(speaker, reason="BT link down")
             if getattr(speaker, "user_disconnected", False):
                 logger.debug(f"[SpeakerManager] '{speaker.speaker_name}' in user handover — reconnect paused")
                 return
@@ -304,6 +372,11 @@ class SpeakerManagerService:
         if not self.bluetooth_service:
             raise ValueError("Bluetooth tools unavailable")
         mac = getattr(speaker, "bt_mac", None)
+        # deliberate disconnect of a PLAYING speaker: stop FIRST (the sink is
+        # still here, the stream dies on the right device) — a mid-handover
+        # disconnect would otherwise let PulseAudio re-home the running
+        # stream onto the fallback sink
+        await self.stop_if_playing(speaker, reason="explicit disconnect (user handover)")
         result = await asyncio.to_thread(self.bluetooth_service.disconnect, mac)
         speaker.connected = result["connected"]
         # the audio link is gone — stop the player so it does not keep

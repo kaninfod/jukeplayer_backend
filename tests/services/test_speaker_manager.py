@@ -1,5 +1,6 @@
 """Tests for Phase B live speaker management: store helpers, registry
 add/remove, broker client re-homing, and the SpeakerManagerService."""
+import asyncio
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -544,3 +545,108 @@ def test_link_down_respects_user_handover(stack):
     stack.manager._handle_bt_link_down("10:94:97:0F:CB:BF")
 
     assert bt.connect.call_count == 0  # intent respected, no stealing
+
+
+# --- the no-silent-handoff rule: sink lost while PLAYING -------------------------
+# PulseAudio re-homes the stream of a removed sink onto the fallback sink (the
+# GVAUDIO bleed 2026-10-08): a playing speaker whose BT sink vanishes must be
+# STOPPED — never left streaming into whatever sink PulseAudio picks next.
+
+def _stop_broker():
+    """Broker double with only handle_stop (the WS Stop action incl. broadcast)."""
+    return SimpleNamespace(handle_stop=AsyncMock(return_value={"ok": True}))
+
+
+def _playing(speaker):
+    from app.core.player_status import PlayerStatus
+    speaker.mediaplayer.status = PlayerStatus.PLAY
+    return speaker
+
+
+@pytest.mark.asyncio
+async def test_stop_if_playing_stops_playing_speaker_via_broker(stack):
+    speaker = _playing(_add_bt_speaker(stack))
+    stack.manager.broker = _stop_broker()
+
+    assert await stack.manager.stop_if_playing(speaker, reason="unit test") is True
+    stack.manager.broker.handle_stop.assert_awaited_once()
+    event = stack.manager.broker.handle_stop.await_args.args[0]
+    assert event.payload["device_name"] == speaker.speaker_name
+    speaker.mediaplayer.stop.assert_not_awaited()   # the broker path owns the stop
+
+
+@pytest.mark.asyncio
+async def test_stop_if_playing_falls_back_to_direct_stop(stack):
+    speaker = _playing(_add_bt_speaker(stack))
+    # the fixture's broker has no handle_stop → stop the player directly
+
+    assert await stack.manager.stop_if_playing(speaker, reason="unit test") is True
+    speaker.mediaplayer.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_stop_if_playing_ignores_paused_or_idle(stack):
+    from app.core.player_status import PlayerStatus
+    speaker = _add_bt_speaker(stack)
+    speaker.mediaplayer.status = PlayerStatus.PAUSE   # paused: nothing audible
+    stack.manager.broker = _stop_broker()
+
+    assert await stack.manager.stop_if_playing(speaker, reason="unit test") is False
+    stack.manager.broker.handle_stop.assert_not_awaited()
+    speaker.mediaplayer.stop.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_link_down_while_playing_schedules_stop_then_reconnect(stack):
+    """The fast D-Bus path: link down while PLAYING → the stop is scheduled
+    onto the captured loop BEFORE the reconnect attempt runs."""
+    speaker = _playing(_add_bt_speaker(stack))
+    stack.manager.broker = _stop_broker()
+    bt = _fake_bt(stack)
+    connect_calls = []
+    bt.connect = lambda mac: connect_calls.append(mac) or {"connected": True}
+    stack.manager._stop_loop = asyncio.get_running_loop()
+
+    stack.manager._handle_bt_link_down(speaker.bt_mac)   # D-Bus worker-thread entry
+    for _ in range(3):                                   # flush: callback → task → await
+        await asyncio.sleep(0)
+
+    stack.manager.broker.handle_stop.assert_awaited_once()
+    assert connect_calls == [speaker.bt_mac]             # reconnect still attempted
+
+
+@pytest.mark.asyncio
+async def test_link_down_while_idle_schedules_no_stop(stack):
+    speaker = _add_bt_speaker(stack)   # mediaplayer has no .status → not playing
+    stack.manager.broker = _stop_broker()
+    bt = _fake_bt(stack)
+    connect_calls = []
+    bt.connect = lambda mac: connect_calls.append(mac) or {"connected": True}
+    stack.manager._stop_loop = asyncio.get_running_loop()
+
+    stack.manager._handle_bt_link_down(speaker.bt_mac)
+    await asyncio.sleep(0)
+
+    stack.manager.broker.handle_stop.assert_not_awaited()   # nothing audible
+    assert connect_calls == [speaker.bt_mac]
+
+
+@pytest.mark.asyncio
+async def test_ghost_state_pass_stops_playing_speaker(stack):
+    """Ghost safety net: the state pass finds the sink gone (missed link-down
+    event / BlueZ ghost state) while PLAYING → stop + reconnect as usual."""
+    speaker = _playing(_add_bt_speaker(stack))
+    stack.manager.broker = _stop_broker()
+    bt = _fake_bt(stack)   # sink_for_device returns None already
+    connect_calls = []
+    bt.connect = lambda mac: connect_calls.append(mac) or {"connected": True}
+    stack.manager._stop_loop = asyncio.get_running_loop()
+
+    result = stack.manager.update_speaker_states()
+    for _ in range(3):   # flush the scheduled stop: callback → task → await
+        await asyncio.sleep(0)
+
+    stack.manager.broker.handle_stop.assert_awaited_once()
+    assert connect_calls == [speaker.bt_mac]
+    assert speaker.connected is True
+    assert result["reconnected"] == ["boom_3"]
