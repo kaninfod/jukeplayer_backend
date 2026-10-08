@@ -1,7 +1,10 @@
 {# Single device card — three-band anatomy (Stitch translation, light palette):
    top band: type badge + player pill + BT link pill (icon-only, click to
-   disconnect when connected) · center band: icon tile + names + MAC ·
-   bottom band: clients count + state-dependent action (Connect/Select) #}
+   disconnect when connected) · center band: icon tile + friendly name + the
+   state pills (EQ chain + battery for BT/mpv) · bottom band: clients count +
+   state-dependent action (Connect/Select).
+   The technical name/mac are NOT on this card (visible on the config page) —
+   they made the top row overflow past the card on small widths. #}
 <div class="card device-card {{ 'device-card-playing' if details.mediaplayer.status == 'playing' else '' }}"
      data-action="click->device#switchDevice"
      data-device-device-backend-param="{{ details.backend|e }}"
@@ -20,16 +23,6 @@
             {% endif %}
 
             <div class="d-flex align-items-center gap-1">
-                {% if details.backend == 'mpv' %}
-                {# the sound chain = ONE clickable state pill (opens the DSP dialog):
-                   label = what is live right now — Bypass / EQ / the preset's name #}
-                <button type="button" class="device-player-pill player-idle sound-chain-pill"
-                        title="Sound chain — DSP on/off + EQ preset"
-                        data-action="click->soundprofile#open:stop">
-                    <i class="mdi {% if details.sound_preset %}mdi-music-note{% elif details.dsp_enabled %}mdi-equalizer{% else %}mdi-equalizer-off{% endif %}"></i>
-                    {% if details.sound_preset %}EQ · {{ details.sound_preset }}{% elif details.dsp_enabled %}EQ{% else %}Bypass{% endif %}
-                </button>
-                {% endif %}
                 {% set pstatus = (details.mediaplayer.status or 'idle')|lower %}
                 {% if details.type == 'chromecast' and not details.available %}
                 <span class="device-player-pill player-offline" title="Not on the network"><i class="mdi mdi-wifi-off me-1"></i>Offline</span>
@@ -59,10 +52,6 @@
                           title="Paired — audio link down"><i class="mdi mdi-bluetooth-off"></i></span>
                     {% endif %}
                 {% endif %}
-
-                {% if details.connected and details.battery %}
-                <span class="device-player-pill player-idle" title="Device battery"><i class="mdi mdi-battery me-1"></i>{{ details.battery }}%</span>
-                {% endif %}
             </div>
         </div>
 
@@ -74,13 +63,33 @@
             <div class="icon-tile tile-bt mx-auto mb-2"><i class="mdi {{ details.icon }}"></i></div>
             {% endif %}
             <div class="fw-bold text-truncate" title="{{ (details.display_name or details.speaker_name)|e }}">{{ (details.display_name or details.speaker_name)|e }}</div>
+
+            {% if details.type == 'chromecast' %}
+            {# chromecast keeps its center as-is: technical id + IP #}
             <div class="device-tech-name text-truncate" title="{{ details.speaker_name|e }}">{{ details.speaker_name|e }}</div>
-            {% if details.bt_mac %}
-            <div class="device-meta">{{ details.bt_mac|e }}</div>
-            {% elif details.cc_host %}
+            {% if details.cc_host %}
             <div class="device-meta" title="Cast device IP">{{ details.cc_host|e }}</div>
             {% else %}
             <div class="device-meta">—</div>
+            {% endif %}
+            {% else %}
+            {# BT/mpv cards: the state pills moved DOWN (EQ chain + battery) —
+               the top row stays badge + player + link only, and the technical
+               name/mac are gone from this card (config page shows them).
+               Hover the friendly name for the system name. #}
+            <div class="d-flex justify-content-center align-items-center gap-1 mt-2">
+                {% if details.backend == 'mpv' %}
+                <button type="button" class="device-player-pill player-idle sound-chain-pill"
+                        title="Sound chain — DSP on/off + EQ preset"
+                        data-action="click->soundprofile#open:stop">
+                    <i class="mdi {% if details.sound_preset %}mdi-music-note{% elif details.dsp_enabled %}mdi-equalizer{% else %}mdi-equalizer-off{% endif %}"></i>
+                    {% if details.sound_preset %}EQ · {{ details.sound_preset }}{% elif details.dsp_enabled %}EQ{% else %}Bypass{% endif %}
+                </button>
+                {% endif %}
+                {% if details.connected and details.battery %}
+                <span class="device-player-pill player-idle" title="Device battery"><i class="mdi mdi-battery me-1"></i>{{ details.battery }}%</span>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
 
