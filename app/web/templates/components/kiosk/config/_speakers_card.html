@@ -1,7 +1,10 @@
-{# Speakers — setup table (glyph / name+ID / protocol / bin).
+{# Speakers — setup table (glyph / name+ID / protocol / bin+EQ).
    No status here: state lives on the devices page. The default speaker is
-   the dropdown under the table (system fallback, not per-row stars). #}
-<div class="card mb-3 flex-shrink-0" id="speakers-card" data-controller="soundprofile">
+   the dropdown under the table (system fallback, not per-row stars).
+   Each mpv-backed row carries its own sound-profile <dialog> with a
+   STATIC hx-post (rendered per speaker — the dynamic attribute variant
+   sent the submit to nothing; see the empty-path lesson). #}
+<div class="card mb-3 flex-shrink-0" id="speakers-card">
     <div class="card-body py-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="text-muted mb-0"><i class="mdi mdi-speaker-multiple"></i> Speakers</h6>
@@ -70,16 +73,50 @@
                         <span class="badge device-type-badge type-audio">Audio</span>
                         {% endif %}
                     </td>
-                    <td class="text-end">
+                    <td data-controller="soundprofile" class="text-end">
                         {% if s.speaker_type != 'chromecast' %}
                         <button type="button" class="btn btn-sm btn-outline-secondary me-1"
                                 title="Sound profile (equalizer)"
-                                data-action="click->soundprofile#open:stop"
-                                data-soundprofile-name-param="{{ s.name|e }}"
-                                data-soundprofile-label-param="{{ label|e }}"
-                                data-soundprofile-profile-value='{{ (s.sound_profile or {})|tojson }}'>
+                                data-action="click->soundprofile#open:stop">
                             <i class="mdi mdi-equalizer"></i>
                         </button>
+                        <dialog class="sound-profile-dialog" data-soundprofile-target="dialog">
+                            <form hx-post="/kiosk/config/speakers/{{ s.name }}/sound-profile"
+                                  hx-swap="none">
+                                {# PREFILLED server-side from the speaker's stored profile #}
+                                <h6 class="mb-2"><i class="mdi mdi-equalizer"></i> Sound profile — {{ label }}</h6>
+                                <div class="sp-grid">
+                                    <label class="sp-pre">Preamp
+                                        <input type="number" step="any" min="-24" max="0" name="preamp_db"
+                                               value="{{ s.sound_profile.preamp_db or '' }}" placeholder="0"></label>
+                                    {% for b in ['31','63','125','250','500','1000','2000','4000','8000','16000'] %}
+                                    <label>{{ b }} Hz
+                                        <input type="number" step="any" min="-12" max="12" name="band_{{ b }}"
+                                               value="{{ (s.sound_profile.bands_db.get(b) if s.sound_profile else '') or '' }}"
+                                               placeholder="0"></label>
+                                    {% endfor %}
+                                    <label>Low shelf
+                                        <input type="number" step="any" min="-12" max="12" name="low_shelf_db"
+                                               value="{{ (s.sound_profile.low_shelf_db if s.sound_profile else '') or '' }}"
+                                               placeholder="0"></label>
+                                    <label>High shelf
+                                        <input type="number" step="any" min="-12" max="12" name="high_shelf_db"
+                                               value="{{ (s.sound_profile.high_shelf_db if s.sound_profile else '') or '' }}"
+                                               placeholder="0"></label>
+                                </div>
+                                <small class="text-muted d-block mb-2">
+                                    Bands/shelves −12…+12 dB, preamp −24…0 (headroom). All empty = clear.
+                                    Guide: docs/SOUND_TUNING.md
+                                </small>
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            data-action="click->soundprofile#cancel:stop">Cancel</button>
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="mdi mdi-check"></i> Apply sound profile
+                                    </button>
+                                </div>
+                            </form>
+                        </dialog>
                         {% endif %}
                         <button type="button" class="btn btn-sm btn-outline-danger" title="Remove speaker"
                                 hx-post="/kiosk/config/speakers/{{ s.name }}/remove"
@@ -114,42 +151,5 @@
                 <i class="mdi mdi-plus"></i> Connect a new speaker
             </a>
         </div>
-
-        {# sound-profile dialog (one for the card; the row buttons fill it).
-           Fields: preamp (anti-clip headroom) + the 10 ISO octave bands +
-           the two fixed-corner shelves; ranges enforced by the inputs and
-           re-validated server-side. Apply = hx-post → validate + persist in
-           the store + hot-set the live mpv (toast confirms, dialog closes). #}
-        <dialog id="sound-profile-dialog" data-soundprofile-target="dialog" data-action="close->soundprofile#cancel">
-            <form hx-post="" hx-trigger="submit" hx-swap="none"
-                  data-soundprofile-target="form">
-                <h6 class="mb-2"><i class="mdi mdi-equalizer"></i>
-                    Sound profile — <span data-soundprofile-target="title"></span></h6>
-                <div class="sp-grid">
-                    <label class="sp-pre">Preamp <input type="number" step="any" min="-24" max="0"
-                        name="preamp_db" data-soundprofile-target="preamp" placeholder="0"></label>
-                    {% for b in ['31','63','125','250','500','1000','2000','4000','8000','16000'] %}
-                    <label>{{ b }} Hz
-                        <input type="number" step="any" min="-12" max="12" name="band_{{ b }}"
-                               placeholder="0"></label>
-                    {% endfor %}
-                    <label>Low shelf
-                        <input type="number" step="any" min="-12" max="12" name="low_shelf_db" placeholder="0"></label>
-                    <label>High shelf
-                        <input type="number" step="any" min="-12" max="12" name="high_shelf_db" placeholder="0"></label>
-                </div>
-                <small class="text-muted d-block mb-2">
-                    Bands/shelves −12…+12 dB, preamp −24…0 (headroom). Guide:
-                    docs/SOUND_TUNING.md. Empty fields = untouched.
-                </small>
-                <div class="d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary"
-                            data-action="click->soundprofile#cancel:stop">Cancel</button>
-                    <button type="submit" class="btn btn-sm btn-primary">
-                        <i class="mdi mdi-check"></i> Apply sound profile
-                    </button>
-                </div>
-            </form>
-        </dialog>
     </div>
 </div>

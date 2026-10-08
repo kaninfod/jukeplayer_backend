@@ -123,6 +123,25 @@ async def test_set_sound_profile_refuses_chromecast(initialized_app):
 
 
 @pytest.mark.asyncio
+async def test_config_page_renders_static_dialog_with_prefills(initialized_app):
+    store, speakers_service, manager = _services()
+    speaker = _inject_speaker(speakers_service, store)
+    await manager.set_sound_profile("test_bt", PROFILE)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        page = await client.get("/kiosk/config")
+        assert page.status_code == 200
+        html = page.text
+        # the per-row dialog with a STATIC rendered hx-post (never dynamic)
+        assert 'hx-post="/kiosk/config/speakers/test_bt/sound-profile"' in html
+        assert "sound-profile-dialog" in html
+        assert 'step="any"' in html                      # AutoEQ decimals enter as-is
+        # the current profile prefills the fields server-side
+        assert 'name="band_63"' in html and 'value="1.5"' in html
+        assert 'value="-3"' in html                      # the preamp's stored value
+
+
+@pytest.mark.asyncio
 async def test_sound_profile_route_toasts(initialized_app):
     from app.core.service_container import get_service
     store, speakers_service, manager = _services()
