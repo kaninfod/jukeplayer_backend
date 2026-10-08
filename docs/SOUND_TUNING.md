@@ -1,9 +1,10 @@
-# Sound profiles — best practices for equalizing a speaker/DAC
+# Room correction + EQ presets — best practices for equalizing a speaker/DAC
 
 *How to decide what to correct, which frequencies matter, and how to profile.*
-Scope: the mpv/PulseAudio output path (local, USB-DAC, Bluetooth-SBC) — the
-speaker's sound profile lives in the config store on the speaker entry
-(`options.sound_profile`), applied hot via mpv's filter chain.
+Scope: the mpv/PulseAudio output path (local, USB-DAC, Bluetooth-SBC) — each
+speaker carries a **room correction** (its calibration, `options.room_correction`)
+and picks a global **EQ preset** (`sound_presets`, shared) at run time,
+gated by the **Use DSP** master (`options.dsp_enabled`; off = bypass).
 
 ---
 
@@ -148,18 +149,40 @@ The theoretic approach pre-fills the likely trouble; the measured approach
 ## 9. The profile format reference
 
 ```
-options.sound_profile = {
-  "preamp_db": -3.0,                  // headroom (≤ 0)
-  "bands_db": {                       // the 10 ISO octave bands
+# per speaker — the ROOM CORRECTION (the calibration), the config's
+# speakers-card dialog:
+options.room_correction = {
+  "preamp_db": -3.0,                  # headroom (≤ 0)
+  "bands_db": {                       # the 10 ISO octave bands
     "31": 0.0, "63": 1.5, "125": 1.0, "250": 0.0, "500": 0.0,
     "1000": 0.0, "2000": -1.0, "4000": -1.5, "8000": -2.0, "16000": -2.5
   },
-  "low_shelf_db": 0.0,                // optional tilt controls (fixed corners)
+  "low_shelf_db": 0.0,                # optional tilt controls (fixed corners)
   "high_shelf_db": -1.0
 }
+
+# GLOBAL EQ PRESETS (additions layered on the correction, shared by every
+# speaker) — the store's sound_presets section:
+{
+  "vocal":     {"bands_db": {"125": -1, "250": -1, "1000": 2, "2000": 2, "4000": 1.5}},
+  "rock":      {"bands_db": {"63": 1.5, "125": 2, "250": 1, "4000": 1.5}},
+  "jazz":      {"bands_db": {"125": 1, "1000": -0.5, "8000": 1.5, "16000": 1}},
+  "classical": {"bands_db": {"63": 0.5, "125": 0.5, "2000": -0.5, "8000": 1, "16000": 0.5}}
+}
+
+# per speaker: the DSP master (false = bypass: nothing at all) + the choice
+options.dsp_enabled = true         # absent = true
+options.sound_preset = "vocal"     # a name from sound_presets (or absent)
 ```
 
-Validation ranges: bands & shelves −12…+12 dB (0.5 steps), preamp −24…0 dB.
+Composition (identical at mpv spawn and on hot-apply): band-wise
+`room_correction + preset`, **clamped to ±12** (a clamp = a toast warning,
+never silent); the shelves summed the same way; the composed preamp = the
+**more negative** of the correction's own preamp and −(the largest composed
+boost) — the headroom rule enforced at composition. Validation ranges:
+bands & shelves −12…+12 dB, preamp −24…0 dB; decimals enter verbatim
+(AutoEQ's −6.4-style values).
+
 `compile → mpv --af volume=<preamp>dB, bass|treble (shelves), then one
 `equalizer=f=B:w=2:g=…` per non-zero band.` Applied at mpv spawn and
 hot-set over the existing json-IPC channel — no restart.

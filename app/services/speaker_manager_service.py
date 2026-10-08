@@ -322,10 +322,34 @@ class SpeakerManagerService:
         logger.info(f"[SpeakerManager] '{name}' disconnected by user — player stopped, auto-reconnect paused (handover)")
         return {"name": name, "connected": result["connected"]}
 
-    async def set_sound_profile(self, name: str, profile: Dict[str, Any]) -> Dict[str, Any]:
-        """Per-speaker EQ: validate → persist the option in the store →
-        hot-apply to the live mpv over json-IPC. mpv-backed speakers only
-        (bluetooth + local); a Chromecast receiver does its own DSP."""
+    # --- sound chain: room correction (base) + global EQ presets -------------------
+    def _speaker_options(self, store_name: str) -> Dict[str, Any]:
+        """The speaker's stored options (or {} when unknown)."""
+        for s in self.store.section("speakers") or []:
+            if s.get("name") == store_name:
+                return s.get("options") or {}
+        return {}
+
+    def _sound_state(self, store_name: str) -> Dict[str, Any]:
+        """The persisted sound chain pieces for one speaker:
+        dsp_enabled (default True), room_correction (base profile), and the
+        chosen preset resolved from the global sound_presets section. The
+        legacy sound_profile key is still honored as the base."""
+        opts = self._speaker_options(store_name)
+        preset_name = opts.get("sound_preset") or None
+        preset_additions = None
+        if preset_name:
+            preset_additions = (self.store.section("sound_presets") or {}).get(preset_name)
+        return {
+            "dsp_enabled": bool(opts.get("dsp_enabled", True)),
+            "room_correction": opts.get("room_correction") or opts.get("sound_profile"),
+            "preset_name": preset_name,
+            "preset_additions": preset_additions,
+        }
+
+    def _mpv_speaker(self, name: str):
+        """Resolve the speaker and ensure its backend is mpv-backed (the EQ
+        path). Raises ValueError for unknown or chromecast speakers."""
         from app.playback_backends.mpv import MPVService
         store_name = normalize_speaker_name(name)
         speaker = self.speakers.get_speaker(speaker_name=store_name)
@@ -334,18 +358,78 @@ class SpeakerManagerService:
         if not isinstance(speaker.mediaplayer.playback_backend, MPVService):
             raise ValueError(f"'{speaker.speaker_name}' is not an mpv-backed speaker "
                              f"(backend: {speaker.backend}) — EQ lives on the local path")
+        return speaker
 
-        result = await speaker.mediaplayer.playback_backend.apply_sound_profile(profile)
-        if not result.get("ok"):
-            return result   # nothing persisted for a rejected profile
-        # an all-empty profile = the reset: drop the stored option entirely
-        if result.get("af") == "":
-            self.store.set_speaker_option(store_name, "sound_profile", None)
+    async def set_sound_profile(self, name: str, profile: Dict[str, Any]) -> Dict[str, Any]:
+        """The room correction's save (the config-page dialog): validate the
+        base, persist it (an all-empty base = the option removed), then
+        hot-apply the COMPOSED chain (base + preset, DSP gate) — the
+        calibration must never silently drop the speaker's chosen preset."""
+        from app.services.sound_profile import compile_snd_profile
+        speaker = self._mpv_speaker(name)
+        store_name = normalize_speaker_name(name)
+
+        af, errors = compile_snd_profile(profile)
+        if errors:
+            return {"ok": False, "errors": errors}
+        if af == "":   # an empty correction = the reset: drop the option
+            self.store.set_speaker_option(store_name, "room_correction", None)
+            self.store.set_speaker_option(store_name, "sound_profile", None)   # legacy cleanup
         else:
-            self.store.set_speaker_option(store_name, "sound_profile", profile)
-        logger.info(f"[SpeakerManager] Sound profile applied to '{store_name}': "
-                    f"{result.get('af') or '(cleared)'}")
-        return {"ok": True, "name": store_name, "af": result.get("af", "")}
+            self.store.set_speaker_option(store_name, "room_correction", profile)
+            self.store.set_speaker_option(store_name, "sound_profile", None)   # legacy cleanup
+
+        result = await self._refresh_sound_chain(speaker)
+        message = result.get("af") and f"Room correction applied to '{store_name}'" \
+            or f"Room correction cleared on '{store_name}'"
+        return {"ok": result.get("ok", False), "name": store_name,
+                "af": result.get("af", ""), "warnings": result.get("warnings", []),
+                "message": message}
+
+    async def set_sound_setting(self, name: str, dsp_enabled: bool = True,
+                                preset_name: Optional[str] = None,
+                                preset_given: bool = False) -> Dict[str, Any]:
+        """The devices-page DSP dialog: the master switch + the preset choice
+        (preset_name is persisted only when the form actually sent it, so a
+        bypassed (checkbox-off, disabled select) apply keeps the choice).
+        Then hot-apply the composed chain."""
+        speaker = self._mpv_speaker(name)
+        store_name = normalize_speaker_name(name)
+        preset_name = (preset_name or "").strip() or None
+        if preset_name and preset_given:
+            presets = self.store.section("sound_presets") or {}
+            if preset_name not in presets:
+                raise ValueError(f"Unknown EQ preset '{preset_name}' — known: {', '.join(sorted(presets))}")
+            self.store.set_speaker_option(store_name, "sound_preset", preset_name)
+        self.store.set_speaker_option(store_name, "dsp_enabled", bool(dsp_enabled))
+
+        result = await self._refresh_sound_chain(speaker)
+        label = self._sound_state(store_name)
+        if not dsp_enabled:
+            message = f"Sound bypassed on '{speaker.speaker_name}'"
+        elif label["preset_name"]:
+            message = f"Preset '{label['preset_name']}' applied to '{speaker.speaker_name}'"
+        else:
+            message = f"Room correction applied to '{speaker.speaker_name}' (no preset)"
+        warn = "; ".join(result.get("warnings", []))
+        if warn:
+            message = f"{message} — {warn}"
+        return {"ok": result.get("ok", False), "name": store_name,
+                "af": result.get("af", ""), "warnings": result.get("warnings", []),
+                "message": message}
+
+    async def _refresh_sound_chain(self, speaker) -> Dict[str, Any]:
+        """Compose + compile + hot-set the speaker's live mpv: the DSP gate,
+        the room correction and the resolved preset all come from the store."""
+        from app.services.sound_profile import compose_profiles
+        store_name = normalize_speaker_name(speaker.speaker_name)
+        state = self._sound_state(store_name)
+        if not state["dsp_enabled"]:
+            return await speaker.mediaplayer.playback_backend.apply_sound_profile({})
+        composed, warnings = compose_profiles(state["room_correction"], state["preset_additions"])
+        result = await speaker.mediaplayer.playback_backend.apply_sound_profile(composed)
+        result["warnings"] = warnings
+        return result
 
     def set_speaker_icon(self, name: str, icon: str) -> Dict[str, Any]:
         """Set a speaker's glyph (validated against the curated whitelist).

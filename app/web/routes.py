@@ -169,7 +169,8 @@ def _speakers_card_context(message: str | None = None, error: str | None = None)
             "icon": getattr(speaker, "icon", None) if speaker else None,
             "bt_mac": getattr(speaker, "bt_mac", None) if speaker else None,
             "cc_host": getattr(speaker, "cc_host", None) if speaker else None,
-            "sound_profile": (entry.get("options") or {}).get("sound_profile") or None,
+            "room_correction": (entry.get("options") or {}).get("room_correction")
+                               or (entry.get("options") or {}).get("sound_profile"),
             "address": (getattr(speaker, "bt_mac", None) if speaker else None)
                        or (getattr(speaker, "cc_host", None) if speaker else None),
         })
@@ -467,9 +468,32 @@ async def kiosk_speaker_sound_profile(name: str, request: Request):
         return _with_toast(HTMLResponse(""), str(e), theme="error")
     if not result.get("ok"):
         return _with_toast(HTMLResponse(""), "; ".join(result.get("errors", [])), theme="error")
-    message = (f"Sound profile applied to {result['name']}"
-               if result.get("af") else f"Sound profile cleared on {result['name']}")
+    message = result.get("message") or f"Room correction applied to {result['name']}"
+    if result.get("warnings"):
+        message = f"{message} — {'; '.join(result['warnings'])}"
     return _with_toast(HTMLResponse(""), message)
+
+
+@router.post("/kiosk/devices/sound-setting")
+async def kiosk_devices_sound_setting(request: Request):
+    """The devices-page DSP dialog: the Use-DSP master switch + the global
+    EQ preset choice, then the composed chain is hot-set on the speaker's
+    live mpv. A disabled (checkbox-off) select is not posted — the choice
+    is kept for when DSP is re-enabled."""
+    form = await request.form()
+    name = str(form.get("name") or "")
+    dsp_enabled = bool(form.get("dsp_enabled"))
+    if "preset" in form:
+        result = await get_service("speaker_manager").set_sound_setting(
+            name, dsp_enabled=dsp_enabled, preset_name=str(form.get("preset") or ""),
+            preset_given=True)
+    else:
+        result = await get_service("speaker_manager").set_sound_setting(
+            name, dsp_enabled=dsp_enabled)
+    if result.get("ok"):
+        return _with_toast(HTMLResponse(""),
+                           result.get("message") or f"Sound setting applied to {result['name']}")
+    return _with_toast(HTMLResponse(""), "; ".join(result.get("errors", [])), theme="error")
 
 
 @router.post("/kiosk/config/speakers/default")
@@ -634,6 +658,15 @@ async def kiosk_devices_partial(request: Request):
     
     speakers_service = get_service("speakers_service")
     context["speakers"] = speakers_service.to_dict()
+    # sound-chain state per speaker (the DSP dialog): the master switch +
+    # the chosen global preset — both are speaker OPTIONs in the store
+    sound_presets = get_service("config_store").section("sound_presets") or {}
+    context["presets"] = sorted(sound_presets.keys())
+    for name, details in context["speakers"].items():
+        opts = next((s.get("options") or {} for s in get_service("config_store").section("speakers")
+                     if s.get("name") == name), {})
+        details["dsp_enabled"] = bool(opts.get("dsp_enabled", True))
+        details["sound_preset"] = opts.get("sound_preset") or ""
     # BT runtime info now lives on the Speaker flags (updated by the state pass)
     try:
         context["fallback"] = get_service("config_service").default_speaker_name()

@@ -43,6 +43,15 @@ SECTION_DEFAULTS: Dict[str, Any] = {
     "logging": {"level": "INFO"},
     "server": {"cors_allow_origins": "*", "public_base_url": "", "enable_https_redirect": False, "http_request_timeout": 10},
     "chromecast": {"discovery_timeout": 3, "wait_timeout": 10},
+    # global EQ presets (additive bands/shelves, layered over a speaker's
+    # room correction) — seeded with four sensible starting points; the
+    # values are additions to a speaker's own calibration, per the doc.
+    "sound_presets": {
+        "vocal": {"bands_db": {"125": -1, "250": -1, "1000": 2, "2000": 2, "4000": 1.5}},
+        "rock": {"bands_db": {"63": 1.5, "125": 2, "250": 1, "4000": 1.5}},
+        "jazz": {"bands_db": {"125": 1, "1000": -0.5, "8000": 1.5, "16000": 1}},
+        "classical": {"bands_db": {"63": 0.5, "125": 0.5, "2000": -0.5, "8000": 1, "16000": 0.5}},
+    },
 }
 
 SECRET_KEYS = {("subsonic", "password")}
@@ -56,6 +65,7 @@ SECTION_APPLIES = {
     "mpv": "restart",
     "server": "restart",
     "speakers": "live",  # live since Phase B: add/remove applies without restart
+    "sound_presets": "live",
 }
 
 
@@ -367,6 +377,13 @@ def mpv_config_view(config_service: ConfigService, device_name: Optional[str],
     options = options or {}
     name = device_name or "mpv"
     socket = options.get("ipc_socket") or f"/tmp/jukebox-mpv-{name}.sock"
+    # sound chain: the speaker's room correction + the chosen global preset
+    # (resolved HERE to its additive profile); dsp_enabled = the master
+    # bypass switch (absent = on)
+    preset_name = options.get("sound_preset") or None
+    preset_profile = None
+    if preset_name:
+        preset_profile = (config_service.store.section("sound_presets") or {}).get(preset_name)
     return SimpleNamespace(
         MPV_DEVICE_NAME=options.get("device_name") or name.replace("_", " ").upper(),
         MPV_IPC_SOCKET=socket,
@@ -382,6 +399,10 @@ def mpv_config_view(config_service: ConfigService, device_name: Optional[str],
         MPV_STARTUP_TIMEOUT_SECONDS=int(shared.get("startup_timeout", 5)),
         # reserved for the USB-DAC backburner item
         MPV_AUDIO_DEVICE=options.get("audio_device") or "",
-        # the speaker's sound profile (EQ): a dict compiled to mpv's 'af'
-        MPV_SOUND_PROFILE=options.get("sound_profile") or None,
+        # the sound chain: the speaker's room correction (the legacy
+        # sound_profile key is read as an alias so existing stores keep working)
+        MPV_ROOM_CORRECTION=options.get("room_correction") or options.get("sound_profile") or None,
+        MPV_DSP_ENABLED=bool(options.get("dsp_enabled", True)),
+        MPV_SOUND_PRESET=preset_name,
+        MPV_SOUND_PRESET_PROFILE=preset_profile,
     )
