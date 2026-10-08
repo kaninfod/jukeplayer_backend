@@ -1449,6 +1449,8 @@ body:has(.htmx-request) #page-busy {
 }
 .sp-grid .sp-pre { grid-column: 1 / 2; color: var(--bs-body-color); font-weight: 600; }
 .sp-grid input { width: 100%; }
+.sp-preset select { min-width: 180px; }
+.sound-chain-pill { cursor: pointer; }   /* the one clickable state pill → DSP dialog */
 
 /* current-speaker card on the now-playing page: devices-anatomy horizontal
    (not square), fixed max width, centered under cover+info in both fold

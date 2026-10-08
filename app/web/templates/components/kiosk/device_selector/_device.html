@@ -21,14 +21,13 @@
 
             <div class="d-flex align-items-center gap-1">
                 {% if details.backend == 'mpv' %}
-                <span class="device-player-pill player-idle" title="Sound chain">
-                    <i class="mdi {% if details.sound_preset %}mdi-music-note{% elif details.dsp_enabled %}mdi-equalizer{% else %}mdi-equalizer-off{% endif %}"></i>
-                    {% if details.sound_preset %}{{ details.sound_preset }}{% elif details.dsp_enabled %}EQ{% else %}off{% endif %}
-                </span>
-                <button type="button" class="device-link-pill glyph-cc"
+                {# the sound chain = ONE clickable state pill (opens the DSP dialog):
+                   label = what is live right now — Bypass / EQ / the preset's name #}
+                <button type="button" class="device-player-pill player-idle sound-chain-pill"
                         title="Sound chain — DSP on/off + EQ preset"
                         data-action="click->soundprofile#open:stop">
-                    <i class="mdi mdi-equalizer"></i>
+                    <i class="mdi {% if details.sound_preset %}mdi-music-note{% elif details.dsp_enabled %}mdi-equalizer{% else %}mdi-equalizer-off{% endif %}"></i>
+                    {% if details.sound_preset %}EQ · {{ details.sound_preset }}{% elif details.dsp_enabled %}EQ{% else %}Bypass{% endif %}
                 </button>
                 {% endif %}
                 {% set pstatus = (details.mediaplayer.status or 'idle')|lower %}
@@ -145,9 +144,11 @@
                 The calibration (room correction) is set per speaker in Config → Speakers;
                 this preset is layered on top of it. Guide: docs/SOUND_TUNING.md
             </small>
-            <div class="d-flex justify-content-end gap-2">
+            <div class="d-flex justify-content-end gap-2 mt-2">
                 <button type="button" class="btn btn-sm btn-outline-secondary"
                         data-action="click->soundprofile#cancel:stop">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary"
+                        data-action="click->soundprofile#close_after_apply">Close</button>
                 <button type="submit" class="btn btn-sm btn-primary">
                     <i class="mdi mdi-check"></i> Apply
                 </button>
