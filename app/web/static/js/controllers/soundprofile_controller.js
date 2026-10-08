@@ -11,6 +11,7 @@ export default class extends Controller {
     open(event) {
         const button = event.currentTarget
         this.name = button.dataset.soundprofileNameParam
+        this._button = button                      // remember: refresh its stored profile on success
         const label = button.dataset.soundprofileLabelParam || this.name
         this.titleTarget.textContent = label
         const profile = JSON.parse(button.dataset.soundprofileProfileValue || "{}")
@@ -38,13 +39,34 @@ export default class extends Controller {
     }
 
     connect() {
-        // close after a successful apply — the toast is already dispatched
+        // close after a successful apply — and write the applied values back
+        // to the row button's stored profile so a reopen prefills the truth
+        // (the card is intentionally not re-rendered on apply)
         this._after = (event) => {
-            if (event.target === this.formTarget && event.detail.successful) {
+            if (event.target === this.formTarget && event.detail.successful && this._button) {
+                this._button.dataset.soundprofileProfileValue = JSON.stringify(this._collect())
                 this.dialogTarget.close()
             }
         }
         document.body.addEventListener("htmx:afterRequest", this._after)
+    }
+
+    _collect() {
+        const value = (name) => {
+            const raw = this.formTarget.querySelector(`input[name="${name}"]`).value.trim()
+            return raw === "" ? null : raw
+        }
+        const bands = {}
+        this.formTarget.querySelectorAll('input[name^="band_"]').forEach(input => {
+            const raw = input.value.trim()
+            if (raw !== "") bands[input.name.replace("band_", "")] = raw
+        })
+        return {
+            preamp_db: value("preamp_db"),
+            bands_db: bands,
+            low_shelf_db: value("low_shelf_db"),
+            high_shelf_db: value("high_shelf_db"),
+        }
     }
 
     disconnect() {

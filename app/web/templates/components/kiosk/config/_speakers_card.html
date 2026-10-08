@@ -126,17 +126,17 @@
                 <h6 class="mb-2"><i class="mdi mdi-equalizer"></i>
                     Sound profile — <span data-soundprofile-target="title"></span></h6>
                 <div class="sp-grid">
-                    <label class="sp-pre">Preamp <input type="number" step="0.5" min="-24" max="0"
+                    <label class="sp-pre">Preamp <input type="number" step="any" min="-24" max="0"
                         name="preamp_db" data-soundprofile-target="preamp" placeholder="0"></label>
                     {% for b in ['31','63','125','250','500','1000','2000','4000','8000','16000'] %}
                     <label>{{ b }} Hz
-                        <input type="number" step="0.5" min="-12" max="12" name="band_{{ b }}"
+                        <input type="number" step="any" min="-12" max="12" name="band_{{ b }}"
                                placeholder="0"></label>
                     {% endfor %}
                     <label>Low shelf
-                        <input type="number" step="0.5" min="-12" max="12" name="low_shelf_db" placeholder="0"></label>
+                        <input type="number" step="any" min="-12" max="12" name="low_shelf_db" placeholder="0"></label>
                     <label>High shelf
-                        <input type="number" step="0.5" min="-12" max="12" name="high_shelf_db" placeholder="0"></label>
+                        <input type="number" step="any" min="-12" max="12" name="high_shelf_db" placeholder="0"></label>
                 </div>
                 <small class="text-muted d-block mb-2">
                     Bands/shelves −12…+12 dB, preamp −24…0 (headroom). Guide:
