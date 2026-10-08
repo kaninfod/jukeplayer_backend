@@ -207,15 +207,17 @@ body.kiosk-layout {
 
 .kiosk-player-status {
     position: relative;
-    /* height: 100%;
-    width: 100%; */
-    /* flex: 1;
-    display: flex;
-    flex-direction: column; */
     align-items: center;
     justify-content: center;
-    /* padding: 24px; */
     overflow: hidden;
+}
+/* wrap-stacking on wide screens only: the cover|info row owns line 1
+   (flex-basis 100%) and the speaker card wraps onto its own centered line
+   below. The mobile fold is a flex-column (unconditional media rule at the
+   bottom) — flex-basis there would act on the vertical axis and break it. */
+@media (min-width: 768px) {
+    .kiosk-player-status { flex-wrap: wrap; }
+    .kiosk-player-status > .flex-row { flex: 0 0 100%; }
 }
 
 .kiosk-album-art {
@@ -374,12 +376,16 @@ body.kiosk-layout {
    REUSABLE COMPONENT CLASSES
    ============================================ */
 
-/* Common container for scrollable components */
+/* Common container for scrollable components. overflow-y: auto = the safety
+   net for pages WITHOUT an inner scroll region (the system menu's card grid
+   was being silently clipped); pages that own an inner scroller never
+   overflow this shell, so they're unaffected */
 .kiosk-component-container {
 
     height: 100%;
     width: 100%;
     padding: 20px;
+    overflow-y: auto;
 }
 
 /* ============================================
@@ -1309,31 +1315,44 @@ body:has(.htmx-request) #page-busy {
     box-shadow: 0 0 15px rgba(16, 185, 129, .35);
 }
 
-/* library artist search field (groups view, full width above the cards) */
-.library-search {
-    margin: 0 0 1rem;
+/* library filter bar: search / genres / A-Z segments share ONE row; the
+   attribute decides which expands, the other two stay compact icon toggles */
+.dir-bar { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.dir-seg-toggle {
+    flex-shrink: 0; width: 42px; height: 38px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 9px; border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg); color: var(--bs-secondary-color);
+    font-size: 19px; cursor: pointer; padding: 0;
 }
-.library-search-field {
-    width: 100%;
-    font-size: 24px;
-    padding: 14px 20px;
-    border-radius: 12px;
-    border: 2px solid var(--bs-border-color);
-    background: var(--bs-tertiary-bg);
-    color: var(--bs-body-color);
+.dir-seg-toggle:hover { color: var(--bs-body-color); background: var(--bs-secondary-bg); }
+/* the segments also carry their legacy classes (.alpha-bar/.genre-chip-row
+   = display:flex) — bar-scoping + the attribute-open rules must out-rank
+   those single-class rules or they'd be visible all at once */
+.dir-bar .dir-seg { display: none; flex: 1 1 auto; min-width: 0; }
+.dir-bar[data-dir-filter-open-value="alpha"] .dir-seg-alpha { display: flex; }
+.dir-bar[data-dir-filter-open-value="genres"] .dir-seg-genres { display: flex; }
+.dir-bar[data-dir-filter-open-value="search"] .dir-seg-search { display: block; }
+.dir-bar[data-dir-filter-open-value="alpha"]  .dir-seg-toggle[data-seg="alpha"],
+.dir-bar[data-dir-filter-open-value="genres"] .dir-seg-toggle[data-seg="genres"],
+.dir-bar[data-dir-filter-open-value="search"] .dir-seg-toggle[data-seg="search"] {
+    color: #4cd7f6; border-color: rgba(76, 215, 246, .45);
+    background: rgba(76, 215, 246, .07);
 }
-.library-search-field:focus {
-    outline: none;
-    border-color: #22d3ee;
+.dir-seg-genres { padding: .3rem .4rem; border-radius: 10px; background: var(--bs-tertiary-bg); }
+.dir-search-field {
+    width: 100%; font-size: 17px; padding: 8px 14px;
+    border-radius: 9px; border: 1px solid var(--bs-border-color);
+    background: var(--bs-tertiary-bg); color: var(--bs-body-color);
+}
+.dir-search-field:focus {
+    outline: none; border-color: #22d3ee;
     box-shadow: 0 0 12px rgba(34, 211, 238, .25);
 }
-.library-search-field::placeholder {
-    color: var(--bs-secondary-color);
-}
+.dir-search-field::placeholder { color: var(--bs-secondary-color); }
 
-/* artist directory: jump-bars + slim rows */
+/* artist directory: one-row filter bar + packed rows */
 .artist-directory { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.dir-nav { flex-shrink: 0; display: flex; flex-direction: column; gap: .4rem; margin-bottom: .75rem; }
 
 .alpha-bar, .genre-chip-row {
     display: flex; gap: .25rem; overflow-x: auto;
@@ -1362,30 +1381,29 @@ body:has(.htmx-request) #page-busy {
 .genre-chip small { color: var(--bs-secondary-color); }
 .genre-chip:hover { border-color: rgba(76, 215, 246, .45); }
 
-/* .dir-rows = the keyboard-walk container AND the packing grid: letter
-   sections dissolve (display: contents) so every artist row packs into
-   auto-fill columns that re-count with the window width; heads span the
-   full row. The keyboard walk reads gridTemplateColumns off this element,
-   so arrows stay spatial across letter boundaries too. */
+/* .dir-rows = the scroll container AND the keyboard-walk container; each
+   letter-section is a real box (sticky head range + scroll anchor) packing
+   its own rows into the same auto-fill grid — column counts match across
+   sections, so the walk's spatial math (read via data-keyboard-cols-from)
+   holds across letter boundaries */
 .dir-rows {
     flex: 1 1 auto; min-height: 0; overflow-y: auto;
+}
+
+.dir-letter-section { margin-bottom: .5rem; }
+.dir-rows-grid {
     display: grid; gap: .15rem .6rem;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     align-content: start;
 }
-
-.dir-letter-section { display: contents; }
 .dir-letter-head {
     position: sticky; top: 0; z-index: 5;
-    grid-column: 1 / -1;
     display: flex; align-items: center; gap: .75rem;
     padding: .45rem .75rem; margin-bottom: .25rem;
     background: color-mix(in srgb, var(--bs-secondary-bg) 88%, transparent);
     backdrop-filter: blur(6px);
     border-radius: 8px;
 }
-.dir-letter-head:first-child { margin-top: .1rem; }
-.dir-empty { grid-column: 1 / -1; }
 .dir-letter { font-weight: 800; font-size: 21px; color: #22d3ee; }
 
 .artist-row {
@@ -1408,6 +1426,59 @@ body:has(.htmx-request) #page-busy {
 .artist-row .row-main { min-width: 0; flex: 1; }
 .artist-row .row-sub { font-size: 14px; }
 .artist-row .mdi-chevron-right { color: var(--bs-secondary-color); }
+
+/* sound-profile dialog (the speakers card's per-row EQ button) */
+.sound-profile-dialog {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    min-width: min(420px, 92vw);
+}
+.sound-profile-dialog::backdrop { background: rgba(6, 8, 16, .55); backdrop-filter: blur(2px); }
+.sp-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .5rem .75rem;
+    margin-bottom: .5rem;
+}
+.sp-grid label {
+    display: flex; flex-direction: column; gap: .25rem;
+    font-size: .78rem; color: var(--bs-secondary-color);
+}
+.sp-grid .sp-pre { grid-column: 1 / 2; color: var(--bs-body-color); font-weight: 600; }
+.sp-grid input { width: 100%; }
+
+/* current-speaker card on the now-playing page: devices-anatomy horizontal
+   (not square), fixed max width, centered under cover+info in both fold
+   modes. Class vocabulary is the shared one (tile/badge/pill); the JS
+   re-dresses pill/type/glyph live from appState + the speakers map. */
+.np-speaker-card {
+    width: min(480px, 100%);
+    margin: 1.25rem auto 0;
+    display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: .8rem;
+    text-align: left;
+    aspect-ratio: auto !important;
+    padding: .65rem .9rem;
+    cursor: pointer;
+}
+.np-speaker-card .icon-tile { width: 44px; height: 44px; font-size: 1.4rem; }
+.np-speaker-name-col { min-width: 0; flex: 1; }
+.np-speaker-name {
+    font-size: 1.02rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.np-speaker-meta {
+    display: flex; align-items: center; gap: .6rem;
+    margin-top: .15rem; min-width: 0;
+}
+.np-speaker-chevron { color: var(--bs-secondary-color); }
+.icon-tile.tile-audio {
+    background: rgba(148, 163, 184, .12);
+    border-color: rgba(148, 163, 184, .25);
+    color: #cbd5e1;
+}
 
 /* ============================================================
    M4 — mobile page layouts: cards become phone-sized

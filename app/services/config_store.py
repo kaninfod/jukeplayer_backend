@@ -382,4 +382,6 @@ def mpv_config_view(config_service: ConfigService, device_name: Optional[str],
         MPV_STARTUP_TIMEOUT_SECONDS=int(shared.get("startup_timeout", 5)),
         # reserved for the USB-DAC backburner item
         MPV_AUDIO_DEVICE=options.get("audio_device") or "",
+        # the speaker's sound profile (EQ): a dict compiled to mpv's 'af'
+        MPV_SOUND_PROFILE=options.get("sound_profile") or None,
     )

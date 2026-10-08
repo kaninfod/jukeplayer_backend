@@ -1,3 +1,5 @@
+    {# the search-results view keeps the bar: segment open + the term still in it #}
+    {% include 'components/kiosk/media_library/_dir_bar.html' %}
     <div id="device-grid" class="flex-grow-1 overflow-auto">
         {% if not artists %}
           <div class="text-center text-muted py-5">

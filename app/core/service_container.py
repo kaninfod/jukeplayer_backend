@@ -66,6 +66,10 @@ def create_artist_metadata_service(container):
     from app.services.artist_metadata_service import ArtistMetadataService
     return ArtistMetadataService(container.get('subsonic_service'))
 
+def create_cover_service(container):
+    from app.services.cover_service import CoverService
+    return CoverService(container.get('subsonic_service'))
+
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService
     return PlaybackService(
@@ -120,6 +124,7 @@ def setup_service_container():
     container.register_singleton('config_service', create_config_service)
     container.register_singleton('subsonic_service', create_subsonic_service)
     container.register_singleton('artist_metadata_service', create_artist_metadata_service)
+    container.register_singleton('cover_service', create_cover_service)
 
     container.register_singleton('control_clients_service', create_control_clients_service)
     container.register_singleton('speakers_service', create_speakers_service)

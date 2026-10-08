@@ -257,8 +257,11 @@ async def test_broker_rehomes_clients_to_default_on_removal(mock_event_bus):
     assert clients["c2"].speaker_name == "b"
     assert speaker_a.clients == set()
     assert speaker_b.clients == {"c1", "c2"}
-    clients["c1"].send_callback.assert_awaited_once()
-    clients["c2"].send_callback.assert_awaited_once()
+    # each re-homed client gets the context pass + the clients-count pass
+    clients["c1"].send_callback.assert_awaited_with({
+        "type": "speaker_clients_changed", "payload": {"speaker_name": "b", "clients_count": 2}})
+    assert clients["c1"].send_callback.await_count == 2
+    assert clients["c2"].send_callback.await_count == 2
 
 
 @pytest.mark.asyncio

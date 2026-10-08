@@ -15,6 +15,8 @@ import VolumePopController from "./controllers/volumepop_controller.js"
 import MenuSheetController from "./controllers/menusheet_controller.js"
 import KeyboardController from "./controllers/keyboard_controller.js"
 import LibrarySearchController from "./controllers/library_search_controller.js"
+import DirFilterController from "./controllers/dir_filter_controller.js"
+import SoundProfileController from "./controllers/soundprofile_controller.js"
 
 const application = Application.start()
 
@@ -38,5 +40,7 @@ application.register("volumepop", VolumePopController)
 application.register("menusheet", MenuSheetController)
 application.register("keyboard", KeyboardController)
 application.register("library-search", LibrarySearchController)
+application.register("dir-filter", DirFilterController)
+application.register("soundprofile", SoundProfileController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

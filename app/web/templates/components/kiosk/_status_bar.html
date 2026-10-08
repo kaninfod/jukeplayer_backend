@@ -26,9 +26,9 @@
             <i data-nowplaying-target="wsstatus" class="mdi mdi-search_web"></i>
         </button>
 
-        <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" data-action="click->navigation#load" data-nowplaying-target="currentdevice">
+        <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" data-action="click->navigation#load" title="Active speaker — manage">
             <i class="mdi mdi-cast"></i>
-            <span>Active Device</span>
+            <span data-nowplaying-target="currentdevice">Active Device</span>
         </button>
 
         <div class="d-md-none position-relative" data-controller="menusheet">

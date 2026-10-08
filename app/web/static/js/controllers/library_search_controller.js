@@ -24,6 +24,14 @@ export default class extends Controller {
         event.preventDefault()
         this.fieldTarget.value = ""
         this.fieldTarget.blur()
+        // on the results view esc = leave search entirely (back to directory)
+        if (this.element.dataset.dirfilterResults) {
+            window.dispatchEvent(new CustomEvent("nav:go", { detail: "/kiosk/library" }))
+            return
+        }
+        // otherwise collapse the filter bar back to the alpha segment
+        const bar = this.element.closest(".dir-bar")
+        if (bar) bar.dataset.dirFilterOpenValue = "alpha"
         window.dispatchEvent(new CustomEvent("kb-enter-cards"))
     }
 }

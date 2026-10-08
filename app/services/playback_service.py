@@ -74,7 +74,9 @@ class PlaybackService:
 
             # Ensure static cover variants exist (180/512). Non-blocking if it fails.
             try:
-                await asyncio.to_thread(self.subsonic_service.ensure_cover_variants, album_id, (180, 512))
+                from app.core.service_container import get_service
+                cover_service = get_service("cover_service")
+                await asyncio.to_thread(cover_service.ensure_cover_variants, album_id, (180, 512))
             except Exception:
                 pass
 

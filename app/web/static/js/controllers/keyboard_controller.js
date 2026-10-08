@@ -143,10 +143,15 @@ export default class extends Controller {
         if (!cards.length) return
 
         // spatial walk: the grid's real column count (1 for lists) decides
-        // how far up/down move; left/right always move one card
+        // how far up/down move; left/right always move one card. A container
+        // whose cards live in per-section grids declares the probe selector
+        // (data-keyboard-cols-from) — the tracks match across sections.
         let cols = 1
         try {
-            const template = getComputedStyle(container).gridTemplateColumns
+            const probe = container.dataset.keyboardColsFrom
+                ? container.querySelector(container.dataset.keyboardColsFrom)
+                : container
+            const template = getComputedStyle(probe || container).gridTemplateColumns
             if (template && template !== "none") cols = Math.max(1, template.trim().split(/\s+/).length)
         } catch (_e) { /* non-grid containers stay one lane */ }
 

@@ -22,6 +22,26 @@ def _with_toast(response, message: str, theme: str = "success"):
     return response
 
 
+def _speaker_map() -> dict:
+    """name → {display_name, type, icon} for the now-playing card's
+    speakers-map attribute (the JS re-dresses the card live on device
+    switches without a reload). Direct registry reads — no get_context()
+    calls, so rendering the player page never touches the playbacks."""
+    try:
+        speakers = get_service("speakers_service").get_all_speakers()
+    except Exception:
+        return {}
+    return {
+        name: {
+            "display_name": sp.display_name or name,
+            "type": sp.type,
+            "icon": sp.icon,
+            "clients": len(sp.clients),   # render-time count (the devices page is live for clients)
+        }
+        for name, sp in speakers.items()
+    }
+
+
 def format_iso_string(date_str: str, fmt: str = "%Y-%m-%d %H:%M") -> str:
     if not date_str:
         return ""
@@ -48,34 +68,6 @@ def config_get(config, dotted_path: str, fallback=""):
     return value
 
 templates.env.filters["config_get"] = config_get
-
-GROUP_RANGES = {
-    'A-C': ['A', 'D'],
-    'D-F': ['D', 'G'],
-    'G-I': ['G', 'J'],
-    'J-L': ['J', 'M'],
-    'M-O': ['M', 'P'],
-    'P-R': ['P', 'S'],
-    'S-U': ['S', 'V'],
-    'V-X': ['V', 'Y'],
-    'Y-Z': ['Y', '[']  # '[' = the sentinel after Z, so Z artists are included
-}
-
-
-def _filter_artists_by_group(group_name: str, artists: list) -> list:
-    group_range = GROUP_RANGES.get(group_name)
-    if not group_range:
-        return []
-
-    filtered_artists = []
-    for artist in artists:
-        name = artist.get('name') if isinstance(artist, dict) else getattr(artist, 'name', '')
-        if not name:
-            continue
-        first = name.upper()[0]
-        if first >= group_range[0] and first < group_range[1]:
-            filtered_artists.append(artist)
-    return filtered_artists
 
 
 def _is_htmx_request(request: Request) -> bool:
@@ -177,6 +169,7 @@ def _speakers_card_context(message: str | None = None, error: str | None = None)
             "icon": getattr(speaker, "icon", None) if speaker else None,
             "bt_mac": getattr(speaker, "bt_mac", None) if speaker else None,
             "cc_host": getattr(speaker, "cc_host", None) if speaker else None,
+            "sound_profile": (entry.get("options") or {}).get("sound_profile") or None,
             "address": (getattr(speaker, "bt_mac", None) if speaker else None)
                        or (getattr(speaker, "cc_host", None) if speaker else None),
         })
@@ -454,6 +447,31 @@ async def kiosk_speakers_icon(name: str, request: Request):
         return _with_toast(resp, str(e), theme="error")
 
 
+_BANDS = ("31", "63", "125", "250", "500", "1000", "2000", "4000", "8000", "16000")
+
+
+@router.post("/kiosk/config/speakers/{name}/sound-profile")
+async def kiosk_speaker_sound_profile(name: str, request: Request):
+    """The sound-profile dialog's apply: validate, persist, hot-set mpv."""
+    form = await request.form()
+    profile = {
+        "preamp_db": str(form.get("preamp_db") or "").strip() or None,
+        "bands_db": {b: str(form.get(f"band_{b}") or "").strip() or None for b in _BANDS},
+        "low_shelf_db": str(form.get("low_shelf_db") or "").strip() or None,
+        "high_shelf_db": str(form.get("high_shelf_db") or "").strip() or None,
+    }
+    manager = get_service("speaker_manager")
+    try:
+        result = await manager.set_sound_profile(name, profile)
+    except ValueError as e:
+        return _with_toast(HTMLResponse(""), str(e), theme="error")
+    if not result.get("ok"):
+        return _with_toast(HTMLResponse(""), "; ".join(result.get("errors", [])), theme="error")
+    message = (f"Sound profile applied to {result['name']}"
+               if result.get("af") else f"Sound profile cleared on {result['name']}")
+    return _with_toast(HTMLResponse(""), message)
+
+
 @router.post("/kiosk/config/speakers/default")
 async def kiosk_speakers_default_dropdown(request: Request):
     """Default-speaker dropdown under the table (replaces the star column)."""
@@ -560,16 +578,19 @@ async def status_page(request: Request, kiosk: bool = False):
     return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={
         "request": request,
         "kiosk_mode": True,
-        "config": config
+        "config": config,
+        "speakers_map": _speaker_map(),
     })
 
 
 @router.get("/kiosk/player", response_class=HTMLResponse)
 async def kiosk_player_partial(request: Request):
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html", context={"request": request, "config": config},
+        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html",
+            context={"request": request, "config": config, "speakers_map": _speaker_map()},
         )
-    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={"request": request, "config": config, "kiosk_mode": True},
+    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html",
+        context={"request": request, "config": config, "kiosk_mode": True, "speakers_map": _speaker_map()},
     )
 
 
@@ -728,7 +749,6 @@ async def kiosk_clients_partial(request: Request):
 @router.get("/kiosk/library", response_class=HTMLResponse)
 async def kiosk_library_partial(
     request: Request,
-    group: str | None = Query(None),
     artist_id: str | None = Query(None),
     artist_name: str | None = Query(None),
     search: str | None = Query(None),
@@ -745,10 +765,11 @@ async def kiosk_library_partial(
         "back_url": None,
         "letter_groups": [],
         "genres": artist_metadata.genres(),
+        "dir_bar_open": "alpha",
     }
 
     if search:
-        # artist search: search3 with the album/song sections zeroed out
+        # artist search: search2 with the album/song sections zeroed out
         artists = await asyncio.to_thread(subsonic_service.search_artists, search)
         context.update({
             "title": f"Artists matching “{search}”",
@@ -757,6 +778,7 @@ async def kiosk_library_partial(
             "back_url": "/kiosk/library",
             "artists": artists,
             "search_query": search,
+            "dir_bar_open": "search",   # the bar keeps the term + segment open
         })
         if _is_htmx_request(request):
             return templates.TemplateResponse(request=request, name="components/kiosk/media_library/_media_library.html", context=context)
@@ -828,8 +850,10 @@ async def kiosk_library_play_album(request: Request, album_id: str):
         raise HTTPException(status_code=400, detail=f"Failed to load album {album_id}")
 
     if _is_htmx_request(request):
-        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html", context={"request": request, "config": config})
-    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html", context={"request": request, "config": config, "kiosk_mode": True},
+        return templates.TemplateResponse(request=request, name="components/kiosk/_player_status.html",
+            context={"request": request, "config": config, "speakers_map": _speaker_map()})
+    return templates.TemplateResponse(request=request, name="pages/kiosk/player.html",
+        context={"request": request, "config": config, "kiosk_mode": True, "speakers_map": _speaker_map()},
     )
 
 
