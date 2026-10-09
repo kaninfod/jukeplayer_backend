@@ -231,8 +231,26 @@ class SpeakerManagerService:
                         continue
                     self._reconnect_speaker(speaker, reconnected)
             else:
-                # local speakers (e.g. analog): available when configured
-                speaker.available = True
+                # local speakers (analog / the USB-DAC alsa route): availability
+                # = the backend's output readiness (the card present?); a
+                # playing speaker with a vanished output is stopped — the same
+                # no-silent-handoff rule (a dead USB output only goes quiet,
+                # nothing leaks to another sink, and the teardown means the
+                # next play opens a fresh output)
+                backend = getattr(speaker.mediaplayer, "playback_backend", None) \
+                    if speaker.mediaplayer else None
+                ensure_connected = getattr(backend, "ensure_connected", None)
+                if ensure_connected:
+                    try:
+                        conn = ensure_connected()
+                    except Exception:
+                        conn = {"connected": True}   # a checker hiccup never flickers availability
+                    speaker.available = bool(conn.get("connected", True))
+                    if not speaker.available:
+                        self.request_stop_if_playing(speaker, reason="output gone (USB DAC unplugged?)")
+                else:
+                    # plain-analog/local backends without a readiness probe
+                    speaker.available = True
         return {"reconnected": reconnected}
 
     def _reconnect_speaker(self, speaker, reconnected: Optional[List[str]] = None) -> None:

@@ -650,3 +650,38 @@ async def test_ghost_state_pass_stops_playing_speaker(stack):
     assert connect_calls == [speaker.bt_mac]
     assert speaker.connected is True
     assert result["reconnected"] == ["boom_3"]
+
+
+@pytest.mark.asyncio
+async def test_state_pass_stops_local_speaker_with_gone_output(stack):
+    """USB-DAC honesty in the pass: a local mpv speaker whose output vanished
+    while PLAYING gets the stop-if-playing rule and shows unavailable."""
+    stack.manager.add_speaker("fosi_zd3", backend="mpv")   # no bt_mac → type local
+    speaker = _playing(stack.speakers.get_speaker(speaker_name="fosi_zd3"))
+    speaker.mediaplayer.playback_backend = SimpleNamespace(ensure_connected=lambda: {"connected": False})
+    stack.manager.broker = _stop_broker()
+    stack.manager._stop_loop = asyncio.get_running_loop()
+
+    stack.manager.update_speaker_states()
+    for _ in range(3):
+        await asyncio.sleep(0)
+
+    stack.manager.broker.handle_stop.assert_awaited_once()
+    assert speaker.available is False
+
+
+@pytest.mark.asyncio
+async def test_state_pass_local_speaker_ready_no_stop(stack):
+    """A ready local output never triggers a stop — availability stays true."""
+    stack.manager.add_speaker("fosi_zd3", backend="mpv")
+    speaker = _playing(stack.speakers.get_speaker(speaker_name="fosi_zd3"))
+    speaker.mediaplayer.playback_backend = SimpleNamespace(ensure_connected=lambda: {"connected": True})
+    stack.manager.broker = _stop_broker()
+    stack.manager._stop_loop = asyncio.get_running_loop()
+
+    stack.manager.update_speaker_states()
+    for _ in range(3):
+        await asyncio.sleep(0)
+
+    stack.manager.broker.handle_stop.assert_not_awaited()
+    assert speaker.available is True
