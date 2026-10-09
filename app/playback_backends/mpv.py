@@ -33,6 +33,9 @@ class MPVService(PlaybackBackend):
         self.config = config_view if config_view is not None else config
         self.device_name = self.config.MPV_DEVICE_NAME
         self._bt_checker = BluetoothAudioChecker()
+        # audio-output death tracking (see _observe_ao_health): set BEFORE the
+        # mpv process is created — the log handler is live from the first event
+        self._ao_dead = False
 
         # python-mpv-jsonipc wires mpv's log stream via CONSTRUCTOR kwargs only
         # (log_handler + loglevel -> mpv's request-log-messages); assigning the
@@ -43,6 +46,7 @@ class MPVService(PlaybackBackend):
                 MPV_LOG_LEVEL_MAP.get(level, logging.DEBUG),
                 f"[mpv:{self.device_name}] {level}: {text}".strip(),
             )
+            self._observe_ao_health(level, text)
 
         mpv_kwargs = dict(
             ipc_socket=self.config.MPV_IPC_SOCKET,
@@ -154,7 +158,40 @@ class MPVService(PlaybackBackend):
             logger.warning(f"[mpv:{self.device_name}] af set failed: {e}")
             return {"ok": False, "errors": [f"mpv rejected the filter chain: {e}"]}
 
+    def _observe_ao_health(self, level: str, text: str) -> None:
+        """Track mpv audio-output death (the USB-DAC direct route): pulling the
+        card mid-play kills the ALSA output and mpv keeps 'playing' into the
+        dead handle (`snd_pcm_status: No such device`) — every later resume
+        would keep failing until a real teardown. Only MARK it here: the heal
+        runs where playback is actually driven (play_media/resume/
+        ensure_connected). Re-setting the audio-device does NOT revive the
+        pipeline — verified live on the ZD3 (2026-10-09)."""
+        if level != "error":
+            return
+        low = (text or "").lower()
+        if "snd_pcm_status" in low or "no such device" in low or \
+                "could not open/initialize audio" in low:
+            self._ao_dead = True
+
+    def _heal_dead_ao(self) -> None:
+        """The user's own recipe ('stop and then play'), made automatic: a full
+        teardown is the only cure for a dead ALSA output — the next play opens
+        a fresh one. Mirrors stop()'s no-event discipline (_playback_active
+        off BEFORE the mpv command, so the end-file reason 'stop' never
+        advances the queue)."""
+        self._playback_active = False
+        try:
+            self.player.command("stop")
+            logger.info(f"[mpv:{self.device_name}] dead audio output torn down "
+                        f"(device was gone?) — the next start opens a fresh one")
+        except Exception as e:
+            logger.warning(f"[mpv:{self.device_name}] dead-AO teardown failed: {e}")
+        finally:
+            self._ao_dead = False
+
     async def play_media(self, url: str, media_info: dict = None, content_type: str = "audio/mp3") -> bool:
+        if self._ao_dead:
+            self._heal_dead_ao()   # a fresh loadfile needs a live output
         readiness = self.get_output_readiness()
         if not readiness.get("ready", False):
             logger.warning("Output not ready: %s", readiness)
@@ -191,6 +228,11 @@ class MPVService(PlaybackBackend):
         return True
 
     async def resume(self) -> bool:
+        if self._ao_dead:
+            self._heal_dead_ao()
+            # a resume cannot follow the teardown — the caller must mark
+            # stopped; the NEXT play opens a fresh output
+            return False
         self.player.pause = False
         return True
 
@@ -233,6 +275,8 @@ class MPVService(PlaybackBackend):
             return None
 
     def ensure_connected(self) -> dict:
+        if self._ao_dead:
+            self._heal_dead_ao()   # the state pass reaches this — tear down now
         audio_device = getattr(self.config, "MPV_AUDIO_DEVICE", "") or ""
         status = self._bt_checker.check_ready(audio_device or None)
         return {"connected": status.get("ready", False), "reconnected": False}

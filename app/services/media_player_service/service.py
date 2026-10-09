@@ -114,9 +114,17 @@ class MediaPlayerService:
             self.status = PlayerStatus.PAUSE
             await self.playback_backend.pause()
         elif self.status == PlayerStatus.PAUSE:
-            self.track_timer.resume()
-            self.status = PlayerStatus.PLAY
+            # The backend may REFUSE the resume (mpv: a dead audio output was
+            # torn down first) — honor the answer instead of pretending to
+            # play: mark stopped; the next play opens a fresh output.
             stat = await self.playback_backend.resume()
+            if stat:
+                self.track_timer.resume()
+                self.status = PlayerStatus.PLAY
+            else:
+                self.track_timer.reset()
+                self.status = PlayerStatus.STOP
+                logger.warning("Resuming refused by the backend (dead audio output?) — playback marked stopped")
             logger.info(f"Resuming playback: {stat}")
         elif self.status == PlayerStatus.STOP and self.playlist_manager.current_track:
             await self.play_current_track()
@@ -232,9 +240,17 @@ class MediaPlayerService:
             self.status = PlayerStatus.PAUSE
             await self.playback_backend.pause()
         elif self.status == PlayerStatus.PAUSE:
-            self.track_timer.resume()
-            self.status = PlayerStatus.PLAY
+            # The backend may REFUSE the resume (mpv: a dead audio output was
+            # torn down first) — honor the answer instead of pretending to
+            # play: mark stopped; the next play opens a fresh output.
             stat = await self.playback_backend.resume()
+            if stat:
+                self.track_timer.resume()
+                self.status = PlayerStatus.PLAY
+            else:
+                self.track_timer.reset()
+                self.status = PlayerStatus.STOP
+                logger.warning("Resuming refused by the backend (dead audio output?) — playback marked stopped")
             logger.info(f"Resuming playback: {stat}")
     
     def _build_track_dict(self, track, full: bool = False):

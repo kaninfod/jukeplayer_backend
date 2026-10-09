@@ -46,3 +46,29 @@ def test_get_context_minimal(media_player_service):
 	assert "status" in ctx
 	assert "volume" in ctx
 	assert "repeat_album" in ctx
+
+
+@pytest.mark.asyncio
+async def test_play_pause_resume_refused_marks_stopped(media_player_service, mock_playback_backend):
+    """The mpv backend refuses a resume when it had to tear down a dead
+    output — the service must NOT keep claiming PLAY (the stale-PLAY bug
+    after pulling a USB DAC); the next play starts a fresh output."""
+    from app.core.player_status import PlayerStatus
+    mock_playback_backend.resume = AsyncMock(return_value=False)
+    media_player_service.status = PlayerStatus.PAUSE
+
+    await media_player_service.play_pause()
+
+    assert media_player_service.status == PlayerStatus.STOP
+    mock_playback_backend.resume.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_play_pause_resume_ok_sets_play(media_player_service):
+    """Regression: an accepted resume still flips PAUSE → PLAY."""
+    from app.core.player_status import PlayerStatus
+    media_player_service.status = PlayerStatus.PAUSE
+
+    await media_player_service.play_pause()
+
+    assert media_player_service.status == PlayerStatus.PLAY
