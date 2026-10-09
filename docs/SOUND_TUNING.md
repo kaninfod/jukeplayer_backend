@@ -134,6 +134,14 @@ The theoretic approach pre-fills the likely trouble; the measured approach
 
 ## 8. Notes specific to this chain
 
+- **USB direct out (the Fosi ZD3)**: the speaker's `audio_device` is an ALSA
+  id — `alsa/hw:CARD=ZD3,DEV=0` — and mpv drives the card directly:
+  PulseAudio is not in the signal path (its sink for the same card simply
+  stays suspended), so nothing pins the output to a fixed 44.1 kHz — mpv
+  delivers the file's native rate and its softvol handles the volume. The
+  EQ chain is identical to the pulse route. `check_ready` verifies the card
+  with `aplay -l`; if PulseAudio ever claims the card after a re-plug,
+  `pactl set-card-profile <card> off` frees it.
 - **DAC via USB**: sample-rate handling is mpv's; its defaults (resample to
   the sink's rate when needed) are fine. EQ is applied in the digital domain
   with 24-bit headroom — the DAC sees more level changes, not fewer bits.
@@ -142,6 +150,9 @@ The theoretic approach pre-fills the likely trouble; the measured approach
 - **Bluetooth (SBC) speakers**: SBC is already lossy and device-matched to
   its radio; profiles there can still fix obvious booms, but expect less
   predictability than the wired path. Keep BT profiles conservative.
+  Sink-loss rule: when a playing BT speaker's pulse sink vanishes, the
+  manager STOPS the playback (the no-silent-handoff rule) instead of leaving
+  PulseAudio's stream re-homing audible on some other sink.
 - **Bit-perfect purism**: any EQ leaves bit-perfect territory by design.
   That is the point of the exercise — the DAC output stage and the room
   were never bit-perfect to your ears anyway.
