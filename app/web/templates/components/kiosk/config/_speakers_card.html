@@ -76,32 +76,35 @@
                     <td data-controller="soundprofile" class="text-end">
                         {% if s.speaker_type != 'chromecast' %}
                         <button type="button" class="btn btn-sm btn-outline-secondary me-1"
-                                title="Sound profile (equalizer)"
+                                title="Room correction (calibration)"
                                 data-action="click->soundprofile#open:stop">
                             <i class="mdi mdi-equalizer"></i>
                         </button>
-                        <dialog class="sound-profile-dialog" data-soundprofile-target="dialog">
+                        {# clicks/changes/keys swallowed at the dialog — see
+                           the devices card's dialog comment (bubbling lesson) #}
+                        <dialog class="sound-profile-dialog" data-soundprofile-target="dialog"
+                                data-action="click->soundprofile#swallow change->soundprofile#swallow keydown->soundprofile#swallow">
                             <form hx-post="/kiosk/config/speakers/{{ s.name }}/sound-profile"
                                   hx-swap="none">
                                 {# PREFILLED server-side from the speaker's stored profile #}
-                                <h6 class="mb-2"><i class="mdi mdi-equalizer"></i> Sound profile — {{ label }}</h6>
+                                <h6 class="mb-2"><i class="mdi mdi-equalizer"></i> Room correction — {{ label }}</h6>
                                 <div class="sp-grid">
                                     <label class="sp-pre">Preamp
                                         <input type="number" step="any" min="-24" max="0" name="preamp_db"
-                                               value="{{ s.sound_profile.preamp_db or '' }}" placeholder="0"></label>
+                                               value="{{ s.room_correction.preamp_db or '' }}" placeholder="0"></label>
                                     {% for b in ['31','63','125','250','500','1000','2000','4000','8000','16000'] %}
                                     <label>{{ b }} Hz
                                         <input type="number" step="any" min="-12" max="12" name="band_{{ b }}"
-                                               value="{{ (s.sound_profile.bands_db.get(b) if s.sound_profile else '') or '' }}"
+                                               value="{{ (s.room_correction.bands_db.get(b) if s.room_correction else '') or '' }}"
                                                placeholder="0"></label>
                                     {% endfor %}
                                     <label>Low shelf
                                         <input type="number" step="any" min="-12" max="12" name="low_shelf_db"
-                                               value="{{ (s.sound_profile.low_shelf_db if s.sound_profile else '') or '' }}"
+                                               value="{{ (s.room_correction.low_shelf_db if s.room_correction else '') or '' }}"
                                                placeholder="0"></label>
                                     <label>High shelf
                                         <input type="number" step="any" min="-12" max="12" name="high_shelf_db"
-                                               value="{{ (s.sound_profile.high_shelf_db if s.sound_profile else '') or '' }}"
+                                               value="{{ (s.room_correction.high_shelf_db if s.room_correction else '') or '' }}"
                                                placeholder="0"></label>
                                 </div>
                                 <small class="text-muted d-block mb-2">
@@ -111,8 +114,10 @@
                                 <div class="d-flex justify-content-end gap-2">
                                     <button type="button" class="btn btn-sm btn-outline-secondary"
                                             data-action="click->soundprofile#cancel:stop">Cancel</button>
+                                    <button type="submit" class="btn btn-sm btn-primary"
+                                            data-action="click->soundprofile#close_after_apply">Close</button>
                                     <button type="submit" class="btn btn-sm btn-primary">
-                                        <i class="mdi mdi-check"></i> Apply sound profile
+                                        <i class="mdi mdi-check"></i> Apply
                                     </button>
                                 </div>
                             </form>

@@ -1,11 +1,15 @@
 {# Single device card — three-band anatomy (Stitch translation, light palette):
    top band: type badge + player pill + BT link pill (icon-only, click to
-   disconnect when connected) · center band: icon tile + names + MAC ·
-   bottom band: clients count + state-dependent action (Connect/Select) #}
+   disconnect when connected) · center band: icon tile + friendly name + the
+   state pills (EQ chain + battery for BT/mpv) · bottom band: clients count +
+   state-dependent action (Connect/Select).
+   The technical name/mac are NOT on this card (visible on the config page) —
+   they made the top row overflow past the card on small widths. #}
 <div class="card device-card {{ 'device-card-playing' if details.mediaplayer.status == 'playing' else '' }}"
      data-action="click->device#switchDevice"
      data-device-device-backend-param="{{ details.backend|e }}"
-     data-device-device-id-param="{{ details.speaker_name|e }}">
+     data-device-device-id-param="{{ details.speaker_name|e }}"
+     {% if details.backend == 'mpv' %}data-controller="soundprofile"{% endif %}>
     <div class="card-body d-flex flex-column p-3">
 
         {# top band #}
@@ -48,10 +52,6 @@
                           title="Paired — audio link down"><i class="mdi mdi-bluetooth-off"></i></span>
                     {% endif %}
                 {% endif %}
-
-                {% if details.connected and details.battery %}
-                <span class="device-player-pill player-idle" title="Device battery"><i class="mdi mdi-battery me-1"></i>{{ details.battery }}%</span>
-                {% endif %}
             </div>
         </div>
 
@@ -63,13 +63,33 @@
             <div class="icon-tile tile-bt mx-auto mb-2"><i class="mdi {{ details.icon }}"></i></div>
             {% endif %}
             <div class="fw-bold text-truncate" title="{{ (details.display_name or details.speaker_name)|e }}">{{ (details.display_name or details.speaker_name)|e }}</div>
+
+            {% if details.type == 'chromecast' %}
+            {# chromecast keeps its center as-is: technical id + IP #}
             <div class="device-tech-name text-truncate" title="{{ details.speaker_name|e }}">{{ details.speaker_name|e }}</div>
-            {% if details.bt_mac %}
-            <div class="device-meta">{{ details.bt_mac|e }}</div>
-            {% elif details.cc_host %}
+            {% if details.cc_host %}
             <div class="device-meta" title="Cast device IP">{{ details.cc_host|e }}</div>
             {% else %}
             <div class="device-meta">—</div>
+            {% endif %}
+            {% else %}
+            {# BT/mpv cards: the state pills moved DOWN (EQ chain + battery) —
+               the top row stays badge + player + link only, and the technical
+               name/mac are gone from this card (config page shows them).
+               Hover the friendly name for the system name. #}
+            <div class="d-flex justify-content-center align-items-center gap-1 mt-2">
+                {% if details.backend == 'mpv' %}
+                <button type="button" class="device-player-pill player-idle sound-chain-pill"
+                        title="Sound chain — DSP on/off + EQ preset"
+                        data-action="click->soundprofile#open:stop">
+                    <i class="mdi {% if details.sound_preset %}mdi-music-note{% elif details.dsp_enabled %}mdi-equalizer{% else %}mdi-equalizer-off{% endif %}"></i>
+                    {% if details.sound_preset %}EQ · {{ details.sound_preset }}{% elif details.dsp_enabled %}EQ{% else %}Bypass{% endif %}
+                </button>
+                {% endif %}
+                {% if details.connected and details.battery %}
+                <span class="device-player-pill player-idle" title="Device battery"><i class="mdi mdi-battery me-1"></i>{{ details.battery }}%</span>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
 
@@ -98,4 +118,57 @@
             {% endif %}
         </div>
     </div>
+
+    {# DSP dialog (mpv-backed cards only): the master toggle + the preset.
+       hx-post is STATIC again (the empty-path lesson). Unchecking the box
+       disables the select; the disabled select isn't posted, so the stored
+       choice survives a bypass. Apply = hot-set the composed chain.
+       Every click/change/keypress inside is SWALLOWED at the dialog: the
+       dialog is a DOM child of the card and event bubbling follows the DOM
+       tree, not the <dialog> top layer — without the swallow a click on the
+       checkbox reached the card's click->device#switchDevice, switched the
+       speaker AND navigated to /kiosk/player (destroying the open dialog). #}
+    {% if details.backend == 'mpv' %}
+    <dialog class="sound-profile-dialog" data-soundprofile-target="dialog"
+            data-action="close->soundprofile#cancel click->soundprofile#swallow change->soundprofile#swallow keydown->soundprofile#swallow">
+        <form hx-post="/kiosk/devices/sound-setting" hx-swap="none"
+              data-soundprofile-target="form">
+            <h6 class="mb-2"><i class="mdi mdi-equalizer"></i> Sound — {{ (details.display_name or details.speaker_name)|e }}</h6>
+            <input type="hidden" name="name" value="{{ details.speaker_name|e }}">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" name="dsp_enabled" value="on"
+                           id="dsp-flag-{{ details.speaker_name|e }}"
+                           {% if details.dsp_enabled %}checked{% endif %}
+                           data-soundprofile-target="dspflag"
+                           data-action="change->soundprofile#dspToggle">
+                    <label class="form-check-label" for="dsp-flag-{{ details.speaker_name|e }}">Use DSP</label>
+                </div>
+            </div>
+            <label class="sp-preset d-block mb-2">EQ preset
+                <select class="form-select form-select-sm" name="preset"
+                        data-soundprofile-target="preset"
+                        {% if not details.dsp_enabled %}disabled{% endif %}>
+                    <option value="">— none —</option>
+                    {% for p in presets %}
+                    <option value="{{ p }}" {% if details.sound_preset == p %}selected{% endif %}>{{ p }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <small class="text-muted d-block mb-2">
+                The calibration (room correction) is set per speaker in Config → Speakers;
+                this preset is layered on top of it. Guide: docs/SOUND_TUNING.md
+            </small>
+            <div class="d-flex justify-content-end gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        data-action="click->soundprofile#cancel:stop">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary"
+                        data-action="click->soundprofile#close_after_apply">Close</button>
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="mdi mdi-check"></i> Apply
+                </button>
+            </div>
+        </form>
+    </dialog>
+    {% endif %}
 </div>

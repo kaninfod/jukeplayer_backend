@@ -315,3 +315,82 @@ def test_link_down_signal_fires_callback():
                                        path="/org/bluez",
                                        body=("org.bluez.Adapter1", {}, [])))
     assert fired == [BOOM_MAC]
+
+
+# --- check_ready: ALSA-direct targets (the Fosi ZD3 route) ----------------------
+
+def _checker():
+    from app.services.bluetooth_service import BluetoothAudioChecker
+    return BluetoothAudioChecker()
+
+
+def test_check_ready_alsa_card_present():
+    checker = _checker()
+    checker._list_alsa_cards = lambda: {"ZD3", "Headphones"}
+
+    result = checker.check_ready("alsa/hw:CARD=ZD3,DEV=0")
+
+    assert result["ready"] is True
+    assert result["sink"] == "alsa/hw:CARD=ZD3,DEV=0"
+    assert result["sink_is_bluetooth"] is False
+    assert "Target card present" in result["message"]
+
+
+def test_check_ready_alsa_card_missing_blocks():
+    checker = _checker()
+    checker._list_alsa_cards = lambda: {"Headphones"}
+
+    result = checker.check_ready("alsa/hw:CARD=ZD3,DEV=0")
+
+    assert result["ready"] is False
+    assert "unplugged" in result["message"]
+
+
+def test_check_ready_alsa_verification_hiccup_does_not_block():
+    """Same policy as the pulse path: a checker hiccup never gates playback."""
+
+    def boom():
+        raise RuntimeError("aplay unavailable")
+
+    checker = _checker()
+    checker._list_alsa_cards = boom
+
+    result = checker.check_ready("alsa/hw:CARD=ZD3,DEV=0")
+
+    assert result["ready"] is True
+    assert "Could not verify card" in result["message"]
+
+
+def test_check_ready_pulse_path_still_pactl_verified(monkeypatch):
+    """Regression: pulse/<sink> ids keep the existing pactl verification."""
+    checker = _checker()
+    checker._list_sinks = lambda: ["bluez_sink.10_94_97_0F_CB_BF.a2dp_sink"]
+
+    result = checker.check_ready("pulse/bluez_sink.10_94_97_0F_CB_BF.a2dp_sink")
+
+    assert result["ready"] is True
+    assert result["sink_is_bluetooth"] is True
+
+
+def test_list_alsa_cards_parses_aplay_output(monkeypatch):
+    """The card shortnames feed the CARD=<name> token of hw device ids."""
+    import subprocess as sp
+
+    fake = MagicMock(return_value=SimpleNamespaceMock(
+        returncode=0,
+        stdout="**** List of PLAYBACK Hardware Devices ****\n"
+               "card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones [bcm2835 Headphones]\n"
+               "card 2: ZD3 [Fosi Audio ZD3], device 0: USB Audio [USB Audio]\n",
+        stderr="",
+    ))
+    checker = _checker()
+    monkeypatch.setattr(sp, "run", fake)
+
+    cards = checker._list_alsa_cards()
+
+    assert cards == {"Headphones", "ZD3"}
+
+
+class SimpleNamespaceMock:
+    def __init__(self, **kw):
+        self.__dict__.update(kw)

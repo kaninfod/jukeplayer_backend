@@ -1,3 +1,9 @@
+import os
+# Tests must never ship logs to the production syslog/Loki: every pytest run
+# used to flood the jukeplayer stream with stub traceback noise (~2:1 vs the
+# real backend). Force-disable the syslog handler unless a run opts back in.
+os.environ.setdefault("LOG_SYSLOG_ENABLED", "0")
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from app.services import MediaPlayerService

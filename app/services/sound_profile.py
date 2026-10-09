@@ -99,19 +99,44 @@ def compile_snd_profile(profile: Dict[str, Any]) -> Tuple[str, List[str]]:
     return ",".join(filters), errors
 
 
-def is_empty(profile) -> bool:
-    """True when the profile sets nothing at all (no preamp, no bands)."""
-    if not isinstance(profile, dict):
-        return True
-    preamp = profile.get("preamp_db")
-    if preamp not in (None, "", 0, 0.0) and float(preamp or 0) != 0.0:
-        return False
-    bands = profile.get("bands_db", {}) or {}
-    for band in BANDS:
-        if (bands.get(band) or 0) != 0 and float(bands.get(band) or 0) != 0.0:
-            return False
-    for shelf in ("low_shelf_db", "high_shelf_db"):
-        v = profile.get(shelf)
-        if v not in (None, "", 0, 0.0) and float(v or 0) != 0.0:
-            return False
-    return True
+def compose_profiles(base: Dict[str, Any] | None,
+                     preset: Dict[str, Any] | None) -> Tuple[Dict[str, Any], List[str]]:
+    """The speaker's room correction (base) + a global EQ preset (additions)
+    → ONE composed profile. Documented rules:
+    - band-wise sums, clamped to ±12 (a clamp = a warning, never silent)
+    - the shelves summed the same way
+    - the preamp = AUTO: the more negative of (the base's own preamp,
+      −(the largest composed boost)) — the doc's headroom rule enforced at
+      composition; the base's AutoEQ preamp sets the floor.
+    """
+    warnings: List[str] = []
+    base = base or {}
+    preset = preset or {}
+
+    def band(value, default=0.0) -> float:
+        try:
+            return float(value) if value not in (None, "") else default
+        except (TypeError, ValueError):
+            return default
+
+    def clamp(value: float, what: str) -> float:
+        if value > BAND_LIMIT or value < -BAND_LIMIT:
+            clamped = max(-BAND_LIMIT, min(BAND_LIMIT, value))
+            warnings.append(f"{what} {value:+g} clamped to {clamped:+g}")
+            return clamped
+        return value
+
+    base_bands = base.get("bands_db") or {}
+    add_bands = preset.get("bands_db") or {}
+    bands: Dict[str, float] = {}
+    for b in BANDS:
+        bands[b] = clamp(band(base_bands.get(b)) + band(add_bands.get(b)), f"band {b}")
+
+    low = clamp(band(base.get("low_shelf_db")) + band(preset.get("low_shelf_db")), "low shelf")
+    high = clamp(band(base.get("high_shelf_db")) + band(preset.get("high_shelf_db")), "high shelf")
+
+    max_boost = max([bands[b] for b in BANDS] + [low, high, 0.0])
+    auto_preamp = -max_boost if max_boost > 0 else 0.0
+    preamp = min(auto_preamp, band(base.get("preamp_db")))   # the more negative wins
+    return {"preamp_db": preamp, "bands_db": bands,
+            "low_shelf_db": low, "high_shelf_db": high}, warnings

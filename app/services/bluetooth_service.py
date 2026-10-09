@@ -6,9 +6,11 @@ Single home for Bluetooth/system interactions:
   Same public API as the bluetoothctl-wrapper era — only the transport changed:
   direct `org.bluez` calls (ObjectManager, Adapter1, Device1, Battery1, agent)
   instead of subprocesses + regex-parsed stdout.
-- `BluetoothAudioChecker` — verifies that the sink an mpv speaker targets
-  actually exists in PulseAudio (pactl). Sinks are PulseAudio objects, not
-  BlueZ objects — this layer is not affected by the D-Bus port.
+- `BluetoothAudioChecker` — verifies that the output an mpv speaker targets
+  actually exists: `pulse/<sink>` ids via pactl (sinks are PulseAudio
+  objects, not BlueZ — this layer is not affected by the D-Bus port) and
+  `alsa/hw:CARD=<card>` ids via `aplay -l` (the direct USB-DAC route, e.g.
+  the Fosi ZD3, where PulseAudio stays out of the signal path entirely).
 
 Audio-server context (see ledger): the Pi runs **PulseAudio +
 pulseaudio-module-bluetooth** — pipewire's bluez monitor never registers A2DP
@@ -78,6 +80,12 @@ class BluetoothAudioChecker:
                 "message": "No audio_device override — mpv uses its default output",
             }
 
+        # ALSA-direct targets ('alsa/hw:CARD=<card>,DEV=0'): PulseAudio is out
+        # of the signal path — the card is verified against `aplay -l`, not
+        # against the pactl sink list.
+        if audio_device.startswith("alsa/"):
+            return self._check_alsa_device(audio_device)
+
         # mpv device ids look like 'pulse/<sink name>'; the relevant pulse
         # sink is the part after the slash.
         sink_name = audio_device.split("/", 1)[1] if "/" in audio_device else audio_device
@@ -110,6 +118,50 @@ class BluetoothAudioChecker:
             "sink_is_bluetooth": sink_is_bt,
             "message": f"Target sink not present (device disconnected?): {sink_name}",
         }
+
+    def _check_alsa_device(self, audio_device: str) -> Dict:
+        """Verify an ALSA-direct mpv target ('alsa/hw:CARD=<shortname>,DEV=0'):
+        the card must be listed by `aplay -l`. mpv drives the card directly
+        (softvol volume); PulseAudio stays out of the path — its sink for the
+        same card simply stays suspended."""
+        m = re.search(r"CARD=([^,]+)", audio_device)
+        card = m.group(1) if m else audio_device
+        try:
+            cards = self._list_alsa_cards()
+        except Exception as e:
+            # Cannot verify right now — do not block playback on a checker
+            # hiccup (same policy as the pulse path).
+            logger.debug(f"ALSA card list unavailable, letting mpv try anyway: {e}")
+            return {"ready": True, "configured": True, "sink": audio_device,
+                    "sink_is_bluetooth": False,
+                    "message": f"Could not verify card ({e}) — letting mpv try"}
+        if card in cards:
+            logger.info(f"[ALSA] Target card present: {card}")
+            return {"ready": True, "configured": True, "sink": audio_device,
+                    "sink_is_bluetooth": False,
+                    "message": f"Target card present: {card}"}
+        logger.warning(f"[ALSA] Target card not present (unplugged?): {card}")
+        return {"ready": False, "configured": True, "sink": audio_device,
+                "sink_is_bluetooth": False,
+                "message": f"Target card not present (unplugged?): {card}"}
+
+    def _list_alsa_cards(self) -> set:
+        """ALSA card shortnames (the `CARD=<name>` token inside hw device ids)
+        parsed from `aplay -l`. Raises when aplay is unusable — the caller
+        decides whether to block playback."""
+        try:
+            result = subprocess.run("aplay -l", shell=True, capture_output=True,
+                                    text=True, timeout=6, check=False)
+        except Exception as e:
+            raise RuntimeError(f"aplay unavailable: {e}")
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or "aplay failed").strip()[:100] or "aplay failed")
+        cards = set()
+        for line in (result.stdout or "").splitlines():
+            m = re.match(r"card (\d+): ([^:]+?)\s*\[", line)
+            if m:
+                cards.add(m.group(2).strip())
+        return cards
 
     def _list_sinks(self) -> List[str]:
         """PulseAudio sink names (from `pactl list sinks short`). Raises when

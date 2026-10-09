@@ -10,7 +10,7 @@ import python_mpv_jsonipc as mpv
 from app.config import config
 from app.playback_backends.base import PlaybackBackend
 from app.services.bluetooth_service import BluetoothAudioChecker
-from app.services.sound_profile import compile_snd_profile
+from app.services.sound_profile import compile_snd_profile, compose_profiles
 
 logger = logging.getLogger(__name__)
 
@@ -69,17 +69,24 @@ class MPVService(PlaybackBackend):
         if audio_device:
             mpv_kwargs["audio_device"] = audio_device
 
-        # The speaker's sound profile (EQ) compiled once for spawn — the same
-        # filter chain the hot-apply path sets over json-IPC. Validation and
-        # the chain live in app/services/sound_profile.py.
-        profile = getattr(self.config, "MPV_SOUND_PROFILE", None)
-        if profile:
-            af, errors = compile_snd_profile(profile)
+        # The sound chain: DSP master on → compose (room correction + the
+        # chosen global EQ preset) → compile; off = bypass (no filters at
+        # all). Both steps live in app/services/sound_profile.py; the same
+        # composition rules power the manager's hot-apply path.
+        dsp = bool(getattr(self.config, "MPV_DSP_ENABLED", True))
+        af, errors = "", []
+        if dsp:
+            composed, warnings = compose_profiles(
+                getattr(self.config, "MPV_ROOM_CORRECTION", None),
+                getattr(self.config, "MPV_SOUND_PRESET_PROFILE", None))
+            for w in warnings:
+                logger.warning(f"[mpv:{self.device_name}] composed profile: {w}")
+            af, errors = compile_snd_profile(composed)
             if errors:
-                logger.warning(f"[mpv:{self.device_name}] sound profile rejected: {errors}")
-            elif af:
-                mpv_kwargs["af"] = af
-                logger.info(f"[mpv:{self.device_name}] sound profile: {af}")
+                logger.warning(f"[mpv:{self.device_name}] sound chain rejected: {errors}")
+        if af:
+            mpv_kwargs["af"] = af
+            logger.info(f"[mpv:{self.device_name}] sound chain: {af}")
 
         self.player = mpv.MPV(**mpv_kwargs)
 
@@ -132,16 +139,16 @@ class MPVService(PlaybackBackend):
             self._emit_track_finished(reason, error=event.get("file_error"))
 
     async def apply_sound_profile(self, profile: dict) -> Dict:
-        """Live EQ: validate, compile, set the 'af' property on the RUNNING
-        mpv over json-IPC (persisting to the speaker's store option is the
-        manager's job — this call only touches the live process). An empty
-        compiled chain clears any applied profile."""
+        """Set the 'af' property on the RUNNING mpv over json-IPC. The caller
+        (the manager) passes the ALREADY-COMPOSED profile — room correction
+        + the chosen preset — or {} for the bypass-clear. This method only
+        touches the live process; persistence is the manager's job."""
         af, errors = compile_snd_profile(profile)
         if errors:
             return {"ok": False, "errors": errors}
         try:
             self.player.af = af   # property set via json-IPC wrapper
-            logger.info(f"[mpv:{self.device_name}] sound profile applied: {af or '(cleared)'}")
+            logger.info(f"[mpv:{self.device_name}] sound chain applied: {af or '(clear)'}")
             return {"ok": True, "af": af, "supported": True}
         except Exception as e:
             logger.warning(f"[mpv:{self.device_name}] af set failed: {e}")
