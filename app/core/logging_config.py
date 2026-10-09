@@ -66,8 +66,13 @@ def setup_logging(log_file=None, level=logging.INFO):
     # === SYSLOG HANDLER (Primary) — the ONLY syslog path ===
     # Python maps the real record level into the PRI (DEBUG→7 … CRITICAL→2),
     # so severity is filterable server-side without parsing the message.
+    # LOG_SYSLOG_ENABLED=0 suppresses it entirely — the test suite's conftest
+    # sets this so pytest runs never ship logs to the production Loki again.
     syslog_configured = False
-    if config.LOG_SERVER_HOST and config.LOG_SERVER_HOST.lower() not in ["localhost", "127.0.0.1", ""]:
+    syslog_enabled = (os.getenv("LOG_SYSLOG_ENABLED") or "1").strip().lower() not in ("0", "false", "no")
+    if not syslog_enabled:
+        delayed_logs.append(("debug", "[SYSLOG] disabled via LOG_SYSLOG_ENABLED=0"))
+    elif config.LOG_SERVER_HOST and config.LOG_SERVER_HOST.lower() not in ["localhost", "127.0.0.1", ""]:
         try:
             syslog_address = (config.LOG_SERVER_HOST, config.LOG_SERVER_PORT)
             syslog_handler = logging.handlers.SysLogHandler(
