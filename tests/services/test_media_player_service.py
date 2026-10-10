@@ -72,3 +72,34 @@ async def test_play_pause_resume_ok_sets_play(media_player_service):
     await media_player_service.play_pause()
 
     assert media_player_service.status == PlayerStatus.PLAY
+
+
+@pytest.mark.asyncio
+async def test_start_refusal_raises_playback_error(media_player_service, mock_playback_backend, monkeypatch):
+    """'You tried to play and the speaker was not ready' — the play-start
+    refusal raises PLAYBACK_ERROR(source=start_refused) carrying the oracle's
+    human reason. Raised only for now (no listening handler yet)."""
+    from app.core import event_bus
+    from app.core.event_factory import EventType
+    from app.core.player_status import PlayerStatus
+    from app.services.media_player_service.playlist_manager import PlaylistItem
+
+    emitted = []
+    monkeypatch.setattr(event_bus, "emit", lambda ev: emitted.append(ev))
+    mock_playback_backend.play_media = AsyncMock(return_value=False)
+    mock_playback_backend.device_name = "zd3"
+    mock_playback_backend.get_output_readiness = (
+        lambda: {"ready": False, "message": "Target card not present (unplugged?)"})
+    media_player_service.playlist_manager.add_item(PlaylistItem(
+        track_id="tr-1", stream_url="http://example/tr-1", duration="200",
+        track_number=1, title="Song", artist="A", album="Al", year="2000",
+        cover_url=""))
+    media_player_service.status = PlayerStatus.PLAY
+
+    await media_player_service.play_current_track()
+
+    assert media_player_service.status == PlayerStatus.STOP
+    assert [ev.type for ev in emitted] == [EventType.PLAYBACK_ERROR]
+    assert emitted[0].payload["source"] == "start_refused"
+    assert emitted[0].payload["message"] == "Target card not present (unplugged?)"
+    assert emitted[0].payload["device_name"] == "zd3"

@@ -139,8 +139,35 @@ class MPVService(PlaybackBackend):
 
     def _handle_end_file(self, event):
         reason = event.get("reason")
-        if reason in ("eof", "error"):
+        if reason == "eof":
             self._emit_track_finished(reason, error=event.get("file_error"))
+        elif reason == "error":
+            # an output death is NOT a song finishing: the queue HOLDS (no
+            # silent auto-advance burn-through while a USB DAC is away or
+            # a BT sink flapped). PLAYBACK_ERROR = "a playback died/failed
+            # because the output wasn't ready" — raised only for now; a
+            # listening handler (honest stop + client notice) comes later.
+            self._emit_playback_error(reason, error=event.get("file_error"))
+
+    def _emit_playback_error(self, reason: str, error=None):
+        import time
+        now = time.monotonic()
+        if now - self._last_track_finished_at < 1.0:
+            return
+
+        self._last_track_finished_at = now
+        self._playback_active = False
+        logger.info("[mpv:%s] playback aborted (reason=%s, error=%s) — queue held, no auto-advance",
+                    self.device_name, reason, error)
+        try:
+            from app.core import event_bus, EventType, Event
+            event_bus.emit(Event(
+                type=EventType.PLAYBACK_ERROR,
+                payload={"device_name": self.device_name, "source": "output_died",
+                         "reason": reason, "error": error},
+            ))
+        except Exception as e:
+            logger.error("Failed to emit PLAYBACK_ERROR from MPV event: %s", e)
 
     async def apply_sound_profile(self, profile: dict) -> Dict:
         """Set the 'af' property on the RUNNING mpv over json-IPC. The caller

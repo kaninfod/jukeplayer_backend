@@ -185,6 +185,27 @@ class MediaPlayerService:
 
                 self.status = PlayerStatus.STOP
                 self.track_timer.reset()
+                # PLAYBACK_ERROR = "you tried to play and the speaker was not
+                # ready" (raised only for now — a listening handler comes
+                # later). The readiness oracle owns the human reason.
+                readiness_msg = ""
+                try:
+                    probe = getattr(self.playback_backend, "get_output_readiness", None)
+                    if probe:
+                        readiness = probe()
+                        if not readiness.get("ready", False):
+                            readiness_msg = readiness.get("message") or ""
+                except Exception:
+                    readiness_msg = ""
+                try:
+                    from app.core import event_bus, EventType, Event
+                    event_bus.emit(Event(type=EventType.PLAYBACK_ERROR, payload={
+                        "device_name": getattr(self.playback_backend, "device_name", None),
+                        "source": "start_refused",
+                        "message": readiness_msg or "Output not ready",
+                    }))
+                except Exception as e:
+                    logger.error("Failed to emit PLAYBACK_ERROR: %s", e)
                 return
 
             self.track_timer.reset()
