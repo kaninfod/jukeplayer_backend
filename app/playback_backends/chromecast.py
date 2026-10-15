@@ -571,14 +571,28 @@ class ChromecastService(PlaybackBackend):
             # An absent connection means nothing is playing.
             logger.info(f"stop({self.device_name}): no active connection — already stopped")
             return True
+        stopped_ok = False
+        app_ok = False
         try:
             await asyncio.to_thread(self.mc.stop)
             logger.info("Media stopped")
-            return True
+            stopped_ok = True
         except Exception as e:
             # Stop timeouts are benign — the device is usually already idle/off
             logger.info(f"stop({self.device_name}) did not confirm (device may already be idle): {type(e).__name__}: {e}")
-            return False
+        # THE TEARDOWN (2026-10-10): mc.stop leaves the receiver app (and the
+        # album's media queue!) alive on the device in idle — a later cast by
+        # ANYONE (e.g. a Home-Assistant automation finishing) then falls back
+        # to the lingering session and days-old playback resurrects. Quitting
+        # the receiver app ends that state; the next play relaunches the app
+        # (the lazy-connect model, same as any cast start).
+        try:
+            await asyncio.to_thread(self.cast.quit_app)
+            logger.info(f"stop({self.device_name}): receiver app quit — no lingering queue to resurrect")
+            app_ok = True
+        except Exception as e:
+            logger.info(f"stop({self.device_name}): quit_app did not confirm (already idle?): {type(e).__name__}: {e}")
+        return stopped_ok or app_ok
     async def set_volume(self, volume: float) -> bool:
         import asyncio
         if not await asyncio.to_thread(self.ensure_connected):
