@@ -5,7 +5,7 @@ import logging
 from app.core import EventType, Event
 from typing import List, Dict, Optional
 from app.config import config
-from app.services.media_player_service import PlaylistManager, PlaylistItem
+from app.playback.media_player_service import PlaylistManager, PlaylistItem
 
 
 

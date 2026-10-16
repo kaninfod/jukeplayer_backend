@@ -7,7 +7,7 @@ from app.core import EventType, Event
 from app.core.event_bus import EventBus
 from app.core.event_bus import event_bus as bus_singleton
 from app.playback_backends.chromecast import ChromecastMediaStatusListener
-from app.services.media_player_service.volume_manager import VolumeManager
+from app.playback.media_player_service.volume_manager import VolumeManager
 
 
 def make_status(volume_level=0.33, volume_muted=False, session_id="s1"):

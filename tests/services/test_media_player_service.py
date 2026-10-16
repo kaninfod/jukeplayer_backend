@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from app.services import MediaPlayerService
+from app.playback.media_player_service import MediaPlayerService
 
 
 def test_constructor_initializes_correctly(media_player_service, mock_event_bus, mock_playback_backend):
@@ -82,7 +82,7 @@ async def test_start_refusal_raises_playback_error(media_player_service, mock_pl
     from app.core import event_bus
     from app.core.event_factory import EventType
     from app.core.player_status import PlayerStatus
-    from app.services.media_player_service.playlist_manager import PlaylistItem
+    from app.playback.media_player_service.playlist_manager import PlaylistItem
 
     emitted = []
     monkeypatch.setattr(event_bus, "emit", lambda ev: emitted.append(ev))
@@ -110,7 +110,7 @@ async def test_stop_clears_the_queue(media_player_service):
     """Stop = permanent (the user's intent): the queue is cleared — no silent
     resume from pressing play on a stopped player, nothing survives to be
     resurrected by a later cast (the espresso/HA lesson 2026-10-16)."""
-    from app.services.media_player_service.playlist_manager import PlaylistItem
+    from app.playback.media_player_service.playlist_manager import PlaylistItem
     media_player_service.playlist_manager.add_item(PlaylistItem(
         track_id="tr-1", stream_url="http://example/tr-1", duration="200",
         track_number=1, title="Song", artist="A", album="Al", year="2000", cover_url=""))

@@ -71,7 +71,7 @@ class SpeakersService:
 
     def _build_speaker(self, entry: dict) -> Speaker:
         """Construct the backend + MediaPlayerService for one store entry."""
-        from app.services import MediaPlayerService
+        from app.playback.media_player_service import MediaPlayerService
         from app.playback_backends.factory import get_playback_backend_by_name
         from app.core.service_container import get_service
 

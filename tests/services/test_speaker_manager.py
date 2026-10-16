@@ -288,7 +288,7 @@ async def test_broker_resolves_display_form_device_names(mock_event_bus):
     """TRACK_FINISHED from an mpv speaker carries the display-form name
     ('OPENRUN PRO 2 BY SHOKZ') — routing must still land on that speaker
     instead of falling back to the default (routing bug 2026-09-24)."""
-    from app.services.media_player_service import MediaPlayerService  # noqa: F401
+    from app.playback.media_player_service import MediaPlayerService  # noqa: F401
 
     speakers = SpeakersService()
     headphones = Speaker("id-openrun", "openrun_pro_2_by_shokz", "mpv",

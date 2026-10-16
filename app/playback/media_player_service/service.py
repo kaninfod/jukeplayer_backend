@@ -6,8 +6,8 @@ from typing import List, Dict, Optional
 from app.playback_backends.factory import get_playback_backend
 from app.core import EventType, Event
 from app.core import PlayerStatus
-from app.services.media_player_service.playlist_manager import PlaylistManager
-from app.services.media_player_service.volume_manager import VolumeManager
+from app.playback.media_player_service.playlist_manager import PlaylistManager
+from app.playback.media_player_service.volume_manager import VolumeManager
 
 logger = logging.getLogger(__name__)
 

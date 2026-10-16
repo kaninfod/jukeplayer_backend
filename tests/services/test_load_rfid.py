@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.core import Event, EventType
-from app.services.playback_service import PlaybackService
+from app.playback.playback_service import PlaybackService
 
 
 def make_service(speaker=None, event_bus=None):

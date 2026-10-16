@@ -1,3 +1,1 @@
-# Services module for the jukebox application
-from .media_player_service import MediaPlayerService
-from .playback_service import PlaybackService
+"""Legacy shims live here until the reorg completes (phase E removes the folder)."""

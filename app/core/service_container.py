@@ -82,7 +82,7 @@ def create_cover_service(container):
     return CoverService(container.get('subsonic_service'))
 
 def create_playback_service(container):
-    from app.services.playback_service import PlaybackService
+    from app.playback.playback_service import PlaybackService
     return PlaybackService(
         music_sources=container.get('music_sources'),
         event_bus=container.get('event_bus')

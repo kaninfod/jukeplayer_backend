@@ -107,7 +107,7 @@ def stub_live_construction(monkeypatch):
     """No real backends during live speaker construction."""
     from types import SimpleNamespace
     from unittest.mock import MagicMock
-    import app.services as services_pkg
+    import app.playback.media_player_service as services_pkg
     import app.playback_backends.factory as factory
 
     def fake_backend(backend_name, device_name=None, options=None):

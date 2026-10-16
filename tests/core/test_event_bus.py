@@ -2,7 +2,7 @@ import pytest
 import asyncio
 import threading
 from unittest.mock import MagicMock, AsyncMock
-from app.services import MediaPlayerService
+from app.playback.media_player_service import MediaPlayerService
 from app.core import EventType, Event
 from app.core.event_bus import EventBus
 
