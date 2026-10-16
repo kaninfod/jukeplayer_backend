@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 from app.core import Event, EventType, EventBus
 from app.services.control_clients_service import ControlClient, ControlClientsService
-from app.services.speaker_broker_service import SpeakerBrokerService
-from app.services.speakers_service import Speaker, SpeakersService
+from app.speakers.speaker_broker_service import SpeakerBrokerService
+from app.speakers.speakers_service import Speaker, SpeakersService
 
 
 def make_speaker(name, status="stop"):

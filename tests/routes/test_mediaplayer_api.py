@@ -41,7 +41,7 @@ def _inject_speaker(name, context=None, default=False):
     """Inject a registry speaker whose mediaplayer is fully mocked (no
     backend I/O) — the routing + envelope contract needs no real player."""
     from app.core.service_container import get_service
-    from app.services.speakers_service import Speaker
+    from app.speakers.speakers_service import Speaker
 
     ss = get_service("speakers_service")
     mp = MagicMock()
@@ -268,7 +268,7 @@ async def test_device_card_shows_handover_pill(initialized_app):
     """A flagged BT speaker renders the handover pill (auto-reconnect paused)."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         _inject_speaker("living_room", default=True)
-        from app.services.speakers_service import Speaker
+        from app.speakers.speakers_service import Speaker
         from unittest.mock import MagicMock
         ss = _get_service("speakers_service")
         boom = Speaker(name="boom_3", speaker_id="boom_3", mediaplayer=MagicMock(),

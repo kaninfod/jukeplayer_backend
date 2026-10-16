@@ -6,7 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app, startup_event
-from app.services.sound_profile import compile_snd_profile
+from app.speakers.sound_profile import compile_snd_profile
 
 PROFILE = {
     "preamp_db": "-3",
@@ -32,7 +32,7 @@ def test_empty_profile_compiles_to_clear():
 
 
 def test_compose_adds_and_autoderives_preamp():
-    from app.services.sound_profile import compose_profiles
+    from app.speakers.sound_profile import compose_profiles
     base = {"preamp_db": -6.4, "bands_db": {"31": "-0.5", "63": "0.2", "125": "-2.4",
                                             "250": "-3.0", "500": "2.3", "1000": "5.0",
                                             "2000": "-4.9", "4000": "2.0",
@@ -46,7 +46,7 @@ def test_compose_adds_and_autoderives_preamp():
 
 
 def test_compose_clamps_with_warnings():
-    from app.services.sound_profile import compose_profiles
+    from app.speakers.sound_profile import compose_profiles
     composed, warnings = compose_profiles({"bands_db": {"63": "10"}},
                                           {"bands_db": {"63": "10"}})
     assert composed["bands_db"]["63"] == 12.0
@@ -54,7 +54,7 @@ def test_compose_clamps_with_warnings():
 
 
 def test_compose_without_preset_autoderives_preamp():
-    from app.services.sound_profile import compose_profiles
+    from app.speakers.sound_profile import compose_profiles
     composed, _ = compose_profiles({"bands_db": {"63": "8"}}, None)
     assert composed["preamp_db"] == -8.0
 
@@ -86,7 +86,7 @@ def _inject_speaker(speakers_service, store, name="test_bt", backend_name="mpv")
     mpv spawn — __new__ skips the constructor, the fake player records the
     'af' property sets)."""
     from app.playback_backends.mpv import MPVService
-    from app.services.speakers_service import Speaker
+    from app.speakers.speakers_service import Speaker
     backend = MPVService.__new__(MPVService)
     backend.device_name = name
     backend.player = FakeMpv()
@@ -148,7 +148,7 @@ async def test_empty_profile_removes_the_option(initialized_app):
 @pytest.mark.asyncio
 async def test_set_sound_profile_refuses_chromecast(initialized_app):
     store, speakers_service, manager = _services()
-    from app.services.speakers_service import Speaker
+    from app.speakers.speakers_service import Speaker
     store.add_speaker("cast", backend="chromecast")
     speakers_service._speakers["cast"] = Speaker(
         "sp-2", "cast", "chromecast",

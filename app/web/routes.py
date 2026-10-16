@@ -174,7 +174,7 @@ def _speakers_card_context(message: str | None = None, error: str | None = None)
             "address": (getattr(speaker, "bt_mac", None) if speaker else None)
                        or (getattr(speaker, "cc_host", None) if speaker else None),
         })
-    from app.services.speaker_manager_service import SPEAKER_ICONS
+    from app.speakers.speaker_manager_service import SPEAKER_ICONS
     return {
         "speakers": speakers,
         "default_name": default_name,

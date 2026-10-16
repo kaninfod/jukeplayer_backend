@@ -10,7 +10,7 @@ import python_mpv_jsonipc as mpv
 from app.config import config
 from app.playback_backends.base import PlaybackBackend
 from app.services.bluetooth_service import BluetoothAudioChecker
-from app.services.sound_profile import compile_snd_profile, compose_profiles
+from app.speakers.sound_profile import compile_snd_profile, compose_profiles
 
 logger = logging.getLogger(__name__)
 

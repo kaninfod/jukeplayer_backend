@@ -89,7 +89,7 @@ def create_playback_service(container):
     )
 
 def create_speaker_broker_service(container):
-    from app.services.speaker_broker_service import SpeakerBrokerService
+    from app.speakers.speaker_broker_service import SpeakerBrokerService
     control_clients = container.get('control_clients_service')
     speakers = container.get('speakers_service')
     event_bus = container.get('event_bus')
@@ -104,11 +104,11 @@ def create_control_clients_service(container):
     return control_clients_service
 
 def create_speakers_service(container):
-    from app.services.speakers_service import SpeakersService
+    from app.speakers.speakers_service import SpeakersService
     return SpeakersService()
 
 def create_speaker_manager_service(container):
-    from app.services.speaker_manager_service import SpeakerManagerService
+    from app.speakers.speaker_manager_service import SpeakerManagerService
     return SpeakerManagerService(
         store=container.get('config_store'),
         config_service=container.get('config_service'),

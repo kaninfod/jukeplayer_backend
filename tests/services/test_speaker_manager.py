@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.config.store import ConfigService, ConfigStoreService
-from app.services.speaker_broker_service import SpeakerBrokerService
-from app.services.speaker_manager_service import (
+from app.speakers.speaker_broker_service import SpeakerBrokerService
+from app.speakers.speaker_manager_service import (
     SpeakerManagerService,
     normalize_speaker_name,
 )
-from app.services.speakers_service import Speaker, SpeakersService
+from app.speakers.speakers_service import Speaker, SpeakersService
 
 
 class FakeVolumeManager:
@@ -335,7 +335,7 @@ class StubBTState:
 
 def state_manager(stack, monkeypatch, bt_stub, discovered=None):
     """Manager with a stubbed bluetooth service + patched CC discovery."""
-    from app.services.speaker_manager_service import SpeakerManagerService
+    from app.speakers.speaker_manager_service import SpeakerManagerService
     from app.playback_backends import chromecast as cc
     monkeypatch.setattr(cc, "discovered_names",
                         lambda: discovered if discovered is not None else set())
