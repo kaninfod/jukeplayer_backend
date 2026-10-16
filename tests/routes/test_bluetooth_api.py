@@ -103,7 +103,7 @@ class FakeMediaPlayer:
 
 @pytest.fixture
 def stub_live_construction(monkeypatch):
-    import app.services as services_pkg
+    import app.playback.media_player_service as services_pkg
     import app.playback_backends.factory as factory
     from types import SimpleNamespace as NS
 

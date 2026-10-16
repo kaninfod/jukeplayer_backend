@@ -9,8 +9,8 @@ import python_mpv_jsonipc as mpv
 
 from app.config import config
 from app.playback_backends.base import PlaybackBackend
-from app.services.bluetooth_service import BluetoothAudioChecker
-from app.services.sound_profile import compile_snd_profile, compose_profiles
+from app.bluetooth.service import BluetoothAudioChecker
+from app.speakers.sound_profile import compile_snd_profile, compose_profiles
 
 logger = logging.getLogger(__name__)
 
@@ -356,7 +356,7 @@ def get_mpv_service(device_name: str = None, options: Optional[Dict] = None) -> 
     (device name, IPC socket, later: audio_device) come from the config store
     via the mpv config view; shared MPV tuning comes from the mpv section."""
     from app.core.service_container import get_service
-    from app.services.config_store import mpv_config_view
+    from app.config.store import mpv_config_view
     try:
         config_service = get_service("config_service")
         view = mpv_config_view(config_service, device_name, options)

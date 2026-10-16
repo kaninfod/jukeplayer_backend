@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.services.config_store import ConfigService, ConfigStoreService
-from app.services.speaker_broker_service import SpeakerBrokerService
-from app.services.speaker_manager_service import (
+from app.config.store import ConfigService, ConfigStoreService
+from app.speakers.speaker_broker_service import SpeakerBrokerService
+from app.speakers.speaker_manager_service import (
     SpeakerManagerService,
     normalize_speaker_name,
 )
-from app.services.speakers_service import Speaker, SpeakersService
+from app.speakers.speakers_service import Speaker, SpeakersService
 
 
 class FakeVolumeManager:
@@ -50,7 +50,7 @@ def stack(tmp_path, monkeypatch):
     def fake_build(entry):
         audio_device = (entry.get("options") or {}).get("audio_device") or ""
         backend_name = entry.get("backend", "chromecast")
-        from app.services.bluetooth_service import mac_from_sink_id
+        from app.bluetooth.service import mac_from_sink_id
         bt_mac = mac_from_sink_id(audio_device)
         speaker_type = ("chromecast" if backend_name == "chromecast"
                         else "bluetooth" if bt_mac else "local")
@@ -288,7 +288,7 @@ async def test_broker_resolves_display_form_device_names(mock_event_bus):
     """TRACK_FINISHED from an mpv speaker carries the display-form name
     ('OPENRUN PRO 2 BY SHOKZ') — routing must still land on that speaker
     instead of falling back to the default (routing bug 2026-09-24)."""
-    from app.services.media_player_service import MediaPlayerService  # noqa: F401
+    from app.playback.media_player_service import MediaPlayerService  # noqa: F401
 
     speakers = SpeakersService()
     headphones = Speaker("id-openrun", "openrun_pro_2_by_shokz", "mpv",
@@ -335,7 +335,7 @@ class StubBTState:
 
 def state_manager(stack, monkeypatch, bt_stub, discovered=None):
     """Manager with a stubbed bluetooth service + patched CC discovery."""
-    from app.services.speaker_manager_service import SpeakerManagerService
+    from app.speakers.speaker_manager_service import SpeakerManagerService
     from app.playback_backends import chromecast as cc
     monkeypatch.setattr(cc, "discovered_names",
                         lambda: discovered if discovered is not None else set())

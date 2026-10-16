@@ -456,7 +456,7 @@ class SpeakerManagerService:
         base, persist it (an all-empty base = the option removed), then
         hot-apply the COMPOSED chain (base + preset, DSP gate) — the
         calibration must never silently drop the speaker's chosen preset."""
-        from app.services.sound_profile import compile_snd_profile
+        from app.speakers.sound_profile import compile_snd_profile
         speaker = self._mpv_speaker(name)
         store_name = normalize_speaker_name(name)
 
@@ -512,7 +512,7 @@ class SpeakerManagerService:
     async def _refresh_sound_chain(self, speaker) -> Dict[str, Any]:
         """Compose + compile + hot-set the speaker's live mpv: the DSP gate,
         the room correction and the resolved preset all come from the store."""
-        from app.services.sound_profile import compose_profiles
+        from app.speakers.sound_profile import compose_profiles
         store_name = normalize_speaker_name(speaker.speaker_name)
         state = self._sound_state(store_name)
         if not state["dsp_enabled"]:

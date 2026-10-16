@@ -2,7 +2,7 @@ from app.core import EventType, Event
 import logging
 from typing import Dict, Optional
 
-from app.services.speakers_service import Speaker
+from app.speakers.speakers_service import Speaker
 logger = logging.getLogger(__name__)
 
 class SpeakerBrokerService:
@@ -149,7 +149,7 @@ class SpeakerBrokerService:
         # Clients may remember speaker names in display form ('OPENRUN PRO 2
         # BY SHOKZ') — normalize before the lookup (registry keys are store
         # names). Same normalization as resolve_speaker (bug found 2026-09-24).
-        from app.services.speaker_manager_service import normalize_speaker_name
+        from app.speakers.speaker_manager_service import normalize_speaker_name
         speaker = self.speakers.get_speaker(speaker_name=normalize_speaker_name(speaker_name))
         if speaker:
             speaker.clients.add(client_id)
@@ -166,7 +166,7 @@ class SpeakerBrokerService:
             return None
         # client.speaker_name may be a stale display-form name from before the
         # canonical-name fix — normalize on every lookup
-        from app.services.speaker_manager_service import normalize_speaker_name
+        from app.speakers.speaker_manager_service import normalize_speaker_name
         speaker = self.speakers.get_speaker(speaker_name=normalize_speaker_name(speaker_name))
         if not speaker:
             return None
@@ -323,7 +323,7 @@ class SpeakerBrokerService:
             # before the lookup, else live-added mpv speakers fall through to
             # the default speaker (routing bug found 2026-09-24: next_track
             # after track-end executed against the wrong speaker).
-            from app.services.speaker_manager_service import normalize_speaker_name
+            from app.speakers.speaker_manager_service import normalize_speaker_name
             speaker = self.speakers.get_speaker(speaker_name=normalize_speaker_name(device_name))
             if speaker is None:
                 logger.warning(f"[SpeakerBrokerService] Unknown device_name '{device_name}' — falling back")

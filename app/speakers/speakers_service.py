@@ -71,7 +71,7 @@ class SpeakersService:
 
     def _build_speaker(self, entry: dict) -> Speaker:
         """Construct the backend + MediaPlayerService for one store entry."""
-        from app.services import MediaPlayerService
+        from app.playback.media_player_service import MediaPlayerService
         from app.playback_backends.factory import get_playback_backend_by_name
         from app.core.service_container import get_service
 
@@ -88,7 +88,7 @@ class SpeakersService:
             device_name=device_name
         )
         # type from backend + options: BT speakers are mpv-backed with a bluez sink
-        from app.services.bluetooth_service import mac_from_sink_id
+        from app.bluetooth.service import mac_from_sink_id
         audio_device = (entry.get("options") or {}).get("audio_device") or ""
         bt_mac = mac_from_sink_id(audio_device)
         if backend_name == "chromecast":

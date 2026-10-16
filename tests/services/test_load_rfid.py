@@ -5,11 +5,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.core import Event, EventType
-from app.services.playback_service import PlaybackService
+from app.playback.playback_service import PlaybackService
 
 
 def make_service(speaker=None, event_bus=None):
-    svc = PlaybackService(subsonic_service=MagicMock(), event_bus=event_bus or MagicMock())
+    svc = PlaybackService(music_sources=MagicMock(), event_bus=event_bus or MagicMock())
     svc.load_from_album_id = AsyncMock(return_value=True)
     return svc, speaker
 

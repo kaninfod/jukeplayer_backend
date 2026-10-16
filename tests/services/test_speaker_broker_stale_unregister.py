@@ -9,9 +9,9 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 from app.core import Event, EventType, EventBus
-from app.services.control_clients_service import ControlClient, ControlClientsService
-from app.services.speaker_broker_service import SpeakerBrokerService
-from app.services.speakers_service import Speaker, SpeakersService
+from app.speakers.control_clients import ControlClient, ControlClientsService
+from app.speakers.speaker_broker_service import SpeakerBrokerService
+from app.speakers.speakers_service import Speaker, SpeakersService
 
 
 def make_client(client_id, websocket=None, send_callback=None):

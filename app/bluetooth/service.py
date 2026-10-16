@@ -1,7 +1,7 @@
 """Bluetooth device management + mpv output readiness.
 
 Single home for Bluetooth/system interactions:
-- `BluetoothService` — the sync facade over `app.services.bluetooth_dbus.BlueZDbus`
+- `BluetoothService` — the sync facade over `app.bluetooth.dbus.BlueZDbus`
   (async BlueZ over D-Bus via dbus-fast, pinned to its own event-loop thread).
   Same public API as the bluetoothctl-wrapper era — only the transport changed:
   direct `org.bluez` calls (ObjectManager, Adapter1, Device1, Battery1, agent)
@@ -24,7 +24,7 @@ import re
 import subprocess
 from typing import Any, Dict, List, Optional
 
-from app.services.bluetooth_dbus import (  # noqa: F401  (re-exports)
+from app.bluetooth.dbus import (  # noqa: F401  (re-exports)
     A2DP_SINK_UUID,
     BlueZDbus,
     is_audio_device,

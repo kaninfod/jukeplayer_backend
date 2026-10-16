@@ -1,85 +1,107 @@
-import requests
-from typing import List, Dict, Any, Optional
+"""SubsonicSource — the first music source: the gonic/subsonic library.
+
+Structure (the services-drawer breakup, phase 1):
+- the SEAM (SourceProvider): load_album / stream_url / cover_art / scrobble /
+  is_ready — ids are namespaced through base.qualify/unqualify;
+- the GONIC FACULTY: the kiosk-library and warm-up methods (list_artists,
+  list_all_albums, list_albums_by_genre, search_artists, artist_dominant_genre,
+  get_album_info …) live on as plain methods of this class — they are the
+  subsonic source's own browsing, NOT part of the multi-source seam;
+- the transport lives in subsonic.api (token params + the retry policy).
+
+All `/api/subsonic/*` API routes (the ESP32 kiosk's contract) and the
+CoverService keep working unchanged: the container registers this instance
+under its old "subsonic_service" key.
+"""
 import logging
 import time
+from typing import Any, Dict, List, Optional
+
+from app.music_sources.base import (
+    SourceCapability, SourceProvider, SourceAlbum, SourceTrack,
+    StreamSpec, qualify, unqualify,
+)
+from app.music_sources.subsonic.api import SubsonicAPI
 
 logger = logging.getLogger(__name__)
 
-class SubsonicService:    
+
+class SubsonicSource(SourceProvider):
+    id = "subsonic"
+    name = "Subsonic (gonic)"
+    capabilities = frozenset({
+        SourceCapability.BROWSE, SourceCapability.SEARCH,
+        SourceCapability.SCROBBLE, SourceCapability.COVER_ART,
+    })
+
     def __init__(self, config=None):
-        """
-        Initialize SubsonicService with dependency injection.
-        
-        Args:
-            config: Configuration object for Subsonic settings
-        """
-        # Inject config dependency - no more direct import needed
-        if config:
-            self.config = config
-        else:
-            # Fallback for backward compatibility - this will be removed later
-            from app.config import config as default_config
-            self.config = default_config
+        self.api = SubsonicAPI(config)
+        self.config = self.api.config
+        # attribute mirrors (several old call sites poke these)
+        self.base_url = self.api.base_url
+        self.username = self.api.username
+        self.client = self.api.client
+        self.api_version = self.api.api_version
 
-        self.base_url = self.config.SUBSONIC_URL.rstrip("/")
-        self.username = getattr(self.config, "SUBSONIC_USER", "jukebox")
-        self.password = getattr(self.config, "SUBSONIC_PASS", "123jukepi")
-        self.client = getattr(self.config, "SUBSONIC_CLIENT", "jukebox")
-        self.api_version = getattr(self.config, "SUBSONIC_API_VERSION", "1.16.1")
-        logger.info(f"SubsonicService initialized with dependency injection for {self.base_url} as {self.username}")
+    # === THE SEAM ============================================================
 
-    def _api_params(self) -> Dict[str, str]:
-        import hashlib, random, string
-        salt = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-        token = hashlib.md5((self.password + salt).encode('utf-8')).hexdigest()
-        return {
-            "u": self.username,
-            "t": token,
-            "s": salt,
-            "c": self.client,
-            "v": self.api_version,
-            "f": "json"
-        }
+    def is_ready(self) -> bool:
+        """One cheap ping: auth + reachability in one round-trip."""
+        try:
+            data = self.api._api_request("ping").json()
+            return data.get("subsonic-response", {}).get("status") == "ok"
+        except Exception as e:
+            logger.debug(f"subsonic is_ready probe failed: {e}")
+            return False
 
-    def _api_request(self, endpoint: str, extra_params: Optional[Dict[str, str]] = None, retries: int = 1) -> Dict[str, Any]:
-        """GET a Subsonic endpoint. Transient failures (connection reset,
-        timeout) are retried once with a short backoff; HTTP errors are not."""
-        params = self._api_params()
-        if extra_params:
-            params.update(extra_params)
-        url = f"{self.base_url}/rest/{endpoint}"
-        logger.debug(f"SubsonicService: Requesting {url}")
+    def load_album(self, album_id: str) -> SourceAlbum:
+        """getAlbum + the album's songs → a namespaced SourceAlbum."""
+        info = self.get_album_info(album_id)
+        if not info:
+            raise ValueError(f"Album not found in Subsonic: {album_id}")
+        raw_tracks = info.get("song") or []
+        if not raw_tracks:
+            raise ValueError(f"No tracks found in Subsonic for album_id {album_id}")
+        tracks = [
+            SourceTrack(
+                track_id=qualify(self.id, t.get("id")),
+                title=t.get("title"),
+                artist=info.get("artist", ""),
+                duration=str(t.get("duration", 0)),
+                track_number=t.get("track", 0) or 0,
+            )
+            for t in raw_tracks
+        ]
+        return SourceAlbum(
+            album_id=qualify(self.id, album_id),
+            title=info.get("name", ""),
+            artist=info.get("artist", ""),
+            year=str(info.get("year", "") or ""),
+            cover_url=self.get_cover_proxy_url(album_id),
+            tracks=tracks,
+        )
 
-        last_transient_exc = None
-        for attempt in range(retries + 1):
-            try:
-                resp = requests.get(url, params=params, timeout=self.config.HTTP_REQUEST_TIMEOUT)
-                resp.raise_for_status()  # Raises HTTPError for bad status codes
-                return resp
-            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-                # Transient: RemoteDisconnected, read timeouts, connection resets
-                last_transient_exc = e
-                if attempt < retries:
-                    logger.warning(f"⚠️  Subsonic {endpoint} transient error (attempt {attempt + 1}/{retries + 1}): {e} — retrying")
-                    time.sleep(0.5)
-                    continue
-            except requests.exceptions.HTTPError as e:
-                logger.error(f"❌ Subsonic HTTP error for {endpoint}: {e.response.status_code} {e.response.text[:200]}", exc_info=True)
-                raise
-            except Exception as e:
-                logger.error(f"❌ Subsonic request failed for {endpoint}: {e}", exc_info=True)
-                raise
+    def stream_url(self, track_id: str) -> StreamSpec:
+        _, raw = unqualify(track_id)
+        return StreamSpec(url=self.get_stream_url({"id": raw}), external=False)
 
-        logger.error(f"❌ Subsonic {endpoint} failed after {retries + 1} attempts: {last_transient_exc}", exc_info=True)
-        raise last_transient_exc
+    def cover_art(self, album_id: str) -> bytes:
+        """Namespace-aware raw-cover fetch feeding the CoverService cache."""
+        _, raw = unqualify(album_id)
+        return self.cover_art_bytes(raw)
 
-    
+    def scrobble(self, track_id: str) -> bool:
+        _, raw = unqualify(track_id)
+        return self.scrobble_now_playing(raw)
+
+    # === THE GONIC FACULTY (verbatim from the old service; api indirection) ===
+
     def get_stream_url(self, track: dict) -> str:
         track_id = track.get('id')
         if not track_id:
             return None
         # Use _api_params for authentication
-        params = self._api_params()
+        params = self.api._api_params()
         params['id'] = track_id
         # Remove 'f' param for binary endpoints
         params.pop('f', None)
@@ -87,7 +109,7 @@ class SubsonicService:
         from urllib.parse import urlencode
         url = f"{self.base_url.rstrip('/')}/rest/stream?{urlencode(params)}"
         return url
-        
+
     def get_cover_proxy_url(self, album_id: str) -> str:
         """
         Return the local proxy URL for cover art so the browser never hits Subsonic directly.
@@ -101,12 +123,11 @@ class SubsonicService:
     def cover_art_bytes(self, album_id: str) -> bytes:
         """The RAW getCoverArt response — CoverService's fetch seam (the
         API client owns auth/transport; the image/caching work is not)."""
-        return self._api_request("getCoverArt", {"id": album_id}).content
+        return self.api._api_request("getCoverArt", {"id": album_id}).content
 
     def search_song(self, query: str) -> Dict[str, Any]:
         logger.info(f"SubsonicService: Searching for song: {query}")
-        data = self._api_request("search3", {"query": query})
-        data = data.json()
+        data = self.api._api_request("search3", {"query": query}).json()
         songs = data.get("searchResult3", {}).get("song", [])
         if not songs:
             logger.warning("SubsonicService: No songs found.")
@@ -115,8 +136,7 @@ class SubsonicService:
 
     def get_album_tracks(self, album_id: str) -> List[Dict[str, Any]]:
         logger.info(f"SubsonicService: Getting album tracks for album_id: {album_id}")
-        data = self._api_request("getMusicDirectory", {"id": album_id})
-        data = data.json()
+        data = self.api._api_request("getMusicDirectory", {"id": album_id}).json()
         directory = data.get("subsonic-response", {}).get("directory", {})
         if "child" not in directory:
             logger.warning(f"No tracks found for album_id: {album_id}")
@@ -135,10 +155,8 @@ class SubsonicService:
     # service-level cache owners (ArtistMetadataService), not to decorators.
     def get_album_info(self, album_id: str) -> Dict[str, Any]:
         logger.info(f"SubsonicService: Getting album info for album_id: {album_id}")
-        data = self._api_request("getAlbum", {"id": album_id})
-        data = data.json()
-        album = data.get("subsonic-response", {}).get("album", {})
-        return album
+        data = self.api._api_request("getAlbum", {"id": album_id}).json()
+        return data.get("subsonic-response", {}).get("album", {})
 
     def list_artists(self) -> list:
         """
@@ -147,8 +165,7 @@ class SubsonicService:
         gonic albums without a restart; caching/refresh is the
         ArtistMetadataService's job now.
         """
-        data = self._api_request("getMusicDirectory", {"id": "al-1"})
-        data = data.json()
+        data = self.api._api_request("getMusicDirectory", {"id": "al-1"}).json()
         logger.info(f"SubsonicService: Found {len(data.get('subsonic-response', {}).get('directory', {}).get('child', []))} artists from Subsonic")
         directory = data.get("subsonic-response", {}).get("directory", {})
         artists = directory.get("child", [])
@@ -164,7 +181,7 @@ class SubsonicService:
         space the library's artist cards / getMusicDirectory flow uses.
         search3/getArtists return entity ids ('ar-*') that getMusicDirectory
         resolves to an album+tracks instead — so search2 is the RIGHT call."""
-        data = self._api_request(
+        data = self.api._api_request(
             "search2",
             {"query": query, "artistCount": count, "albumCount": 0, "songCount": 0},
         ).json()
@@ -176,7 +193,7 @@ class SubsonicService:
     def artists_with_counts(self) -> list:
         """getArtists returns the entity-space (ar-* ids) WITH albumCount —
         richer metadata; the caller joins by name onto the directory flow."""
-        data = self._api_request("getArtists").json()
+        data = self.api._api_request("getArtists").json()
         index = data.get("subsonic-response", {}).get("artists", {}).get("index", []) or []
         flat = []
         for block in index:
@@ -190,7 +207,7 @@ class SubsonicService:
 
     def list_genres(self) -> list:
         """getGenres rows (the genre chips' data): value, albumCount, songCount."""
-        data = self._api_request("getGenres").json()
+        data = self.api._api_request("getGenres").json()
         genres = data.get("subsonic-response", {}).get("genres", {}).get("genre", []) or []
         return [
             {"value": g.get("value"),
@@ -207,7 +224,7 @@ class SubsonicService:
         only exists so a much larger library pages cleanly."""
         offset, out = 0, []
         while True:
-            data = self._api_request(
+            data = self.api._api_request(
                 "getAlbumList2",
                 {"type": "alphabeticalByName", "size": page_size, "offset": offset},
             ).json()
@@ -224,7 +241,7 @@ class SubsonicService:
         getAlbum). Returns None when nothing has genre data."""
         from collections import Counter
         counter: Counter = Counter()
-        data = self._api_request("getMusicDirectory", {"id": dir_id}).json()
+        data = self.api._api_request("getMusicDirectory", {"id": dir_id}).json()
         children = data.get("subsonic-response", {}).get("directory", {}).get("child", []) or []
         album_ids = [c.get("id") for c in children if c.get("isDir")]
         for album_id in album_ids:
@@ -244,8 +261,7 @@ class SubsonicService:
         Return a list of all albums for a given artist (id, name).
         """
         # Subsonic: getMusicDirectory with id=artist_id returns albums for that artist
-        data = self._api_request("getMusicDirectory", {"id": artist_id})
-        data = data.json()
+        data = self.api._api_request("getMusicDirectory", {"id": artist_id}).json()
         directory = data.get("subsonic-response", {}).get("directory", {})
         albums = directory.get("child", [])
         # Each album is a dict with 'id' and 'title'
@@ -255,7 +271,7 @@ class SubsonicService:
                 continue
             aid = album.get("id")
             # Ensure a small cover for grids
-            cover_small = self.get_cover_proxy_url(aid) #self.get_cover_static_url(aid, 180, absolute=False)
+            cover_small = self.get_cover_proxy_url(aid)
             result.append({
                 "id": aid,
                 "name": album.get("title"),
@@ -272,7 +288,7 @@ class SubsonicService:
         come alphabetical, slash-genres ('Rock/Pop') work, so a single
         size=500 call covers the whole genre — no pagination for this
         collection's scale."""
-        data = self._api_request("getAlbumList2", {"type": "byGenre", "genre": genre, "size": limit})
+        data = self.api._api_request("getAlbumList2", {"type": "byGenre", "genre": genre, "size": limit})
         albums = data.json().get("subsonic-response", {}).get("albumList2", {}).get("album", [])
         result = []
         for album in albums:
@@ -292,8 +308,7 @@ class SubsonicService:
         Returns a dict with 'id', 'albumId', and 'artistId' if found, else None.
         """
         try:
-            data = self._api_request("getSong", {"id": track_id})
-            data = data.json()
+            data = self.api._api_request("getSong", {"id": track_id}).json()
             song = data.get("subsonic-response", {}).get("song", {})
             if not song:
                 logger.warning(f"SubsonicService: No song found for id {track_id}")
@@ -310,16 +325,16 @@ class SubsonicService:
     def scrobble_now_playing(self, track_id: str) -> bool:
         """
         Notify Subsonic that a track is now playing (scrobble to Last.fm if configured).
-        
+
         This sends a "now playing" notification to Subsonic, which will forward it to
         Last.fm if scrobbling is configured in Subsonic settings.
-        
+
         API Reference: https://www.subsonic.org/pages/api.jsp#scrobble
         Endpoint: rest/scrobble (POST: id, submission=false for "now playing", time=current timestamp)
-        
+
         Args:
             track_id: The Subsonic track ID to scrobble
-            
+
         Returns:
             True if scrobble was successful, False otherwise
         """
@@ -327,11 +342,11 @@ class SubsonicService:
             if not track_id:
                 logger.warning("scrobble_now_playing: No track_id provided")
                 return False
-            
+
             # Get current time in milliseconds since epoch
             current_time_ms = int(time.time() * 1000)
-            
-            resp = self._api_request("scrobble", {
+
+            resp = self.api._api_request("scrobble", {
                 "id": track_id,
                 "submission": "false",  # now-playing notice, NOT a played-scrobble
                 "time": str(current_time_ms)
@@ -346,7 +361,7 @@ class SubsonicService:
                 error_msg = data.get("subsonic-response", {}).get("error", "Unknown error")
                 logger.warning(f"scrobble_now_playing: Failed to send 'now playing' notification for track {track_id}: {error_msg}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"scrobble_now_playing: Failed to scrobble track {track_id}: {e}")
             return False

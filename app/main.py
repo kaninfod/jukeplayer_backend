@@ -48,7 +48,7 @@ app = FastAPI(
 
 # Server behaviour (CORS + optional HTTPS redirect) lives in the config store.
 # Boot-read: the store file is plain JSON, readable before services exist.
-from app.services.config_store import ConfigStoreService
+from app.config.store import ConfigStoreService
 _server_store = ConfigStoreService()
 _server_cfg = _server_store.section("server")
 enable_https_redirect = bool(_server_cfg.get("enable_https_redirect"))

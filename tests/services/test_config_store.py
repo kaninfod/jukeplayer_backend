@@ -5,7 +5,7 @@ import stat
 
 import pytest
 
-from app.services.config_store import (
+from app.config.store import (
     ConfigService,
     ConfigStoreService,
     SCHEMA_VERSION,

@@ -1,7 +1,7 @@
 """Tests for the mpv output-readiness checker (Phase C audio targeting)."""
 import pytest
 
-from app.services.bluetooth_service import BluetoothAudioChecker
+from app.bluetooth.service import BluetoothAudioChecker
 
 
 def make_checker(monkeypatch, sinks):

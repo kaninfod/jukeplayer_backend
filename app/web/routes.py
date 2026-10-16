@@ -111,7 +111,7 @@ async def kiosk_config_page(request: Request):
 @router.post("/kiosk/config/save/{section}")
 async def kiosk_config_save(section: str, request: Request):
     from app.core.service_container import get_service
-    from app.services.config_store import VALID_LOG_LEVELS
+    from app.config.store import VALID_LOG_LEVELS
 
     form = await request.form()
     store = get_service("config_store")
@@ -174,7 +174,7 @@ def _speakers_card_context(message: str | None = None, error: str | None = None)
             "address": (getattr(speaker, "bt_mac", None) if speaker else None)
                        or (getattr(speaker, "cc_host", None) if speaker else None),
         })
-    from app.services.speaker_manager_service import SPEAKER_ICONS
+    from app.speakers.speaker_manager_service import SPEAKER_ICONS
     return {
         "speakers": speakers,
         "default_name": default_name,
@@ -233,7 +233,7 @@ def _connect_card_context(message: str | None = None, error: str | None = None,
     bt_list = []
     if bt_devices is not None:
         managed_macs = set()
-        from app.services.bluetooth_service import mac_from_sink_id
+        from app.bluetooth.service import mac_from_sink_id
         for s in manager.configured():
             mac = mac_from_sink_id((s.get("options") or {}).get("audio_device"))
             if mac:
@@ -518,7 +518,7 @@ async def kiosk_speakers_default_dropdown(request: Request):
 def _managed_speaker_macs() -> set:
     """MACs of BT devices that already have a speaker entry in the store —
     they are managed from the Speakers card, not the Bluetooth card."""
-    from app.services.bluetooth_service import mac_from_sink_id
+    from app.bluetooth.service import mac_from_sink_id
     macs = set()
     try:
         manager = get_service("speaker_manager")
@@ -593,7 +593,15 @@ async def kiosk_devices_bt_toggle(payload: dict = Body(...)):
     if speaker_obj.connected:
         result = await manager.disconnect_speaker(name)
     else:
-        result = await manager.connect_speaker(name)
+        try:
+            result = await manager.connect_speaker(name)
+        except ValueError as e:
+            # The device can't be claimed from here right now — e.g. another
+            # host (the phone) holds the link; our BlueZ only sees its own
+            # adapter's truth, so this surfaces as a connect failure. A human
+            # refusal beats an internal error; the reconnect backoff state
+            # pass keeps trying meanwhile.
+            return {"name": name, "connected": False, "ok": False, "error": str(e)}
     return {"name": name, "connected": result["connected"]}
 
 

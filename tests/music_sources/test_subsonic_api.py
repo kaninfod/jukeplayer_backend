@@ -1,9 +1,10 @@
-"""Tests for SubsonicService retry behaviour and scrobble semantics."""
+"""Tests for the subsonic transport's retry behaviour and scrobble semantics
+(moved with the music-source seam — app/music_sources/subsonic/api.py)."""
 import pytest
 import requests
 from unittest.mock import MagicMock
 
-from app.services.subsonic_service import SubsonicService
+from app.music_sources.subsonic import SubsonicSource
 
 
 def make_service():
@@ -14,7 +15,7 @@ def make_service():
     config.SUBSONIC_CLIENT = "test"
     config.SUBSONIC_API_VERSION = "1.16.1"
     config.HTTP_REQUEST_TIMEOUT = 10
-    return SubsonicService(config)
+    return SubsonicSource(config)
 
 
 def _resp_json(payload):
@@ -40,9 +41,9 @@ def test_transient_connection_error_is_retried(monkeypatch):
         return _resp_json({"subsonic-response": {"status": "ok"}})
 
     monkeypatch.setattr(requests, "get", flaky_get)
-    monkeypatch.setattr("app.services.subsonic_service.time.sleep", lambda s: None)
+    monkeypatch.setattr("app.music_sources.subsonic.api.time.sleep", lambda s: None)
 
-    result = svc._api_request("ping")
+    result = svc.api._api_request("ping")
 
     assert result.json()["subsonic-response"]["status"] == "ok"
     assert len(calls) == 2  # one retry
@@ -55,11 +56,11 @@ def test_transient_error_retries_exhausted_then_raises(monkeypatch):
         raise requests.exceptions.ConnectionError("RemoteDisconnected('Remote end closed connection')")
 
     monkeypatch.setattr(requests, "get", always_fails)
-    monkeypatch.setattr("app.services.subsonic_service.time.sleep", lambda s: None)
+    monkeypatch.setattr("app.music_sources.subsonic.api.time.sleep", lambda s: None)
 
     import pytest as _pytest
     try:
-        svc._api_request("getAlbum", retries=1)
+        svc.api._api_request("getAlbum", retries=1)
         raised = False
     except requests.exceptions.ConnectionError:
         raised = True
@@ -81,7 +82,7 @@ def test_http_error_not_retried(monkeypatch):
     monkeypatch.setattr(requests, "get", http_404)
 
     try:
-        svc._api_request("getAlbum", retries=3)
+        svc.api._api_request("getAlbum", retries=3)
         raised = False
     except requests.exceptions.HTTPError:
         raised = True

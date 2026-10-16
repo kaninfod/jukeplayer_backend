@@ -6,7 +6,7 @@ os.environ.setdefault("LOG_SYSLOG_ENABLED", "0")
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from app.services import MediaPlayerService
+from app.playback.media_player_service import MediaPlayerService
 from app.core import EventBus
 
 @pytest.fixture

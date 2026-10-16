@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 
 from dbus_fast import Variant
 
-from app.services.bluetooth_dbus import BlueZDbus
-from app.services.bluetooth_service import (
+from app.bluetooth.dbus import BlueZDbus
+from app.bluetooth.service import (
     BluetoothService,
     is_audio_device,
     mac_from_sink_id,
@@ -320,7 +320,7 @@ def test_link_down_signal_fires_callback():
 # --- check_ready: ALSA-direct targets (the Fosi ZD3 route) ----------------------
 
 def _checker():
-    from app.services.bluetooth_service import BluetoothAudioChecker
+    from app.bluetooth.service import BluetoothAudioChecker
     return BluetoothAudioChecker()
 
 
