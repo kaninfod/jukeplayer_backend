@@ -168,7 +168,7 @@ class NfcEncodingStateService:
         self.success = (status == "success")
         self.active = False
         
-        logger.info(f"NFC encoding result received - status={status}, uid={uid}, initiating_client_id={self.initiating_client.client_id}")
+        logger.info(f"NFC encoding result received - status={status}, uid={uid}, error_message={error_message!r}, initiating_client_id={self.initiating_client.client_id}")
         
         # Signal any waiting tasks
         if self._completion_event:

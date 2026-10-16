@@ -116,6 +116,8 @@ def nfc_encoding_status():
     return {
         "encoding_mode": nfc_state.is_active(),
         "success": nfc_state.was_successful(),
+        "status": nfc_state.status,
+        "error_message": nfc_state.error_message,
         "last_uid": nfc_state.get_last_uid(),
         "album_id": nfc_state.get_album_id()
     }

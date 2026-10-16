@@ -186,6 +186,7 @@ class WebSocketConnection:
             payload: Message payload with status, uid, error_message
         """
         try:
+            logger.info(f"NFC encoding client payload (raw): {payload!r}")
             status = payload.get("status")
             uid = payload.get("uid")
             error_message = payload.get("error_message")
