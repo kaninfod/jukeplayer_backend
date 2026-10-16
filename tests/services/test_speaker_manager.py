@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.services.config_store import ConfigService, ConfigStoreService
+from app.config.store import ConfigService, ConfigStoreService
 from app.services.speaker_broker_service import SpeakerBrokerService
 from app.services.speaker_manager_service import (
     SpeakerManagerService,

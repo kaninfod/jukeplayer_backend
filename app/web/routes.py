@@ -111,7 +111,7 @@ async def kiosk_config_page(request: Request):
 @router.post("/kiosk/config/save/{section}")
 async def kiosk_config_save(section: str, request: Request):
     from app.core.service_container import get_service
-    from app.services.config_store import VALID_LOG_LEVELS
+    from app.config.store import VALID_LOG_LEVELS
 
     form = await request.form()
     store = get_service("config_store")

@@ -48,12 +48,12 @@ def create_event_bus(container):
     return event_bus
 
 def create_config_store(container):
-    from app.services.config_store import ConfigStoreService
+    from app.config.store import ConfigStoreService
     from app.config import config
     return ConfigStoreService(path=getattr(config, "CONFIG_FILE", None))
 
 def create_config_service(container):
-    from app.services.config_store import ConfigService
+    from app.config.store import ConfigService
     return ConfigService(store=container.get('config_store'), system_config=container.get('config'))
 
 def create_music_source_registry(container):
@@ -61,7 +61,7 @@ def create_music_source_registry(container):
     seeds the subsonic source from the existing config adapter."""
     from app.music_sources.registry import SourceRegistry
     from app.music_sources.subsonic import SubsonicSource
-    from app.services.config_store import SubsonicConfigAdapter
+    from app.config.store import SubsonicConfigAdapter
     config_service = container.get('config_service')
     registry = SourceRegistry(default_pid="subsonic")
     registry.register(SubsonicSource(SubsonicConfigAdapter(config_service)))

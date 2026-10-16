@@ -690,10 +690,10 @@ def get_chromecast_service(device_name: Optional[str] = None, options: Optional[
     Each device gets its own independent service instance. options carries
     backend-specific speaker options (cast_uuid today)."""
     from app.core.service_container import get_service
-    from app.services.config_store import chromecast_config_view
+    from app.config.store import chromecast_config_view
     try:
         view = chromecast_config_view(get_service("config_service"))
     except Exception:
-        from app.services.config_store import SimpleNamespace
+        from app.config.store import SimpleNamespace
         view = SimpleNamespace(CHROMECAST_DISCOVERY_TIMEOUT=3, CHROMECAST_WAIT_TIMEOUT=10)
     return ChromecastService(device_name, config_view=view, options=options)

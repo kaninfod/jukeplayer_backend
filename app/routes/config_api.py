@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, HTTPException
 from typing import Any, Dict
 
 from app.core.service_container import get_service
-from app.services.config_store import VALID_LOG_LEVELS
+from app.config.store import VALID_LOG_LEVELS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/config", tags=["config"])
