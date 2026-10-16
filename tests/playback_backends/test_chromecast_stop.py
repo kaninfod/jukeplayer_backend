@@ -29,12 +29,44 @@ async def test_stop_without_connection_is_success():
 
 @pytest.mark.asyncio
 async def test_stop_timeout_is_benign(monkeypatch):
+    """Nothing confirms (media stop AND app quit both fail) → False, logged
+    INFO (benign)."""
+    svc = make_service()
+    svc.cast = MagicMock()
+    svc.mc = MagicMock()
+    svc.mc.stop = MagicMock(side_effect=TimeoutError("Execution of stop timed out after 10.0 s."))
+    svc.cast.quit_app = MagicMock(side_effect=TimeoutError("quit did not confirm"))
+    monkeypatch.setattr("asyncio.to_thread", lambda fn, *a, **k: _async_call(fn, a))
+    assert await svc.stop() is False
+
+
+@pytest.mark.asyncio
+async def test_stop_quits_the_receiver_app(monkeypatch):
+    """stop = media stop + receiver-app teardown: nothing lingers to be
+    resurrected by a later cast (the 3-day-old-album via HA bug)."""
+    svc = make_service()
+    svc.cast = MagicMock()
+    svc.mc = MagicMock()
+    monkeypatch.setattr("asyncio.to_thread", lambda fn, *a, **k: _async_call(fn, a))
+
+    assert await svc.stop() is True
+
+    svc.mc.stop.assert_called_once()
+    svc.cast.quit_app.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_stop_app_quit_alone_confirms(monkeypatch):
+    """mc.stop misbehaves but the app quit lands — the device IS stopped
+    (the receiver app is gone along with its media): True."""
     svc = make_service()
     svc.cast = MagicMock()
     svc.mc = MagicMock()
     svc.mc.stop = MagicMock(side_effect=TimeoutError("Execution of stop timed out after 10.0 s."))
     monkeypatch.setattr("asyncio.to_thread", lambda fn, *a, **k: _async_call(fn, a))
-    assert await svc.stop() is False  # returns False, but logged as INFO (benign)
+
+    assert await svc.stop() is True
+    svc.cast.quit_app.assert_called_once()
 
 
 async def _async_call(fn, args):

@@ -5,6 +5,7 @@ class EventType(Enum):
 
     TRACK_CHANGED = "track_changed"
     TRACK_FINISHED = "track_finished"
+    PLAYBACK_ERROR = "playback_error"   # a playback died/failed because the output wasn't ready
     VOLUME_CHANGED = "volume_changed"
 
     NEXT_TRACK = "next_track"
