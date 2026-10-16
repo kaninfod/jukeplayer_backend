@@ -72,15 +72,17 @@ def create_music_source_registry(container):
     if (sources_cfg.get("subsonic") or {}).get("enabled", True) is not False:
         registry.register(SubsonicSource(SubsonicConfigAdapter(config_service)))
     ytm = sources_cfg.get("ytmusic") or {}
-    if ytm.get("enabled") and ytm.get("token"):
+    if ytm.get("enabled"):
         from app.music_sources.ytmusic import YTMusicSource
         try:
+            # a stored token (if any) switches the source into its authed
+            # mode; without one the source runs in the public mode
             registry.register(YTMusicSource(ytm))
             logger.info("[sources] ytmusic provider registered")
         except Exception as e:
             logger.warning(f"[sources] ytmusic skipped: {e}")
     else:
-        logger.debug("[sources] ytmusic not configured (no token) — skipped")
+        logger.debug("[sources] ytmusic disabled — skipped")
     return registry
 
 

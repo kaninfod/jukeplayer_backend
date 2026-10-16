@@ -1,18 +1,22 @@
 """YTMusicSource — the second citizen behind the seam (backend-first slice).
 
-- id/name/capabilities: SEARCH + COVER_ART; no BROWSE (the kiosk library's
-  yt presence comes via the collection ledger) and no SCROBBLE.
-- `load_album` accepts both id shapes: MPREb… (store browse id → get_album)
-  and OLAK5uy… (share-link playlist id → get_playlist; its title = the album).
+AUTH MODE (decided 2026-10-16): PUBLIC/un-authed by default. ytmusicapi's
+public surface (search, get_album(MPREb…), get_playlist(OLAK5uy…)) needs no
+session, and Google's private endpoints reject the device-flow OAuth tokens
+(FAILED_PRECONDITION — Music Assistant's production provider went through
+the same wall and settled on cookies+PO-token; that lane stays parked here).
+IF a token exists in the config (a future Google reopening, or a premium
+lane), the client builds in its authed mode instead — dual mode by design.
+
+- `load_album` accepts both id shapes: MPREb… (→ get_album) and
+  OLAK5uy… (→ get_playlist; its title = the album's name).
 - `stream_url` returns the plain watch URL; the per-speaker mpv resolves it
   via yt-dlp (ytdl on). Resolved fresh at play time — the URLs expire.
 - `cover_art` fetches the thumb bytes for the CoverService cache (the kiosk
-  CSP only shows same-origin images).
-- credentials/token live in the config store's `sources.ytmusic` section.
+  CSP shows same-origin images only).
 """
 import logging
 import re
-from dataclasses import dataclass
 from typing import Optional
 
 from app.music_sources.base import (
@@ -47,43 +51,52 @@ def _artist_name(entry) -> str:
     return entry or ""
 
 
+def _largest_thumb(thumbs: list) -> dict:
+    """The BIGGEST thumbnail (rows: {width,height,url})."""
+    return max((t for t in thumbs if isinstance(t, dict) and t.get("url")),
+               key=lambda t: t.get("width") or 0, default={})
+
+
 class YTMusicSource(SourceProvider):
     id = "ytmusic"
     name = "YouTube Music"
     capabilities = frozenset({SourceCapability.SEARCH, SourceCapability.COVER_ART})
 
-    def __init__(self, config: dict):
-        """config = the store's sources.ytmusic dict (client creds + token)."""
-        if not config.get("token"):
-            raise ValueError("ytmusic has no OAuth token yet — run the auth flow first")
-        self.config = config
+    def __init__(self, config: Optional[dict] = None):
+        self.config = dict(config or {})
+        # a stored token is OPTIONAL: present = the authed mode (a Google
+        # reopening / a premium lane); absent = the public mode (today's path)
+        token = self.config.get("token") or {}
+        self._token = token if token.get("access_token") else None
         self._client = None
 
     def _ytm(self):
-        """The ytmusicapi client, built lazily and rebuilt if the token
-        changed underneath (a re-auth swaps the stored token)."""
-        desired = self.config.get("token")
         if self._client is None:
             from ytmusicapi import YTMusic, OAuthCredentials
-            creds = OAuthCredentials(client_id=self.config["client_id"],
-                                     client_secret=self.config["client_secret"])
-            self._client = YTMusic(auth=desired, oauth_credentials=creds)
-            self._client_token = desired
+            if self._token:
+                creds = OAuthCredentials(client_id=self.config.get("client_id", ""),
+                                         client_secret=self.config.get("client_secret", ""))
+                self._client = YTMusic(auth=self._token, oauth_credentials=creds)
+                logger.info("[ytm] authed client built (token present)")
+            else:
+                self._client = YTMusic()
+                logger.info("[ytm] public (un-authed) client built")
         return self._client
 
     def is_ready(self) -> bool:
-        """One cheap authed call proves the token still works."""
-        if not self.config.get("token"):
-            return False
+        """The public surface = effectively always ready; an authed token =
+        one cheap library probe to prove the grant still lives."""
+        if not self._token:
+            return True
         try:
             self._ytm().get_library_songs(limit=1)
             return True
         except Exception as e:
-            logger.info(f"ytmusic is_ready probe failed: {e}")
+            logger.info(f"ytm is_ready probe failed (authed mode): {e}")
             return False
 
     def load_album(self, album_id: str) -> SourceAlbum:
-        aid = album_id.strip()
+        aid = str(album_id or "").strip()
         if aid.startswith("MPREb"):
             return self._load_browse_album(aid)
         if aid.startswith("OLAK5uy"):
@@ -93,7 +106,7 @@ class YTMusicSource(SourceProvider):
             f"or an OLAK5uy… (playlist/album-share) id")
 
     def _load_browse_album(self, aid: str) -> SourceAlbum:
-        al = self._ytm().get_album(aid)
+        al = self._ytm().get_album(aid) or {}
         if not al:
             raise ValueError(f"Album not found on YouTube Music: {aid}")
         artist = _artist_name((al.get("artists") or [{}])[0])
@@ -114,15 +127,15 @@ class YTMusicSource(SourceProvider):
             title=al.get("title") or "",
             artist=artist,
             year=str(al.get("year") or ""),
-            cover_url=_largest_thumb(al.get("thumbnails") or [{}])["url"]
-                if al.get("thumbnails") else None,
+            cover_url=_largest_thumb(al.get("thumbnails") or []).get("url"),
             tracks=tracks,
         )
 
     def _load_playlist_album(self, pid: str) -> SourceAlbum:
-        pl = self._ytm().get_playlist(pid)
+        pl = self._ytm().get_playlist(pid) or {}
         if not pl:
             raise ValueError(f"Playlist not found on YouTube Music: {pid}")
+        artist = self._playlist_artist(pl)
         tracks = []
         for i, t in enumerate(pl.get("tracks") or [], start=1):
             if not t.get("videoId"):
@@ -130,8 +143,7 @@ class YTMusicSource(SourceProvider):
             tracks.append(SourceTrack(
                 track_id=qualify(self.id, t["videoId"]),
                 title=t.get("title") or "",
-                artist=_artist_name((t.get("artists") or [{}])[0])
-                       or self.get_playlist_artist(pl),
+                artist=_artist_name((t.get("artists") or [{}])[0]) or artist,
                 duration=duration_to_seconds(t.get("duration_seconds") or t.get("duration")),
                 track_number=t.get("index") or i,
             ))
@@ -140,25 +152,28 @@ class YTMusicSource(SourceProvider):
         return SourceAlbum(
             album_id=qualify(self.id, pid),
             title=pl.get("title") or "",
-            artist=self.get_playlist_artist(pl),
+            artist=artist,
             year=str(pl.get("year") or ""),
-            cover_url=_largest_thumb(pl.get("thumbnails") or [{}])["url"]
-                if pl.get("thumbnails") else None,
+            cover_url=_largest_thumb(pl.get("thumbnails") or []).get("url"),
             tracks=tracks,
         )
 
-    def get_playlist_artist(self, pl: dict) -> str:
-        """A playlist's 'artist': the author when it's an album-style playlist."""
+    def _playlist_artist(self, pl: dict) -> str:
+        """A playlist's 'artist': the owner/channel (an album-style playlist's
+        author), else empty (the per-track artists carry the names)."""
         owner = pl.get("owner")
         if isinstance(owner, dict) and owner.get("name"):
             return owner["name"]
         if isinstance(owner, list):
             names = [o.get("name", "") for o in owner if isinstance(o, dict)]
-            return names[0] if names else ""
+            if names:
+                return names[0]
         ch = pl.get("channel")
         if isinstance(ch, dict):
             return ch.get("name", "")
-        return owner or ""
+        if isinstance(owner, str) and owner:
+            return owner
+        return ""
 
     def stream_url(self, track_id: str) -> StreamSpec:
         _, raw = unqualify(track_id)
@@ -167,14 +182,13 @@ class YTMusicSource(SourceProvider):
 
     def cover_art(self, album_id: str) -> bytes:
         """Fetch the album/playlist's thumbnail bytes for the CoverService
-        cache. Raises when the thumb can't be fetched (the caller owns the
-        fallback)."""
+        cache."""
         import requests as requests_mod
         aid = unqualify(album_id)[1]
         if aid.startswith("MPREb"):
-            url = _largest_thumb(self._ytm().get_album(aid).get("thumbnails") or [{}])["url"]
+            url = _largest_thumb(self._ytm().get_album(aid).get("thumbnails") or []).get("url")
         elif aid.startswith("OLAK5uy"):
-            url = _largest_thumb(self._ytm().get_playlist(aid).get("thumbnails") or [{}])["url"]
+            url = _largest_thumb(self._ytm().get_playlist(aid).get("thumbnails") or []).get("url")
         else:
             raise ValueError(f"Unsupported ytmusic album id for cover art: {album_id}")
         if not url:
@@ -184,24 +198,25 @@ class YTMusicSource(SourceProvider):
         return resp.content
 
     def search(self, query: str, limit: int = 20) -> list:
-        """The crate: tracks + albums as SourceHits."""
-        results = self._ytm().search(query, filter=None) or []
+        """The crate (the public search): tracks + albums as SourceHit-shaped
+        dicts. Un-authed album rows carry browseId AND playlistId."""
+        results = self._ytm().search(query) or []
         hits = []
         for r in results[:limit]:
             kind = r.get("resultType", "")
-            if kind in ("video", "song"):
+            if kind in ("video", "song") and r.get("videoId"):
                 hits.append(dict(kind="track", track_id=qualify(self.id, r["videoId"]),
-                                 title=r.get("title", ""), artist=_artist_name((r.get("artists") or [{}])[0])))
-            elif kind in ("album", "playlist"):
-                hits.append(dict(kind="album", album_id=qualify(self.id, r.get("albumId") or r.get("playlistId") or ""),
-                                 title=r.get("title", ""), artist=_artist_name((r.get("artists") or [{}])[0])))
+                                 title=r.get("title", ""),
+                                 artist=_artist_name((r.get("artists") or [{}])[0]),
+                                 duration=duration_to_seconds(r.get("duration"))))
+            elif kind in ("album", "playlist") and (r.get("browseId") or r.get("playlistId")):
+                hits.append(dict(
+                    kind="album",
+                    album_id=qualify(self.id, r.get("browseId") or r.get("playlistId")),
+                    title=r.get("title", ""),
+                    artist=_artist_name((r.get("artists") or [{}])[0]),
+                    playlist_id=r.get("playlistId", "")))
         return hits
 
     def scrobble(self, track_id: str) -> bool:
-        return False  # SCROBBLE not a ytmusic capability for now
-
-
-def _largest_thumb(thumbs: list) -> dict:
-    """The BIGGEST thumbnail (ytmusicapi rows: {width,height,url})."""
-    return max((t for t in thumbs if isinstance(t, dict) and t.get("url")),
-               key=lambda t: t.get("width") or 0, default={})
+        return False  # SCROBBLE is not a ytmusic capability for now
