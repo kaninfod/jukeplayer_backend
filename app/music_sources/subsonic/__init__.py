@@ -165,15 +165,27 @@ class SubsonicSource(SourceProvider):
         gonic albums without a restart; caching/refresh is the
         ArtistMetadataService's job now.
         """
-        data = self.api._api_request("getMusicDirectory", {"id": "al-1"}).json()
-        logger.info(f"SubsonicService: Found {len(data.get('subsonic-response', {}).get('directory', {}).get('child', []))} artists from Subsonic")
-        directory = data.get("subsonic-response", {}).get("directory", {})
-        artists = directory.get("child", [])
-        # Only include entries where isDir is True (artists are directories)
-        return [
-            {"id": artist.get("id"), "name": artist.get("title")}
-            for artist in artists if artist.get('isDir', False)
+        # Was: getMusicDirectory(id="al-1") — a hard-coded artist-root id that
+        # happened to BE gonic's root directory in the old id space. The
+        # 2026-10-16 docker restart on hingepi (gonic up before the samba
+        # music volume was mounted) made the re-scan REGENERATE the id space:
+        # al-1 stopped existing (an empty directory answer lives there now)
+        # while getAlbumList2/getGenres/getArtists answered normally — so the
+        # artist directory went a permanent "0 artists" and every refresh and
+        # restart re-cached the zeros. getIndexes is the canonical
+        # directory-tree artist index; it returns the same id space the
+        # per-artist getMusicDirectory flow browses (measured live on gonic:
+        # 244 artists, Adele al-975 -> getMusicDirectory(al-975) = 4 albums).
+        # Idempotent across rescans: getIndexes reads the CURRENT space.
+        data = self.api._api_request("getIndexes").json()
+        blocks = data.get("subsonic-response", {}).get("indexes", {}).get("index", []) or []
+        artists = [
+            {"id": artist.get("id"), "name": artist.get("name")}
+            for block in blocks
+            for artist in (block.get("artist", []) or [])
         ]
+        logger.info(f"SubsonicService: Found {len(artists)} artists from Subsonic (getIndexes)")
+        return artists
 
     def search_artists(self, query: str, count: int = 50) -> list:
         """search ARTISTS ONLY. IMPORTANT (measured on gonic 0.22): search2
