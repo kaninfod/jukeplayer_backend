@@ -103,3 +103,24 @@ async def test_start_refusal_raises_playback_error(media_player_service, mock_pl
     assert emitted[0].payload["source"] == "start_refused"
     assert emitted[0].payload["message"] == "Target card not present (unplugged?)"
     assert emitted[0].payload["device_name"] == "zd3"
+
+
+@pytest.mark.asyncio
+async def test_stop_clears_the_queue(media_player_service):
+    """Stop = permanent (the user's intent): the queue is cleared — no silent
+    resume from pressing play on a stopped player, nothing survives to be
+    resurrected by a later cast (the espresso/HA lesson 2026-10-16)."""
+    from app.services.media_player_service.playlist_manager import PlaylistItem
+    media_player_service.playlist_manager.add_item(PlaylistItem(
+        track_id="tr-1", stream_url="http://example/tr-1", duration="200",
+        track_number=1, title="Song", artist="A", album="Al", year="2000", cover_url=""))
+    media_player_service.playlist_manager._repeat_album = True
+    media_player_service.status = media_player_service.status.PLAY
+
+    result = await media_player_service.stop()
+
+    assert result is True
+    assert media_player_service.status.value == "idle"
+    assert media_player_service.playlist_manager.count() == 0
+    assert media_player_service.playlist_manager.current_track is None
+    assert media_player_service.playlist_manager._repeat_album is False

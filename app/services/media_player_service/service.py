@@ -97,14 +97,18 @@ class MediaPlayerService:
         return True    
 
     async def stop(self, event=None):
+        """Stop = DONE (the user's intent, 2026-10-16): the QUEUE is cleared
+        with it — the next music comes from a fresh selection, never from
+        pressing play on a stopped player, and nothing survives to be
+        resurrected by a later cast (the espresso/HA lesson). Repeat-album
+        state goes with the queue; the CC receiver app is torn down by the
+        backend's own stop."""
         await self.playback_backend.stop()
         self.status = PlayerStatus.STOP
-        
-        if self.playlist_manager.count() > 0:
-            self.playlist_manager.current_index = 0
+        self.playlist_manager.clear()
         self.track_timer.reset()
 
-        self.playlist = []                
+        self.playlist = []
         return True
 
     async def play_pause(self, event=None):

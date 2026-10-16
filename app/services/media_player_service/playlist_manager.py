@@ -72,8 +72,11 @@ class PlaylistManager:
 
     
     def clear(self):
+        """Empty the queue AND drop the play-session state: a stale
+        repeat-album intent must never silently loop the NEXT album."""
         self.items.clear()
         self._current_index = 0
+        self._repeat_album = False
 
     def to_dict(self):
         return [asdict(item) for item in self.items]
