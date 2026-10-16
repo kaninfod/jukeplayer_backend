@@ -229,7 +229,18 @@ class MediaPlayerService:
         HTTP call runs in the default executor, errors are logged there."""
         try:
             from app.core.service_container import get_service
-            subsonic_service = get_service("subsonic_service")
+            from app.music_sources.base import SourceCapability, unqualify
+
+            # The queue's track ids are namespaced ("subsonic:tr-…") since the
+            # music-source seam: pick the source the queue item actually
+            # belongs to and scrobble only when that source scrobbles.
+            pid, raw_track_id = unqualify(track_id)
+            source = get_service("music_sources").get(pid)
+            if SourceCapability.SCROBBLE not in getattr(source, "capabilities", frozenset()):
+                logger.debug(f"_scrobble_track_now_playing: source '{source.id}' does not scrobble — skipping '{track_title}'")
+                return
+            subsonic_service = source
+            track_id = raw_track_id
 
             if not subsonic_service:
                 logger.warning(f"_scrobble_track_now_playing: SubsonicService not available, skipping scrobble for '{track_title}'")

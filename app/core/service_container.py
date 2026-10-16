@@ -56,11 +56,22 @@ def create_config_service(container):
     from app.services.config_store import ConfigService
     return ConfigService(store=container.get('config_store'), system_config=container.get('config'))
 
-def create_subsonic_service(container):
-    from app.services.subsonic_service import SubsonicService
+def create_music_source_registry(container):
+    """The music-source registry — the seam (app/music_sources). Phase 1
+    seeds the subsonic source from the existing config adapter."""
+    from app.music_sources.registry import SourceRegistry
+    from app.music_sources.subsonic import SubsonicSource
     from app.services.config_store import SubsonicConfigAdapter
     config_service = container.get('config_service')
-    return SubsonicService(SubsonicConfigAdapter(config_service))
+    registry = SourceRegistry(default_pid="subsonic")
+    registry.register(SubsonicSource(SubsonicConfigAdapter(config_service)))
+    return registry
+
+def create_subsonic_service(container):
+    """Compat alias: the subsonic SOURCE under its historical container key —
+    the /api/subsonic routes, CoverService and the metadata warm-up keep
+    consuming the same instance untouched."""
+    return container.get('music_sources').get('subsonic')
 
 def create_artist_metadata_service(container):
     from app.services.artist_metadata_service import ArtistMetadataService
@@ -73,7 +84,7 @@ def create_cover_service(container):
 def create_playback_service(container):
     from app.services.playback_service import PlaybackService
     return PlaybackService(
-        subsonic_service=container.get('subsonic_service'),
+        music_sources=container.get('music_sources'),
         event_bus=container.get('event_bus')
     )
 
@@ -123,6 +134,7 @@ def setup_service_container():
     container.register_singleton('config_store', create_config_store)
     container.register_singleton('config_service', create_config_service)
     container.register_singleton('subsonic_service', create_subsonic_service)
+    container.register_singleton('music_sources', create_music_source_registry)
     container.register_singleton('artist_metadata_service', create_artist_metadata_service)
     container.register_singleton('cover_service', create_cover_service)
 
