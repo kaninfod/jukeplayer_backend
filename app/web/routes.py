@@ -593,7 +593,15 @@ async def kiosk_devices_bt_toggle(payload: dict = Body(...)):
     if speaker_obj.connected:
         result = await manager.disconnect_speaker(name)
     else:
-        result = await manager.connect_speaker(name)
+        try:
+            result = await manager.connect_speaker(name)
+        except ValueError as e:
+            # The device can't be claimed from here right now — e.g. another
+            # host (the phone) holds the link; our BlueZ only sees its own
+            # adapter's truth, so this surfaces as a connect failure. A human
+            # refusal beats an internal error; the reconnect backoff state
+            # pass keeps trying meanwhile.
+            return {"name": name, "connected": False, "ok": False, "error": str(e)}
     return {"name": name, "connected": result["connected"]}
 
 

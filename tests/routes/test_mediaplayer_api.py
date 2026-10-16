@@ -335,3 +335,26 @@ async def test_menu_sheet_renders_speaker_quick_select(initialized_app):
         assert "menu-sheet-speaker" in html
         assert "living_room" in html
         assert "Media Library" in html and "Playlist" in html and "Output Devices" in html
+
+@pytest.mark.asyncio
+async def test_bt_toggle_refusal_is_a_human_error_not_a_500(initialized_app):
+    """Connecting a BT speaker that another host (the phone) holds: BlueZ
+    fails, the manager raises ValueError — the route must translate it into
+    a structured refusal (the client toasts body.error), not an internal
+    server error (found 2026-10-16 on the headphones)."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        _inject_speaker("living_room", default=True)
+        from unittest.mock import AsyncMock
+        manager = _get_service("speaker_manager")
+        speaker = manager.speakers.get_speaker(speaker_name="living_room")
+        speaker.type = "bluetooth"
+        speaker.connected = False
+
+        manager.connect_speaker = AsyncMock(side_effect=ValueError("Connection attempt failed — device busy?"))
+
+        resp = await client.post("/kiosk/devices/bt-toggle", json={"name": "living_room"})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["connected"] is False
+        assert "Connection attempt failed" in body["error"]
