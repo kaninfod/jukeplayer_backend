@@ -29,6 +29,7 @@ from app.routes.config_api import router as config_router
 from app.routes.output import router as output_router
 from app.routes.nfc_encoding import router as nfc_encoding_router
 from app.routes.bluetooth_api import router as bluetooth_router
+from app.routes.sources_api import router as sources_router
 
 
 # Import services to ensure event subscriptions are active
@@ -109,6 +110,7 @@ app.include_router(subsonic_router)
 app.include_router(output_router)
 app.include_router(nfc_encoding_router)
 app.include_router(bluetooth_router)
+app.include_router(sources_router)
 app.include_router(web_router)
 app.include_router(wsmediaplayer_router)
 app.include_router(config_router)

@@ -54,7 +54,7 @@ class MPVService(PlaybackBackend):
             audio_display="no",
             force_window="no",
             really_quiet=True,
-            ytdl=False,
+            ytdl=bool(getattr(self.config, "MPV_YTDL", True)),
             log_handler=_mpv_log,
             loglevel="warn",
             cache="yes" if self.config.MPV_CACHE_ENABLED else "no",

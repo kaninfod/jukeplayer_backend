@@ -90,16 +90,25 @@ class CoverService:
             self._save_variants(img, paths, size)
 
     # --- the public flow -------------------------------------------------------------
+    def _fetch_art(self, album_id: str) -> bytes:
+        """Source-aware raw-art fetch: yt-shaped ids (MPREb…/OLAK5uy…) come
+        from the ytmusic provider's thumbnails; everything else = the
+        subsonic client (the gonic faculty), as always."""
+        if str(album_id).startswith(("MPREb", "OLAK5uy")):
+            from app.core.service_container import get_service
+            return get_service("music_sources").get("ytmusic").cover_art(album_id)
+        return self.subsonic.cover_art_bytes(album_id)
+
     def ensure_cover(self, album_id: str, size: int = 180) -> str:
         """Ensure a cached variant exists; return its URL. Cache-first,
-        fetch-once from gonic via the subsonic client's byte stream, fall
-        back to the generated placeholder."""
+        fetch-once from the source (source-aware), fall back to the generated
+        placeholder."""
         paths = self._cover_paths(album_id, size)
         self._ensure_dir(self._cover_dir(album_id))
         if os.path.exists(paths["webp"]) or os.path.exists(paths["jpg"]):
             return self._cover_url(album_id, size)
         try:
-            raw = self.subsonic.cover_art_bytes(album_id)
+            raw = self._fetch_art(album_id)
             img = Image_from_bytes(raw)
             self._save_variants(img, paths, size)
             return self._cover_url(album_id, size)

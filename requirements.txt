@@ -34,3 +34,7 @@ python-mpv-jsonipc>=1.2.0
 # Note: Hardware packages (pi-rc522, RPi.GPIO, spidev) are Pi client only
 # Backend is platform-agnostic and runs on Mac/Linux/Docker
 
+
+# music sources (phase 2 — the yt music provider)
+ytmusicapi>=1.12,<2
+yt-dlp>=2025.1.1

@@ -102,7 +102,7 @@ class PlaybackService:
                 duration=track.duration,
                 track_number=track.track_number,
                 title=track.title,
-                artist=album.artist,
+                artist=track.artist or album.artist,   # yt playlist rows carry per-track artists
                 album=album.title,
                 year=album.year,
                 cover_url=album.cover_url

@@ -52,9 +52,19 @@ SECTION_DEFAULTS: Dict[str, Any] = {
         "jazz": {"bands_db": {"125": 1, "1000": -0.5, "8000": 1.5, "16000": 1}},
         "classical": {"bands_db": {"63": 0.5, "125": 0.5, "2000": -0.5, "8000": 1, "16000": 0.5}},
     },
+    # the music-source registry's config-facing half (the seam's phase 2):
+    # subsonic stays enabled by default (its creds live in the legacy
+    # `subsonic` section); ytmusic needs the user's GCP client + the OAuth
+    # token handed over by the device-flow (stored right here).
+    "sources": {
+        "subsonic": {"enabled": True},
+        "ytmusic": {"enabled": False, "client_id": "", "client_secret": "", "token": None, "auth_pending": None},
+    },
 }
 
 SECRET_KEYS = {("subsonic", "password")}
+# the sources section carries provider secrets (GCP creds + the OAuth token)
+SECRET_NESTED = {("sources", "token"), ("sources", "client_secret")}
 
 VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
@@ -66,6 +76,7 @@ SECTION_APPLIES = {
     "server": "restart",
     "speakers": "live",  # live since Phase B: add/remove applies without restart
     "sound_presets": "live",
+    "sources": "restart",  # the source registry is a boot-time singleton
 }
 
 
@@ -397,6 +408,9 @@ def mpv_config_view(config_service: ConfigService, device_name: Optional[str],
         MPV_BINARY=shared.get("binary", "mpv"),
         MPV_EXTRA_ARGS="",
         MPV_STARTUP_TIMEOUT_SECONDS=int(shared.get("startup_timeout", 5)),
+        # the yt-dlp extractor integration for online-source urls (external
+        # sources resolve via yt-dlp; plain http streams are untouched)
+        MPV_YTDL=bool(shared.get("ytdl", True)),
         # reserved for the USB-DAC backburner item
         MPV_AUDIO_DEVICE=options.get("audio_device") or "",
         # the sound chain: the speaker's room correction (the legacy

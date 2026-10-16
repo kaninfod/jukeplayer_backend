@@ -57,15 +57,40 @@ def create_config_service(container):
     return ConfigService(store=container.get('config_store'), system_config=container.get('config'))
 
 def create_music_source_registry(container):
-    """The music-source registry — the seam (app/music_sources). Phase 1
-    seeds the subsonic source from the existing config adapter."""
+    """The music-source registry (the seam, app/music_sources) — now
+    CONFIG-DRIVEN from the store's `sources` section:
+    - subsonic: on unless explicitly disabled (the creds = the legacy section);
+    - ytmusic: registered when enabled AND the device-flow handed over a
+      token (persisted inside the section); a broken token skips quietly."""
     from app.music_sources.registry import SourceRegistry
     from app.music_sources.subsonic import SubsonicSource
     from app.config.store import SubsonicConfigAdapter
     config_service = container.get('config_service')
+    store = container.get('config_store')
     registry = SourceRegistry(default_pid="subsonic")
-    registry.register(SubsonicSource(SubsonicConfigAdapter(config_service)))
+    sources_cfg = store.section("sources") or {}
+    if (sources_cfg.get("subsonic") or {}).get("enabled", True) is not False:
+        registry.register(SubsonicSource(SubsonicConfigAdapter(config_service)))
+    ytm = sources_cfg.get("ytmusic") or {}
+    if ytm.get("enabled") and ytm.get("token"):
+        from app.music_sources.ytmusic import YTMusicSource
+        try:
+            registry.register(YTMusicSource(ytm))
+            logger.info("[sources] ytmusic provider registered")
+        except Exception as e:
+            logger.warning(f"[sources] ytmusic skipped: {e}")
+    else:
+        logger.debug("[sources] ytmusic not configured (no token) — skipped")
     return registry
+
+
+def create_album_store(container):
+    """The collection ledger (the record store) — a tiny sqlite beside the
+    config store."""
+    from app.music_sources.collection import AlbumStore
+    import os
+    config_path = container.get('config_store').path or os.path.join("data", "config.json")
+    return AlbumStore(path=os.path.join(os.path.dirname(config_path) or ".", "collection.db"))
 
 def create_subsonic_service(container):
     """Compat alias: the subsonic SOURCE under its historical container key —
@@ -135,6 +160,7 @@ def setup_service_container():
     container.register_singleton('config_service', create_config_service)
     container.register_singleton('subsonic_service', create_subsonic_service)
     container.register_singleton('music_sources', create_music_source_registry)
+    container.register_singleton('album_store', create_album_store)
     container.register_singleton('artist_metadata_service', create_artist_metadata_service)
     container.register_singleton('cover_service', create_cover_service)
 
