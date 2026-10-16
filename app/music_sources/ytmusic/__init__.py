@@ -1,12 +1,11 @@
 """YTMusicSource — the second citizen behind the seam (backend-first slice).
 
-AUTH MODE (decided 2026-10-16): PUBLIC/un-authed by default. ytmusicapi's
-public surface (search, get_album(MPREb…), get_playlist(OLAK5uy…)) needs no
-session, and Google's private endpoints reject the device-flow OAuth tokens
-(FAILED_PRECONDITION — Music Assistant's production provider went through
-the same wall and settled on cookies+PO-token; that lane stays parked here).
-IF a token exists in the config (a future Google reopening, or a premium
-lane), the client builds in its authed mode instead — dual mode by design.
+AUTH MODE (2026-10-16): PUBLIC/un-authed ONLY — google's private endpoints
+reject the device-flow OAuth tokens (FAILED_PRECONDITION, proven live with
+a correct TV-client token and a primary account; MA's production provider
+went through the same wall and settled on cookies+PO-token). Any stored
+token stays parked in the config, inert; the parked auth code (auth.py + the
+/api/sources/ytmusic/auth* routes) awaits the day the wall moves.
 
 - `load_album` accepts both id shapes: MPREb… (→ get_album) and
   OLAK5uy… (→ get_playlist; its title = the album's name).
@@ -64,36 +63,24 @@ class YTMusicSource(SourceProvider):
 
     def __init__(self, config: Optional[dict] = None):
         self.config = dict(config or {})
-        # a stored token is OPTIONAL: present = the authed mode (a Google
-        # reopening / a premium lane); absent = the public mode (today's path)
-        token = self.config.get("token") or {}
-        self._token = token if token.get("access_token") else None
+        # THE PUBLIC MODE IS THE ONLY ACTIVE MODE (2026-10-16): google's
+        # private endpoints reject the device-flow OAuth tokens outright
+        # (FAILED_PRECONDITION — proven live, and MA's production provider
+        # carries the same history). Any stored token stays parked in the
+        # config, inert, until that wall moves.
+        self._token = None
         self._client = None
 
     def _ytm(self):
         if self._client is None:
-            from ytmusicapi import YTMusic, OAuthCredentials
-            if self._token:
-                creds = OAuthCredentials(client_id=self.config.get("client_id", ""),
-                                         client_secret=self.config.get("client_secret", ""))
-                self._client = YTMusic(auth=self._token, oauth_credentials=creds)
-                logger.info("[ytm] authed client built (token present)")
-            else:
-                self._client = YTMusic()
-                logger.info("[ytm] public (un-authed) client built")
+            from ytmusicapi import YTMusic
+            self._client = YTMusic()   # the public surface: search + albums + playlists
+            logger.info("[ytm] public (un-authed) client built")
         return self._client
 
     def is_ready(self) -> bool:
-        """The public surface = effectively always ready; an authed token =
-        one cheap library probe to prove the grant still lives."""
-        if not self._token:
-            return True
-        try:
-            self._ytm().get_library_songs(limit=1)
-            return True
-        except Exception as e:
-            logger.info(f"ytm is_ready probe failed (authed mode): {e}")
-            return False
+        """The public surface = effectively always ready."""
+        return True
 
     def load_album(self, album_id: str) -> SourceAlbum:
         aid = str(album_id or "").strip()

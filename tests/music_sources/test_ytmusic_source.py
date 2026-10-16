@@ -114,11 +114,13 @@ def test_capabilities_declared():
     assert src.scrobble("ytmusic:v") is False
 
 
-def test_token_present_switches_to_authed_mode():
-    """The dual mode: a token-carrying config keeps the token; the client
-    would build authed on its first use (the future/premium lane)."""
+def test_stored_token_stays_parked():
+    """The public-only mode (2026-10-16): a stored token is inert, never
+    authed — google's precondition wall is the reason; the token remains in
+    the config for the day that changes."""
     src = YTMusicSource({"enabled": True, "client_id": "c", "client_secret": "s",
                          "token": {"access_token": "a", "refresh_token": "r",
                                    "scope": "s", "token_type": "Bearer",
                                    "expires_at": time_mod.time() + 3600}})
-    assert src._token.get("access_token") == "a"
+    assert src._token is None
+    assert src.is_ready() is True
