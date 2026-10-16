@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.core.service_container import get_service
+from app.music_sources.ytmusic.auth import PendingGrant
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -128,24 +129,26 @@ async def _poll_device_flow():
             return
         try:
             token = YTMusicAuth(cfg["client_id"], cfg["client_secret"]).complete(pending["device_code"])
-        except Exception as e:
-            msg = str(e).lower()
-            if "expired_token" in msg or "access_denied" in msg or "slow_down" not in msg and "pending" not in msg:
-                logger.warning(f"[ytm] device flow aborted: {e}")
-                _store_ytm_cfg({"auth_pending": None})
-                return
-            continue  # authorization_pending / slow_down → keep polling
+        except PendingGrant:
+            continue   # google says the user hasn't finished yet — keep polling
+        except ValueError as e:
+            logger.warning(f"[ytm] device flow ended without a grant: {e}")
+            _store_ytm_cfg({"auth_pending": None})
+            return
         _store_ytm_cfg({"token": token, "auth_pending": None})
-        logger.info("[ytm] authorized — token stored; restart applies the new source to the registry")
+        logger.info("[ytm] authorized — refreshable token stored; restart applies the new source to the registry")
         return
 
 
 @router.get("/ytmusic/auth/status")
 async def ytm_auth_status():
-    """The state bits only (no network probe): what the polling is doing."""
+    """The state bits only (no network probe): what the polling is doing.
+    has_token only believes dictionaries that actually carry an access
+    token (the wait-notice impostor lesson)."""
     cfg = _ytm_cfg()
+    token = cfg.get("token") or {}
     return {"has_client_credentials": bool(cfg.get("client_id") and cfg.get("client_secret")),
-            "has_token": bool(cfg.get("token")),
+            "has_token": bool(token.get("access_token")),
             "user_code": (cfg.get("auth_pending") or {}).get("user_code"),
             "verification_url": (cfg.get("auth_pending") or {}).get("verification_url"),
             "enabled": bool(cfg.get("enabled", False))}

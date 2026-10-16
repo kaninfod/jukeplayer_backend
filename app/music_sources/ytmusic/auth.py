@@ -17,6 +17,11 @@ from ytmusicapi import OAuthCredentials
 logger = logging.getLogger(__name__)
 
 
+class PendingGrant(RuntimeError):
+    """Google says 'not yet' (authorization_pending / slow_down) — the
+    caller keeps polling; this is not a failure."""
+
+
 class YTMusicAuth:
     def __init__(self, client_id: str, client_secret: str):
         if not (client_id and client_secret):
@@ -28,6 +33,21 @@ class YTMusicAuth:
         return self._creds.get_code()
 
     def complete(self, device_code: str) -> dict:
-        """Exchange the (authorized) device_code for the refreshable token."""
-        token = self._creds.token_from_code(device_code)
-        return dict(token)
+        """Exchange the (authorized) device_code for the refreshable token.
+
+        ytmusicapi's token_from_code does NOT raise for a not-yet-authorized
+        device code — it RETURNS the error dict ('authorization_pending').
+        This normalizes that: PendingGrant while waiting, ValueError on
+        denial/expiry, and ONLY a token-carrying dict on a real grant — the
+        stored 'token' can never hold a wait-notice (the 2026-10-16
+        first-add bug was exactly that shape)."""
+        token = dict(self._creds.token_from_code(device_code))
+        if token.get("error"):
+            err = token["error"]
+            if err in ("authorization_pending", "slow_down"):
+                raise PendingGrant(err)
+            raise ValueError(f"device flow ended without a grant: {err} ({token.get('error_description', '')})")
+        for key in ("access_token", "refresh_token", "scope", "token_type"):
+            if not token.get(key):
+                raise ValueError(f"grant response missing '{key}' — refusing to store an incomplete token")
+        return token

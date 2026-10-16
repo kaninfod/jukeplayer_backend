@@ -211,3 +211,43 @@ async def test_search_passes_through_hits(monkeypatch, tmp_path):
     patched_env(monkeypatch, tmp_path, ytm=ytm)
     result = await ytm_search(q="anything")
     assert result["hits"] == [{"kind": "track", "title": "Hit"}]
+
+@pytest.mark.asyncio
+async def test_poller_keeps_polling_while_pending(monkeypatch, tmp_path):
+    """ytmusicapi RETURNS the wait-notice instead of raising — the poller
+    must treat PendingGrant as 'still typing' and keep polling; the first
+    add-bug was storing that notice as the token."""
+    import time as time_mod
+    import app.routes.sources_api as api_mod
+    services = patched_env(monkeypatch, tmp_path)
+    services["config_store"].update_section("sources", {
+        "ytmusic": {"enabled": True, "client_id": "c", "client_secret": "s",
+                    "auth_pending": {"device_code": "D", "user_code": "U",
+                                     "interval": 5, "expires": time_mod.time() + 600}}})
+    auth = MagicMock()
+    full = {"access_token": "a", "refresh_token": "r", "scope": "s", "token_type": "Bearer",
+            "expires_at": time_mod.time() + 3600}
+    auth.complete.side_effect = [api_mod.PendingGrant("authorization_pending"), full]
+    monkeypatch.setattr("app.music_sources.ytmusic.auth.YTMusicAuth", MagicMock(return_value=auth))
+    monkeypatch.setattr(api_mod.asyncio, "sleep", AsyncMock())
+
+    await api_mod._poll_device_flow()
+
+    cfg = services["config_store"].section("sources")["ytmusic"]
+    assert cfg["token"]["access_token"] == "a"      # the real grant stored
+    assert cfg["auth_pending"] is None
+
+
+def test_pending_error_dict_is_never_accepted_as_token(monkeypatch):
+    """complete() refuses the wait-notice shape (the first-add bug 2026-10-16)."""
+    from app.music_sources.ytmusic.auth import YTMusicAuth, PendingGrant
+    import app.music_sources.ytmusic.auth as auth_mod
+    auth = YTMusicAuth.__new__(YTMusicAuth)
+    auth._creds = MagicMock()
+    auth._creds.token_from_code.return_value = {"error": "authorization_pending",
+                                                "error_description": "Precondition Required"}
+    with pytest.raises(PendingGrant):
+        auth.complete("DEVCODE")
+    auth._creds.token_from_code.return_value = {"access_token": "x"}   # incomplete grant
+    with pytest.raises(ValueError, match="incomplete token"):
+        auth.complete("DEVCODE")
