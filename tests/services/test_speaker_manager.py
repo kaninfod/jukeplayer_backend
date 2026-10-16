@@ -50,7 +50,7 @@ def stack(tmp_path, monkeypatch):
     def fake_build(entry):
         audio_device = (entry.get("options") or {}).get("audio_device") or ""
         backend_name = entry.get("backend", "chromecast")
-        from app.services.bluetooth_service import mac_from_sink_id
+        from app.bluetooth.service import mac_from_sink_id
         bt_mac = mac_from_sink_id(audio_device)
         speaker_type = ("chromecast" if backend_name == "chromecast"
                         else "bluetooth" if bt_mac else "local")

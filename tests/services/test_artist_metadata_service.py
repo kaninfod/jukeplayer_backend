@@ -8,7 +8,7 @@ The contract this locks in (all measured on gonic 0.22):
     instead of failing the whole refresh"""
 import pytest
 
-from app.services.artist_metadata_service import ArtistMetadataService
+from app.music_sources.subsonic.metadata import ArtistMetadataService
 
 
 class FakeSubsonic:

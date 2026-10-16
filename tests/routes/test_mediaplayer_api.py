@@ -66,7 +66,7 @@ def _inject_speaker(name, context=None, default=False):
 
 def _inject_control_client(client_id, speaker_name=None):
     from app.core.service_container import get_service
-    from app.services.control_clients_service import ControlClient
+    from app.speakers.control_clients import ControlClient
 
     ccs = get_service("control_clients_service")
     client = ControlClient(client_id=client_id, client_type="home_assistant",

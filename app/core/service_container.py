@@ -35,7 +35,7 @@ class ServiceContainer:
 
 # --- Service factory functions ---
 def create_nfc_encoding_state(container):
-    from app.services.nfc_encoding_state import NfcEncodingStateService
+    from app.nfc.state import NfcEncodingStateService
     return NfcEncodingStateService()
 
 
@@ -74,11 +74,11 @@ def create_subsonic_service(container):
     return container.get('music_sources').get('subsonic')
 
 def create_artist_metadata_service(container):
-    from app.services.artist_metadata_service import ArtistMetadataService
+    from app.music_sources.subsonic.metadata import ArtistMetadataService
     return ArtistMetadataService(container.get('subsonic_service'))
 
 def create_cover_service(container):
-    from app.services.cover_service import CoverService
+    from app.music_sources.covers import CoverService
     return CoverService(container.get('subsonic_service'))
 
 def create_playback_service(container):
@@ -96,7 +96,7 @@ def create_speaker_broker_service(container):
     return SpeakerBrokerService(control_clients, speakers, event_bus)
 
 def create_control_clients_service(container):
-    from app.services.control_clients_service import ControlClientsService
+    from app.speakers.control_clients import ControlClientsService
 
     logger.info("Initializing ControlClientsService")
 
@@ -118,7 +118,7 @@ def create_speaker_manager_service(container):
     )
 
 def create_bluetooth_service(container):
-    from app.services.bluetooth_service import BluetoothService
+    from app.bluetooth.service import BluetoothService
     return BluetoothService()
 
 

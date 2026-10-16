@@ -233,7 +233,7 @@ def _connect_card_context(message: str | None = None, error: str | None = None,
     bt_list = []
     if bt_devices is not None:
         managed_macs = set()
-        from app.services.bluetooth_service import mac_from_sink_id
+        from app.bluetooth.service import mac_from_sink_id
         for s in manager.configured():
             mac = mac_from_sink_id((s.get("options") or {}).get("audio_device"))
             if mac:
@@ -518,7 +518,7 @@ async def kiosk_speakers_default_dropdown(request: Request):
 def _managed_speaker_macs() -> set:
     """MACs of BT devices that already have a speaker entry in the store —
     they are managed from the Speakers card, not the Bluetooth card."""
-    from app.services.bluetooth_service import mac_from_sink_id
+    from app.bluetooth.service import mac_from_sink_id
     macs = set()
     try:
         manager = get_service("speaker_manager")

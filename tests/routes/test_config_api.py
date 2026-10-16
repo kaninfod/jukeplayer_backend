@@ -253,7 +253,7 @@ def _inject_esp_client(client_id="esp_test"):
     /kiosk/configure/<id> render tests."""
     from datetime import datetime
     from app.core.service_container import get_service
-    from app.services.control_clients_service import ControlClient
+    from app.speakers.control_clients import ControlClient
     svc = get_service("control_clients_service")
     svc._clients[client_id] = ControlClient(
         client_id=client_id, client_type="esp32", user_name="Test Wall",

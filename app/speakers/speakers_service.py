@@ -88,7 +88,7 @@ class SpeakersService:
             device_name=device_name
         )
         # type from backend + options: BT speakers are mpv-backed with a bluez sink
-        from app.services.bluetooth_service import mac_from_sink_id
+        from app.bluetooth.service import mac_from_sink_id
         audio_device = (entry.get("options") or {}).get("audio_device") or ""
         bt_mac = mac_from_sink_id(audio_device)
         if backend_name == "chromecast":

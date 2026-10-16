@@ -9,7 +9,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 from app.core import Event, EventType, EventBus
-from app.services.control_clients_service import ControlClient, ControlClientsService
+from app.speakers.control_clients import ControlClient, ControlClientsService
 from app.speakers.speaker_broker_service import SpeakerBrokerService
 from app.speakers.speakers_service import Speaker, SpeakersService
 

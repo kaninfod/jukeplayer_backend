@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from PIL import Image
 
-from app.services.cover_service import CoverService
+from app.music_sources.covers import CoverService
 
 
 def _red_png(size=64):
