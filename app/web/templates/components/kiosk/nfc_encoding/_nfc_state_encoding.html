@@ -1,0 +1,18 @@
+{# State: ENCODING — the album hero with the write-spinner overlay; the
+   reader's name tells you which bench holds the card. #}
+<div data-nfcencoding-target="encoding" id="nfc-encoding" class="d-none">
+    <div class="nfc-encode-hero">
+        <div class="nfc-encode-cover-wrap">
+            <img class="nfc-encode-cover"
+                 src="/assets/covers/{{ album_id|e }}/cover-180.webp"
+                 alt="{{ album_name|default('Album', true)|e }}"
+                 onerror="this.onerror=null;this.src='/assets/covers/_default/cover-180.jpg'">
+            <span class="nfc-encode-overlay"><i class="mdi mdi-loading mdi-spin"></i></span>
+        </div>
+        <div class="nfc-encode-album-name">{{ album_name|default('', true)|e }}</div>
+        <div class="nfc-encode-state-line">Writing to the card…</div>
+        {% if client_name %}
+        <div class="nfc-encode-reader"><i class="mdi mdi-lan me-1"></i>{{ client_name|e }}</div>
+        {% endif %}
+    </div>
+</div>

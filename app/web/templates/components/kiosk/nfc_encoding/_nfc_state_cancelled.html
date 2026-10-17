@@ -1,0 +1,15 @@
+{# State: CANCELLED — the quiet one; the hero without drama. #}
+<div data-nfcencoding-target="cancelled" id="nfc-cancelled" class="d-none">
+    <div class="nfc-encode-hero">
+        <div class="nfc-encode-cover-wrap">
+            <img class="nfc-encode-cover nfc-encode-cover-dim"
+                 src="/assets/covers/{{ album_id|e }}/cover-180.webp"
+                 alt="{{ album_name|default('Album', true)|e }}"
+                 onerror="this.onerror=null;this.src='/assets/covers/_default/cover-180.jpg'">
+            <span class="nfc-encode-badge badge-muted"><i class="mdi mdi-close-circle"></i></span>
+        </div>
+        <div class="nfc-encode-album-name">{{ album_name|default('', true)|e }}</div>
+        <div class="nfc-encode-state-line state-muted">Nothing written</div>
+        <p class="nfc-encode-hint">The card is untouched — start again from the album whenever you like.</p>
+    </div>
+</div>

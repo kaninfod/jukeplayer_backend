@@ -1,0 +1,17 @@
+{# State: SUCCESS — the album hero crowned with the green check; the card's
+   uid lands in the code line via the controller (it used to read ' - ' forever). #}
+<div data-nfcencoding-target="success" id="nfc-success" class="d-none">
+    <div class="nfc-encode-hero">
+        <div class="nfc-encode-cover-wrap">
+            <img class="nfc-encode-cover"
+                 src="/assets/covers/{{ album_id|e }}/cover-180.webp"
+                 alt="{{ album_name|default('Album', true)|e }}"
+                 onerror="this.onerror=null;this.src='/assets/covers/_default/cover-180.jpg'">
+            <span class="nfc-encode-badge badge-success"><i class="mdi mdi-check-bold"></i></span>
+        </div>
+        <div class="nfc-encode-album-name">{{ album_name|default('', true)|e }}</div>
+        <div class="nfc-encode-state-line state-good">Card Encoded!</div>
+        <p class="nfc-encode-hint">The plastic now binds this album — tap it on any jukebox reader to replay.</p>
+        <code data-nfcencoding-target="uid" class="nfc-encode-uid" id="nfc-encoded-uid">—</code>
+    </div>
+</div>
