@@ -1,0 +1,19 @@
+{# State: FAILURE — the album hero dimmed behind the red badge; the
+   error_message the backend surfaces travels to the text line (it used to
+   sit at 'Unknown error' forever, and failures used to masquerade as
+   success — the completed branch is status-aware now). #}
+<div data-nfcencoding-target="failure" id="nfc-failure" class="d-none">
+    <div class="nfc-encode-hero">
+        <div class="nfc-encode-cover-wrap">
+            <img class="nfc-encode-cover nfc-encode-cover-dim"
+                 src="/assets/covers/{{ album_id|e }}/cover-180.webp"
+                 alt="{{ album_name|default('Album', true)|e }}"
+                 onerror="this.onerror=null;this.src='/assets/covers/_default/cover-180.jpg'">
+            <span class="nfc-encode-badge badge-error"><i class="mdi mdi-alert-circle"></i></span>
+        </div>
+        <div class="nfc-encode-album-name">{{ album_name|default('', true)|e }}</div>
+        <div class="nfc-encode-state-line state-bad">Encoding Failed</div>
+        <p data-nfcencoding-target="errormessage" id="nfc-error-message" class="nfc-encode-error-text">Unknown error</p>
+        <p class="nfc-encode-hint">Remove the card and start the encoding again from the album.</p>
+    </div>
+</div>

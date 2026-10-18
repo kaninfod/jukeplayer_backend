@@ -1,50 +1,119 @@
-/* NFC Client Selection Component Styles */
+/* NFC kiosk styles — the card styling moved to the shared device-card
+   kit in kiosk.css (device-card / device-type-badge / device-player-pill /
+   icon-tile / device-card-footer are the shared vocabulary); this file
+   keeps what is nfc-specific: the NFC tile flavour, the keyframe
+   animations, and the encode-flow state screens' album hero. */
 
-.nfc-client-card {
-    padding: 20px;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    background: white;
+.icon-tile.tile-nfc {
+    background: rgba(0, 116, 217, .16);
+    border-color: rgba(0, 116, 217, .45);
+    color: #7cc0ff;
+}
+
+/* ---- the encode-flow states ---- */
+
+.nfc-encode-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.nfc-encode-cover-wrap {
+    position: relative;
+    width: 200px;
+}
+
+.nfc-encode-cover {
+    display: block;
+    width: 200px;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 1rem;
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .30);
+}
+
+.nfc-encode-cover-pulse { animation: cover-pulse 2s ease-in-out infinite; }
+@keyframes cover-pulse {
+    0%, 100% { box-shadow: 0 12px 32px rgba(0, 116, 217, .28); }
+    50% { box-shadow: 0 12px 48px rgba(0, 116, 217, .60); }
+}
+
+.nfc-encode-cover-dim { filter: grayscale(65%) brightness(.75); }
+
+.nfc-encode-overlay {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
-    gap: 20px;
+    justify-content: center;
+    border-radius: 1rem;
+    background: rgba(10, 14, 26, .45);
+    font-size: 3rem;
+    color: #fff;
 }
 
-.nfc-client-card:hover {
-    border-color: #0074d9;
-    background: #f8f9ff;
-    transform: translateX(5px);
+.nfc-encode-badge {
+    position: absolute;
+    top: -14px;
+    right: -14px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+    border: 2px solid rgba(255, 255, 255, .18);
+}
+.badge-nfc     { background: linear-gradient(145deg, #0a84ff, #0060df); }
+.badge-success { background: linear-gradient(145deg, #34d399, #059669); }
+.badge-error   { background: linear-gradient(145deg, #f87171, #dc2626); }
+.badge-muted   { background: linear-gradient(145deg, #fbbf24, #d97706); }
+
+.nfc-encode-album-name {
+    margin-top: 18px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    max-width: 460px;
 }
 
-.nfc-client-card.active {
-    border-color: #0074d9;
-    background: #e8f0ff;
+.nfc-encode-state-line {
+    font-size: 1.35rem;
+    margin-top: 6px;
+    font-weight: 600;
+    letter-spacing: .02em;
+}
+.nfc-encode-state-line.state-good  { color: #34d399; }
+.nfc-encode-state-line.state-bad   { color: #f87171; }
+.nfc-encode-state-line.state-muted { color: #9ca3af; }
+
+.nfc-encode-reader {
+    margin-top: 10px;
+    color: var(--bs-secondary-color);
+    font-size: .95rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 14px;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
 }
 
-.nfc-client-icon {
-    font-size: 48px;
-    color: #0074d9;
-    min-width: 48px;
+#nfc-waiting-text,
+.nfc-encode-hint,
+.nfc-encode-error-text {
+    color: var(--bs-secondary-color);
+    margin-top: 8px;
+    max-width: 460px;
 }
+.nfc-encode-error-text { font-weight: 600; }
 
-.nfc-client-info {
-    flex: 1;
-}
+.nfc-encode-uid { margin-top: 10px; opacity: .85; }
 
-.nfc-client-name {
-    font-size: 18px;
-    font-weight: bold;
-    color: #333;
-    margin: 0;
-}
-
-.nfc-client-type {
-    font-size: 12px;
-    color: #999;
-    margin: 5px 0 0 0;
-}
+/* ---- keyframes ---- */
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }

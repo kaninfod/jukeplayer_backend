@@ -1,0 +1,20 @@
+{# State: WAITING — the album hero, breathing softly, waiting for plastic.
+   The cover is served by the self-ensuring covers route (the library's
+   180-variant); the canary-style error fallback shows the default cover. #}
+<div data-nfcencoding-target="waiting" id="nfc-waiting" class="d-none">
+    <div class="nfc-encode-hero">
+        <div class="nfc-encode-cover-wrap">
+            <img class="nfc-encode-cover nfc-encode-cover-pulse"
+                 src="/assets/covers/{{ album_id|e }}/cover-180.webp"
+                 alt="{{ album_name|default('Album', true)|e }}"
+                 onerror="this.onerror=null;this.src='/assets/covers/_default/cover-180.jpg'">
+            <span class="nfc-encode-badge badge-nfc"><i class="mdi mdi-nfc-variant"></i></span>
+        </div>
+        <div class="nfc-encode-album-name">{{ album_name|default('', true)|e }}</div>
+        <div class="nfc-encode-state-line">Awaiting the card</div>
+        <p id="nfc-waiting-text">Present the card at the reader to bind this album.</p>
+        {% if client_name %}
+        <div class="nfc-encode-reader"><i class="mdi mdi-lan me-1"></i>{{ client_name|e }}</div>
+        {% endif %}
+    </div>
+</div>
