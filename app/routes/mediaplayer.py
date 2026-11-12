@@ -35,6 +35,14 @@ class ActionResult(BaseModel):
     repeat_album: Optional[bool] = None
 
 
+class RandomPickResult(ActionResult):
+    """Smart-random response: the action envelope plus what was picked."""
+    album_id: Optional[str] = None
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    reason: Optional[str] = None
+
+
 def _envelope(result: list) -> ActionResult:
     """Wrap the first broker result in the uniform envelope.
 
@@ -53,6 +61,21 @@ def _envelope(result: list) -> ActionResult:
         )
     error = first.get("error") if isinstance(first, dict) else "No handler ran for this action"
     return ActionResult(status="error", message=str(error))
+
+
+def _random_envelope(result: list) -> RandomPickResult:
+    """Wrap a smart-random result without widening the standard envelope."""
+    base = _envelope(result)
+    first = result[0] if result else None
+    if isinstance(first, dict) and first.get("ok"):
+        return RandomPickResult(
+            **base.model_dump(),
+            album_id=first.get("album_id"),
+            artist=first.get("artist"),
+            album=first.get("album"),
+            reason=first.get("reason"),
+        )
+    return RandomPickResult(**base.model_dump())
 
 
 async def _run_action(event_type: EventType, *, client_id: Optional[str] = None,
@@ -137,6 +160,21 @@ async def play_album_from_albumid(albumid: str,
     """Play an album from its Subsonic album_id on the resolved speaker."""
     return await _run_action(EventType.PLAY_ALBUM, client_id=client_id, speaker=speaker,
                              album_id=albumid, start_track_index=start_track_index)
+
+
+@router.post("/play_random", response_model=RandomPickResult)
+async def play_random(client_id: Optional[str] = Query(None),
+                      speaker: Optional[str] = Query(None)):
+    """Pick and play a neglected owned album (the smart-random button).
+
+    This is primarily the HTTP testing surface; the hardware button uses the
+    WebSocket ``play_random`` message. The pick is returned in the envelope
+    (album_id / artist / album / reason) and playback is started on the
+    resolved speaker.
+    """
+    payload = {"client_id": client_id, "device_name": speaker}
+    result = await event_bus.aemit(Event(type=EventType.PLAY_RANDOM, payload=payload))
+    return _random_envelope(result)
 
 
 # Full playback context of the resolved speaker. The HA integration's

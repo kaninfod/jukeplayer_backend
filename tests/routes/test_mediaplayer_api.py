@@ -97,6 +97,34 @@ async def test_transport_envelope_is_uniform(initialized_app):
 
 
 @pytest.mark.asyncio
+async def test_play_random_returns_the_pick(initialized_app, monkeypatch):
+    """The HTTP testing endpoint returns the pick + reason, not just 'done'."""
+    from app.routes import mediaplayer as route
+
+    async def fake_aemit(event):
+        return [{
+            "ok": True,
+            "speaker": "living_room",
+            "album_id": "al-1",
+            "artist": "Artist",
+            "album": "Album",
+            "reason": "never played; genre fits this hour",
+            "message": "Random album: Artist — Album",
+        }]
+
+    monkeypatch.setattr(route.event_bus, "aemit", fake_aemit)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/api/mediaplayer/play_random?speaker=living_room")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "success"
+        assert body["album_id"] == "al-1"
+        assert body["artist"] == "Artist"
+        assert body["reason"] == "never played; genre fits this hour"
+
+
+@pytest.mark.asyncio
 async def test_transport_speaker_param_targets_the_named_speaker(initialized_app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         _inject_speaker("living_room", default=True)

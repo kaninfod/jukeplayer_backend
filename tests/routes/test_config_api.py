@@ -358,6 +358,32 @@ async def test_speakers_card_table_renders_without_status(initialized_app):
         assert "Available</span>" not in html
 
 
+@pytest.mark.asyncio
+async def test_listenbrainz_username_saves_and_masks_token(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.config.config.CONFIG_FILE", str(tmp_path / "config.json"))
+    await startup_event()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.put(
+            "/api/config/listenbrainz",
+            json={"username": "mhinge", "token": "secret-token"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["username"] == "mhinge"
+        assert resp.json()["token_set"] is True
+
+        effective = (await client.get("/api/config")).json()
+        section = effective["sections"]["listenbrainz"]
+        assert section["keys"]["username"]["value"] == "mhinge"
+        assert section["keys"]["token"]["masked"] is True
+        assert section["keys"]["token"]["set"] is True
+
+        # A blank token in a later update must not clear the stored one.
+        resp2 = await client.put("/api/config/listenbrainz", json={"username": "mhinge"})
+        assert resp2.status_code == 200
+        assert resp2.json()["token_set"] is True
+
+
 # --- Subsonic metadata refresh (kiosk config button) ----------------------------
 
 @pytest.mark.asyncio
