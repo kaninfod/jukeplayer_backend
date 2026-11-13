@@ -153,10 +153,11 @@ async def test_pick_neglected_mode_uses_the_hard_exclusions(monkeypatch):
     assert pick.album_id in {"neglected", "never"}
 
 
-def test_normalize_mode_defaults_to_smart():
-    assert normalize_mode(None) == "smart"
+def test_normalize_mode_defaults_to_neglected():
+    assert normalize_mode(None) == "neglected"
     assert normalize_mode("RANDOM") == "random"
-    assert normalize_mode("nonsense") == "smart"
+    assert normalize_mode("smart") == "smart"
+    assert normalize_mode("nonsense") == "neglected"
 
 
 @pytest.mark.asyncio

@@ -262,10 +262,10 @@ class WebSocketConnection:
         """Pick and play an album; reply with the pick and its reason.
 
         The hardware button sends ``{"type": "play_random", "payload":
-        {"device_name": "living_room"}}``; an optional ``mode`` of
-        ``smart``/``random``/``neglected`` is for testing. The broker also
-        broadcasts the new ``current_track``; ``random_pick`` is the extra
-        "what/why" echo.
+        {"device_name": "living_room"}}``; no mode means the default
+        ``neglected``. An optional ``mode`` of ``smart``/``random``/
+        ``neglected`` is for testing. The broker also broadcasts the new
+        ``current_track``; ``random_pick`` is the extra "what/why" echo.
         """
         try:
             from app.core import event_bus, EventType, Event

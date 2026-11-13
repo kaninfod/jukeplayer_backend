@@ -55,10 +55,10 @@ async def test_handle_play_random_picks_and_starts_playback(monkeypatch):
     assert result["ok"] is True
     assert result["speaker"] == "living_room"
     assert result["album_id"] == "al-42"
-    assert result["mode"] == "smart"
+    assert result["mode"] == "neglected"
     assert "never played" in result["reason"]
     recommendation_service.pick.assert_awaited_once_with(
-        device_name="living_room", mode="smart"
+        device_name="living_room", mode="neglected"
     )
     playback_service.load_from_album_id.assert_awaited_once_with(
         "al-42", player=speaker.mediaplayer

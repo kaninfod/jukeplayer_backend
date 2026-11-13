@@ -170,12 +170,13 @@ async def play_random(client_id: Optional[str] = Query(None),
                       mode: Optional[str] = Query(None)):
     """Pick and play an owned album (the random button).
 
-    ``mode`` is ``smart`` (default), ``random`` (uniform over the whole
-    catalog) or ``neglected`` (uniform over the top-20/90-day-excluded pool,
-    no affinity). This is primarily the HTTP testing surface; the hardware
-    button uses the WebSocket ``play_random`` message. The pick is returned
-    in the envelope (album_id / artist / album / reason / mode) and playback
-    is started on the resolved speaker.
+    ``mode`` is ``neglected`` (default: uniform over the top-20/90-day
+    excluded pool, no affinity), ``smart`` (profile-weighted) or ``random``
+    (uniform over the whole catalog). This is primarily the HTTP testing
+    surface; the hardware button uses the WebSocket ``play_random`` message
+    without a mode and therefore gets the default. The pick is returned in
+    the envelope (album_id / artist / album / reason / mode) and playback is
+    started on the resolved speaker.
     """
     payload = {"client_id": client_id, "device_name": speaker, "mode": mode}
     result = await event_bus.aemit(Event(type=EventType.PLAY_RANDOM, payload=payload))

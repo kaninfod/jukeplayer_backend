@@ -28,12 +28,13 @@ RECENT_TTL = 120.0
 FAILURE_BACKOFF = 60.0
 WINDOW_DAYS = 90
 MODES = ("smart", "random", "neglected")
+DEFAULT_MODE = "neglected"
 
 
 def normalize_mode(mode: str | None) -> str:
-    """Coerce a transport value to a known picker mode (default smart)."""
-    value = str(mode or "smart").strip().lower()
-    return value if value in MODES else "smart"
+    """Coerce a transport value to a known picker mode (default neglected)."""
+    value = str(mode or DEFAULT_MODE).strip().lower()
+    return value if value in MODES else DEFAULT_MODE
 
 
 class RecommendationService:
@@ -72,12 +73,12 @@ class RecommendationService:
             self._warming = False
 
     async def pick(self, device_name: str | None = None,
-                   mode: str = "smart") -> Optional[AlbumPick]:
+                   mode: str = DEFAULT_MODE) -> Optional[AlbumPick]:
         """Pick an album; returns None only when there is nothing to play.
 
-        ``mode`` is ``smart`` (the profile-weighted picker), ``random``
-        (uniform over the whole catalog) or ``neglected`` (uniform over the
-        hard-exclusion pool, no affinity). The default is unchanged.
+        ``mode`` is ``neglected`` (the default: uniform over the hard-exclusion
+        pool, no affinity), ``smart`` (the profile-weighted picker) or
+        ``random`` (uniform over the whole catalog).
         """
         mode = normalize_mode(mode)
         async with self._lock:

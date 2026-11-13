@@ -261,11 +261,13 @@ class SpeakerBrokerService:
         return await self._execute_media_action(event, "play_album", custom_action=play_album_action)
 
     async def handle_play_random(self, event: Event):
-        """Pick a neglected album on the resolved speaker and play it.
+        """Pick an album on the resolved speaker and play it.
 
-        The picker is stateless (in-memory profile only); if ListenBrainz is
-        unavailable it falls back to gonic play counts. The result carries the
-        chosen album and the reason, so the HTTP/WS transport can show it.
+        ``mode`` is smart/random/neglected; absent means the default
+        (neglected). The picker is stateless (in-memory catalog/profile
+        only); if ListenBrainz is unavailable it falls back to gonic play
+        counts. The result carries the chosen album and the reason, so the
+        HTTP/WS transport can show it.
         """
         from app.core.service_container import get_service
         from app.recommendations import normalize_mode
