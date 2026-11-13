@@ -1,9 +1,10 @@
-from scripts.dedupe_listenbrainz import plan_deletions
+from scripts.dedupe_listenbrainz import listen_identity, plan_deletions
 
 
-def listen(msid, client, track="Song", ts=1700000000):
+def listen(msid, client, track="Song", ts=1700000000, inserted_at=1):
     return {
         "listened_at": ts,
+        "inserted_at": inserted_at,
         "recording_msid": msid,
         "track_metadata": {
             "artist_name": "Artist",
@@ -25,14 +26,31 @@ def test_plan_keeps_gonic_and_deletes_importer():
     assert stats["planned"] == 1
 
 
-def test_importer_only_group_is_untouched():
-    first = listen("a", "ListenBrainz lastfm importer v2")
-    second = listen("b", "ListenBrainz lastfm importer v2")
+def test_importer_only_duplicates_keep_the_earliest():
+    first = listen("a", "ListenBrainz lastfm importer v2", inserted_at=1)
+    second = listen("b", "ListenBrainz lastfm importer v2", inserted_at=2)
 
     deletions, stats = plan_deletions([first, second])
 
+    assert [item["recording_msid"] for item in deletions] == ["b"]
+    assert stats["kept_importer_only"] == 1
+
+
+def test_single_importer_listen_is_untouched():
+    only = listen("a", "ListenBrainz lastfm importer v2")
+
+    deletions, stats = plan_deletions([only])
+
     assert deletions == []
-    assert stats["untouched_groups"] == 1
+    assert stats["untouched_groups"] == 0
+
+
+def test_listen_identity_includes_the_timestamp():
+    """The same recording at two different times is two listens."""
+    first = listen("same-msid", "gonic", ts=1700000000)
+    second = listen("same-msid", "gonic", ts=1700000100)
+
+    assert listen_identity(first) != listen_identity(second)
 
 
 def test_all_importer_copies_are_deleted_when_a_gonic_twin_exists():

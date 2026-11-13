@@ -13,7 +13,8 @@ the importer copy through ``POST /1/delete-listen``.
 
 Safety:
 - dry-run by default; nothing is deleted without ``--execute --yes``;
-- only deletes an importer copy when a gonic copy for the same play exists;
+- keeps one gonic copy when present, otherwise the earliest importer copy;
+  deletes only the extra importer copies;
 - writes the full deletion plan to a JSON file first;
 - requires ``LB_TOKEN`` (ListenBrainz user token) for deletion;
 - rate-limits itself to ~1 request/second.
@@ -76,6 +77,18 @@ def listen_key(listen: dict) -> tuple:
     )
 
 
+def listen_identity(listen: dict) -> tuple:
+    """A listen is identified by (listened_at, recording_msid).
+
+    ``recording_msid`` is a recording ID shared by every play of the same
+    recording, not a per-listen ID; using it alone collapses the history.
+    """
+    msid = str(listen.get("recording_msid") or "")
+    if msid:
+        return (int(listen.get("listened_at") or 0), msid)
+    return listen_key(listen) + (submission_client(listen),)
+
+
 def _request(path: str, params: dict | None = None, token: str = "",
              body: dict | None = None) -> dict:
     url = f"{BASE}{path}"
@@ -102,7 +115,7 @@ def fetch_listens(user: str, token: str = "") -> list[dict]:
     boundary timestamp. Duplicate rows are removed by recording_msid.
     """
     collected: list[dict] = []
-    seen: set[str] = set()
+    seen: set[tuple] = set()
     max_ts = None
     for page in range(200):
         params: dict[str, object] = {"count": 1000}
@@ -113,7 +126,7 @@ def fetch_listens(user: str, token: str = "") -> list[dict]:
         if not batch:
             break
         for listen in batch:
-            key = str(listen.get("recording_msid") or listen_key(listen))
+            key = listen_identity(listen)
             if key in seen:
                 continue
             seen.add(key)
@@ -127,7 +140,11 @@ def fetch_listens(user: str, token: str = "") -> list[dict]:
 
 
 def plan_deletions(listens: list[dict]) -> tuple[list[dict], dict]:
-    """Return (deletions, stats). Only importer copies with a gonic twin."""
+    """Group duplicate plays and return (deletions, stats).
+
+    A group keeps one copy: the gonic submission when present, otherwise
+    the earliest importer copy. Every other importer copy is deleted.
+    """
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for listen in listens:
         groups[listen_key(listen)].append(listen)
@@ -139,30 +156,52 @@ def plan_deletions(listens: list[dict]) -> tuple[list[dict], dict]:
         "planned": 0,
         "untouched_groups": 0,
         "kept_gonic": 0,
+        "kept_importer_only": 0,
+        "skipped_missing_msid": 0,
     }
+
+    def add_deletion(item: dict) -> None:
+        if not item.get("recording_msid"):
+            stats["skipped_missing_msid"] += 1
+            return
+        meta = item.get("track_metadata") or {}
+        deletions.append({
+            "listened_at": int(item.get("listened_at") or 0),
+            "recording_msid": item.get("recording_msid"),
+            "artist": meta.get("artist_name"),
+            "track": meta.get("track_name"),
+            "album": meta.get("release_name"),
+            "client": submission_client(item),
+        })
+
     for group in groups.values():
         if len(group) < 2:
             continue
         stats["duplicate_groups"] += 1
         gonic = [item for item in group if is_gonic(item)]
         importer = [item for item in group if is_importer(item)]
-        if not gonic or not importer:
-            stats["untouched_groups"] += 1
+
+        if gonic:
+            # Keep one direct gonic submission; delete every importer copy.
+            stats["kept_gonic"] += 1
+            for item in importer:
+                add_deletion(item)
             continue
-        stats["kept_gonic"] += 1
-        for item in importer:
-            if not item.get("recording_msid"):
-                stats["untouched_groups"] += 1
-                continue
-            meta = item.get("track_metadata") or {}
-            deletions.append({
-                "listened_at": int(item.get("listened_at") or 0),
-                "recording_msid": item.get("recording_msid"),
-                "artist": meta.get("artist_name"),
-                "track": meta.get("track_name"),
-                "album": meta.get("release_name"),
-                "client": submission_client(item),
-            })
+
+        if len(importer) > 1:
+            # Repeated Last.fm imports: keep the earliest importer copy.
+            keep = min(
+                importer,
+                key=lambda item: int(item.get("inserted_at") or item.get("listened_at") or 0),
+            )
+            stats["kept_importer_only"] += 1
+            for item in importer:
+                if item is not keep:
+                    add_deletion(item)
+            continue
+
+        stats["untouched_groups"] += 1
+
     stats["planned"] = len(deletions)
     deletions.sort(key=lambda item: item["listened_at"])
     return deletions, stats
@@ -200,9 +239,11 @@ def main() -> int:
 
     print(f"listens: {stats['listens']}")
     print(f"duplicate groups: {stats['duplicate_groups']}")
-    print(f"planned deletions: {stats['planned']} "
-          f"(importer copies with a gonic twin)")
-    print(f"groups left untouched (no gonic/importer pair): {stats['untouched_groups']}")
+    print(f"planned deletions: {stats['planned']} (extra importer copies)")
+    print(f"kept groups: {stats['kept_gonic']} with gonic, "
+          f"{stats['kept_importer_only']} importer-only")
+    print(f"skipped (missing MSID): {stats['skipped_missing_msid']}")
+    print(f"groups left untouched: {stats['untouched_groups']}")
 
     for item in deletions[:10]:
         stamp = datetime.fromtimestamp(item["listened_at"], tz=timezone.utc).isoformat()
