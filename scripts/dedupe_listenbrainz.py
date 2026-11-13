@@ -207,12 +207,37 @@ def plan_deletions(listens: list[dict]) -> tuple[list[dict], dict]:
     return deletions, stats
 
 
-def delete_one(token: str, item: dict) -> None:
+def delete_one(token: str, item: dict, attempts: int = 4) -> None:
+    """Delete one listen, retrying transient network/5xx/429 failures."""
     body = {
         "listened_at": item["listened_at"],
         "recording_msid": item["recording_msid"],
     }
-    _request("/delete-listen", token=token, body=body)
+    last: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            _request("/delete-listen", token=token, body=body)
+            return
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                raise
+            if exc.code == 429:
+                reset = exc.headers.get("X-RateLimit-Reset-In")
+                delay = min(60.0, float(reset) if reset else 2.0 * (attempt + 1))
+                last = exc
+            elif 500 <= exc.code < 600:
+                delay = 2.0 * (attempt + 1)
+                last = exc
+            else:
+                raise
+        except OSError as exc:
+            # URLError, gaierror, ConnectionResetError, timeouts, E101, ...
+            last = exc
+            delay = 2.0 * (attempt + 1)
+        if attempt < attempts - 1:
+            print(f"  retry {attempt + 1}/{attempts - 1} in {delay:.0f}s: {last}")
+            time.sleep(delay)
+    raise last if last is not None else RuntimeError("delete failed")
 
 
 def main() -> int:
@@ -225,6 +250,8 @@ def main() -> int:
                         help="skip the interactive confirmation for --execute")
     parser.add_argument("--limit", type=int, default=0,
                         help="maximum deletions to perform (testing)")
+    parser.add_argument("--retries", type=int, default=4,
+                        help="attempts per delete for transient network errors")
     parser.add_argument("--plan-file", default="",
                         help="write the deletion plan here (default: timestamped JSON)")
     args = parser.parse_args()
@@ -280,24 +307,13 @@ def main() -> int:
     failed = 0
     for index, item in enumerate(todo, 1):
         try:
-            delete_one(token, item)
+            delete_one(token, item, attempts=args.retries)
         except urllib.error.HTTPError as exc:
-            if exc.code == 429:
-                reset = exc.headers.get("X-RateLimit-Reset-In")
-                delay = min(60.0, float(reset) if reset else 2.0)
-                print(f"rate limited; sleeping {delay:.0f}s")
-                time.sleep(delay)
-                try:
-                    delete_one(token, item)
-                except Exception as retry_exc:  # noqa: BLE001
-                    failed += 1
-                    print(f"  failed {item['listened_at']}: {retry_exc}")
-            elif exc.code in (401, 403):
+            if exc.code in (401, 403):
                 print("Token rejected; stopping.", file=sys.stderr)
                 return 2
-            else:
-                failed += 1
-                print(f"  failed {item['listened_at']}: HTTP {exc.code}")
+            failed += 1
+            print(f"  failed {item['listened_at']}: HTTP {exc.code}")
         except Exception as exc:  # noqa: BLE001
             failed += 1
             print(f"  failed {item['listened_at']}: {exc}")

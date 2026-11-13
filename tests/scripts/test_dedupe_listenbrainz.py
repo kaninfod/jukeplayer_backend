@@ -1,3 +1,8 @@
+import urllib.error
+
+import pytest
+
+import scripts.dedupe_listenbrainz as dedupe
 from scripts.dedupe_listenbrainz import listen_identity, plan_deletions
 
 
@@ -70,3 +75,36 @@ def test_missing_importer_msid_is_not_deleted():
     deletions, _stats = plan_deletions([gonic, importer])
 
     assert deletions == []
+
+
+def test_delete_one_retries_transient_network_errors(monkeypatch):
+    calls = []
+
+    def fake_request(*args, **kwargs):
+        calls.append(1)
+        if len(calls) < 3:
+            raise urllib.error.URLError("network unreachable")
+        return {}
+
+    monkeypatch.setattr(dedupe, "_request", fake_request)
+    monkeypatch.setattr(dedupe.time, "sleep", lambda _seconds: None)
+
+    dedupe.delete_one("token", {"listened_at": 1, "recording_msid": "m"}, attempts=3)
+
+    assert len(calls) == 3
+
+
+def test_delete_one_does_not_retry_auth_failure(monkeypatch):
+    calls = []
+
+    def fake_request(*args, **kwargs):
+        calls.append(1)
+        raise urllib.error.HTTPError("url", 401, "unauthorized", {}, None)
+
+    monkeypatch.setattr(dedupe, "_request", fake_request)
+    monkeypatch.setattr(dedupe.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(urllib.error.HTTPError):
+        dedupe.delete_one("token", {"listened_at": 1, "recording_msid": "m"}, attempts=3)
+
+    assert len(calls) == 1
