@@ -55,12 +55,55 @@ async def test_handle_play_random_picks_and_starts_playback(monkeypatch):
     assert result["ok"] is True
     assert result["speaker"] == "living_room"
     assert result["album_id"] == "al-42"
+    assert result["mode"] == "smart"
     assert "never played" in result["reason"]
-    recommendation_service.pick.assert_awaited_once_with(device_name="living_room")
+    recommendation_service.pick.assert_awaited_once_with(
+        device_name="living_room", mode="smart"
+    )
     playback_service.load_from_album_id.assert_awaited_once_with(
         "al-42", player=speaker.mediaplayer
     )
     broker.broadcast_context_to_clients.assert_awaited_once_with(speaker)
+
+
+@pytest.mark.asyncio
+async def test_handle_play_random_passes_the_requested_mode(monkeypatch):
+    speaker = _speaker()
+    speakers = SpeakersService()
+    speakers._speakers = {"living_room": speaker}
+    broker = SpeakerBrokerService(MagicMock(), speakers, EventBus())
+    broker.broadcast_context_to_clients = AsyncMock()
+
+    pick = AlbumPick(
+        album_id="al-1",
+        artist="Artist",
+        album="Album",
+        year="2020",
+        reason="pure random",
+        score=0.0,
+    )
+    recommendation_service = MagicMock()
+    recommendation_service.pick = AsyncMock(return_value=pick)
+    playback_service = MagicMock()
+    playback_service.load_from_album_id = AsyncMock(return_value=True)
+
+    monkeypatch.setattr(
+        "app.core.service_container.get_service",
+        lambda name: {
+            "recommendation_service": recommendation_service,
+            "playback_service": playback_service,
+        }[name],
+    )
+
+    result = await broker.handle_play_random(
+        Event(EventType.PLAY_RANDOM, {"device_name": "living_room", "mode": "random"})
+    )
+
+    assert result["ok"] is True
+    assert result["mode"] == "random"
+    recommendation_service.pick.assert_awaited_once_with(
+        device_name="living_room", mode="random"
+    )
 
 
 @pytest.mark.asyncio

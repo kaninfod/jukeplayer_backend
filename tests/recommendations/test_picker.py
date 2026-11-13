@@ -1,7 +1,13 @@
 import random
 
 from app.recommendations.models import Album, ListeningProfile
-from app.recommendations.picker import pick_album, pick_local, score_album
+from app.recommendations.picker import (
+    pick_album,
+    pick_local,
+    pick_neglected,
+    pick_random,
+    score_album,
+)
 from app.recommendations.text import fold
 
 
@@ -80,6 +86,49 @@ def test_recent_album_is_excluded():
             rng=random.Random(seed),
         )
         assert pick.album_id == "fresh"
+
+
+def test_pick_random_is_uniform_over_the_catalog():
+    albums = [
+        album("a", "A", "A"),
+        album("b", "B", "B"),
+        album("c", "C", "C"),
+    ]
+    seen = set()
+    for seed in range(60):
+        pick = pick_random(albums, rng=random.Random(seed))
+        assert pick.reason == "pure random"
+        seen.add(pick.album_id)
+    assert seen == {"a", "b", "c"}
+
+
+def test_pick_random_avoids_the_session_tail():
+    albums = [album("a", "A", "A"), album("b", "B", "B")]
+    pick = pick_random(albums, session_recent={"a"}, rng=random.Random(0))
+    assert pick.album_id == "b"
+
+
+def test_pick_neglected_keeps_the_hard_exclusions_without_affinity():
+    top = album("top", "Top", "Top Album")
+    quarter = album("quarter", "Quarter", "Quarter Album")
+    recent = album("recent", "Recent", "Recent Album")
+    neglected = album("neglected", "Neglected", "Neglected Album")
+    never = album("never", "Never", "Never Album")
+    profile = ListeningProfile(
+        quarter_keys={top.key, quarter.key},
+        all_time_keys={top.key, quarter.key, recent.key, neglected.key},
+        top_album_keys={top.key},
+        recent_keys={recent.key},
+        artist_weights={fold("Top"): 1.0},
+    )
+    for seed in range(40):
+        pick = pick_neglected(
+            [top, quarter, recent, neglected, never],
+            profile,
+            rng=random.Random(seed),
+        )
+        assert pick.album_id in {"neglected", "never"}
+        assert pick.reason == "random from neglected"
 
 
 def test_local_fallback_prefers_unplayed():

@@ -47,17 +47,12 @@ def score_album(
     }
 
 
-def pick_album(
+def _neglected_pool(
     albums: Iterable[Album],
     profile: ListeningProfile,
-    session_recent: Iterable[str] = (),
-    oddball_rate: float = ODDBALL_RATE,
-    rng: Optional[random.Random] = None,
-) -> Optional[AlbumPick]:
-    """Filter, score, sample. Returns ``None`` only when there is nothing to pick."""
-    rng = rng or random.Random()
-    session = set(session_recent)
-
+    session: set[str],
+) -> list[Album]:
+    """The hard-exclusion pool shared by smart and neglected-random modes."""
     candidates = [
         album
         for album in albums
@@ -85,6 +80,21 @@ def pick_album(
         ]
     if not candidates:
         candidates = [album for album in albums if album.album_id not in session]
+    return candidates
+
+
+def pick_album(
+    albums: Iterable[Album],
+    profile: ListeningProfile,
+    session_recent: Iterable[str] = (),
+    oddball_rate: float = ODDBALL_RATE,
+    rng: Optional[random.Random] = None,
+) -> Optional[AlbumPick]:
+    """Filter, score, sample. Returns ``None`` only when there is nothing to pick."""
+    rng = rng or random.Random()
+    session = set(session_recent)
+
+    candidates = _neglected_pool(albums, profile, session)
     if not candidates:
         return None
 
@@ -117,6 +127,62 @@ def pick_album(
         reason=_reason(parts),
         score=round(score, 3),
         components=parts,
+    )
+
+
+def pick_random(
+    albums: Iterable[Album],
+    session_recent: Iterable[str] = (),
+    rng: Optional[random.Random] = None,
+) -> Optional[AlbumPick]:
+    """Uniform over every owned album (except the last few session picks).
+
+    The deliberately dumb control: no profile, no scoring, no oddball.
+    """
+    rng = rng or random.Random()
+    albums = list(albums)
+    session = set(session_recent)
+    pool = [album for album in albums if album.album_id not in session] or albums
+    if not pool:
+        return None
+    album = rng.choice(pool)
+    return AlbumPick(
+        album_id=album.album_id,
+        artist=album.artist,
+        album=album.name,
+        year=str(album.year or ""),
+        reason="pure random",
+        score=0.0,
+        components={"random": 1.0},
+    )
+
+
+def pick_neglected(
+    albums: Iterable[Album],
+    profile: ListeningProfile,
+    session_recent: Iterable[str] = (),
+    rng: Optional[random.Random] = None,
+) -> Optional[AlbumPick]:
+    """Uniform over the neglected pool, with no artist/genre scoring.
+
+    The middle ground between pure random and smart: the hard top-20 /
+    90-day exclusions stay, but affinity cannot reinforce a favourite.
+    """
+    rng = rng or random.Random()
+    albums = list(albums)
+    session = set(session_recent)
+    candidates = _neglected_pool(albums, profile, session)
+    if not candidates:
+        return None
+    album = rng.choice(candidates)
+    return AlbumPick(
+        album_id=album.album_id,
+        artist=album.artist,
+        album=album.name,
+        year=str(album.year or ""),
+        reason="random from neglected",
+        score=0.0,
+        components={"neglected": 1.0},
     )
 
 

@@ -20,9 +20,10 @@ async def test_play_random_sends_pick_and_reason():
         "artist": "Artist",
         "album": "Album",
         "reason": "never played; artist you play often",
+        "mode": "smart",
     }]
 
-    with patch.object(bus, "aemit", AsyncMock(return_value=result)):
+    with patch.object(bus, "aemit", AsyncMock(return_value=result)) as emit:
         await conn.handle_play_random({"device_name": "living_room"})
 
     websocket.send_json.assert_any_await({
@@ -33,8 +34,11 @@ async def test_play_random_sends_pick_and_reason():
             "artist": "Artist",
             "album": "Album",
             "reason": "never played; artist you play often",
+            "mode": "smart",
         },
     })
+    event = emit.await_args.args[0]
+    assert event.payload["device_name"] == "living_room"
 
 
 async def test_play_random_sends_notification_on_error():

@@ -268,8 +268,10 @@ class SpeakerBrokerService:
         chosen album and the reason, so the HTTP/WS transport can show it.
         """
         from app.core.service_container import get_service
+        from app.recommendations import normalize_mode
 
         payload = event.payload
+        mode = normalize_mode(payload.get("mode"))
         speaker = self.resolve_speaker(
             client_id=payload.get("client_id"),
             device_name=payload.get("device_name"),
@@ -283,14 +285,16 @@ class SpeakerBrokerService:
 
         try:
             recommendation_service = get_service("recommendation_service")
-            pick = await recommendation_service.pick(device_name=speaker.speaker_name)
+            pick = await recommendation_service.pick(
+                device_name=speaker.speaker_name, mode=mode
+            )
         except Exception as exc:
-            logger.error("[SpeakerBrokerService] smart random failed: %s", exc, exc_info=True)
+            logger.error("[SpeakerBrokerService] random pick failed: %s", exc, exc_info=True)
             return {"ok": False, "speaker": speaker.speaker_name,
-                    "error": f"Smart random failed: {exc}"}
+                    "error": f"Random pick failed: {exc}"}
         if pick is None:
             return {"ok": False, "speaker": speaker.speaker_name,
-                    "error": "No neglected album is available right now"}
+                    "error": "No album is available to pick right now"}
 
         playback_service = get_service("playback_service")
         loaded = await playback_service.load_from_album_id(
@@ -307,6 +311,7 @@ class SpeakerBrokerService:
             "artist": pick.artist,
             "album": pick.album,
             "reason": pick.reason,
+            "mode": mode,
             "message": f"Random album: {pick.artist} — {pick.album}",
         }
 

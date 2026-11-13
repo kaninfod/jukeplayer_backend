@@ -101,27 +101,33 @@ async def test_play_random_returns_the_pick(initialized_app, monkeypatch):
     """The HTTP testing endpoint returns the pick + reason, not just 'done'."""
     from app.routes import mediaplayer as route
 
+    seen = {}
+
     async def fake_aemit(event):
+        seen.update(event.payload)
         return [{
             "ok": True,
             "speaker": "living_room",
             "album_id": "al-1",
             "artist": "Artist",
             "album": "Album",
-            "reason": "never played; genre fits this hour",
+            "reason": "pure random",
+            "mode": event.payload.get("mode"),
             "message": "Random album: Artist — Album",
         }]
 
     monkeypatch.setattr(route.event_bus, "aemit", fake_aemit)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.post("/api/mediaplayer/play_random?speaker=living_room")
+        resp = await client.post("/api/mediaplayer/play_random?speaker=living_room&mode=random")
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "success"
         assert body["album_id"] == "al-1"
         assert body["artist"] == "Artist"
-        assert body["reason"] == "never played; genre fits this hour"
+        assert body["reason"] == "pure random"
+        assert body["mode"] == "random"
+        assert seen["mode"] == "random"
 
 
 @pytest.mark.asyncio

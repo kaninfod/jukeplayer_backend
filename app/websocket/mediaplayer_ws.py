@@ -259,11 +259,13 @@ class WebSocketConnection:
         await self._handle_player_action(EventType.PLAY_ALBUM, payload)            
 
     async def handle_play_random(self, payload):
-        """Pick and play a neglected album; reply with the pick and its reason.
+        """Pick and play an album; reply with the pick and its reason.
 
         The hardware button sends ``{"type": "play_random", "payload":
-        {"device_name": "living_room"}}``. The broker also broadcasts the new
-        ``current_track``; ``random_pick`` is the extra "what/why" echo.
+        {"device_name": "living_room"}}``; an optional ``mode`` of
+        ``smart``/``random``/``neglected`` is for testing. The broker also
+        broadcasts the new ``current_track``; ``random_pick`` is the extra
+        "what/why" echo.
         """
         try:
             from app.core import event_bus, EventType, Event
@@ -280,6 +282,7 @@ class WebSocketConnection:
                         "artist": first.get("artist"),
                         "album": first.get("album"),
                         "reason": first.get("reason"),
+                        "mode": first.get("mode"),
                     },
                 })
             else:

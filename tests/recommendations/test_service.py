@@ -1,6 +1,6 @@
 import pytest
 
-from app.recommendations.service import RecommendationService
+from app.recommendations.service import RecommendationService, normalize_mode
 
 
 class FakeSource:
@@ -121,6 +121,42 @@ async def test_session_picks_are_not_repeated(monkeypatch):
     second = await service.pick()
     assert first is not None and second is not None
     assert first.album_id != second.album_id
+
+
+@pytest.mark.asyncio
+async def test_pick_random_mode_needs_no_listenbrainz(monkeypatch):
+    monkeypatch.setattr(
+        "app.recommendations.service.ListenBrainzClient", FakeListenBrainz
+    )
+    service = RecommendationService(
+        FakeRegistry(FakeSource(_rows())), FakeConfig(username="")
+    )
+
+    pick = await service.pick("living_room", mode="random")
+
+    assert pick is not None
+    assert pick.reason == "pure random"
+    assert pick.album_id in {"top", "quarter", "neglected", "never"}
+
+
+@pytest.mark.asyncio
+async def test_pick_neglected_mode_uses_the_hard_exclusions(monkeypatch):
+    monkeypatch.setattr(
+        "app.recommendations.service.ListenBrainzClient", FakeListenBrainz
+    )
+    service = RecommendationService(FakeRegistry(FakeSource(_rows())), FakeConfig())
+
+    pick = await service.pick("living_room", mode="neglected")
+
+    assert pick is not None
+    assert pick.reason == "random from neglected"
+    assert pick.album_id in {"neglected", "never"}
+
+
+def test_normalize_mode_defaults_to_smart():
+    assert normalize_mode(None) == "smart"
+    assert normalize_mode("RANDOM") == "random"
+    assert normalize_mode("nonsense") == "smart"
 
 
 @pytest.mark.asyncio

@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 from .listenbrainz import ListenBrainzClient, build_profile
 from .models import Album, AlbumPick
-from .picker import ODDBALL_RATE, pick_album, pick_local
+from .picker import ODDBALL_RATE, pick_album, pick_local, pick_neglected, pick_random
 from .text import canonical_genre
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,13 @@ PROFILE_TTL = 6 * 3600.0
 RECENT_TTL = 120.0
 FAILURE_BACKOFF = 60.0
 WINDOW_DAYS = 90
+MODES = ("smart", "random", "neglected")
+
+
+def normalize_mode(mode: str | None) -> str:
+    """Coerce a transport value to a known picker mode (default smart)."""
+    value = str(mode or "smart").strip().lower()
+    return value if value in MODES else "smart"
 
 
 class RecommendationService:
@@ -64,43 +71,81 @@ class RecommendationService:
         finally:
             self._warming = False
 
-    async def pick(self, device_name: str | None = None) -> Optional[AlbumPick]:
-        """Pick an album; returns None only when there is nothing to play."""
+    async def pick(self, device_name: str | None = None,
+                   mode: str = "smart") -> Optional[AlbumPick]:
+        """Pick an album; returns None only when there is nothing to play.
+
+        ``mode`` is ``smart`` (the profile-weighted picker), ``random``
+        (uniform over the whole catalog) or ``neglected`` (uniform over the
+        hard-exclusion pool, no affinity). The default is unchanged.
+        """
+        mode = normalize_mode(mode)
         async with self._lock:
             await self._ensure_albums()
             if not self._albums:
                 logger.warning("[recommendations] no albums in the catalog")
                 return None
 
-            try:
-                await self._ensure_profile()
-            except Exception as exc:
-                logger.warning("[recommendations] ListenBrainz unavailable, using local fallback: %s", exc)
-                self._profile = None
-
-            if self._profile is not None:
+            if mode == "random":
+                pick = pick_random(
+                    self._albums,
+                    session_recent=self._recent_picks,
+                    rng=random.Random(),
+                )
+            elif mode == "neglected":
                 try:
-                    await self._ensure_recent()
+                    await self._ensure_profile()
                 except Exception as exc:
-                    logger.warning("[recommendations] recent listens unavailable: %s", exc)
-                pick = pick_album(
-                    self._albums,
-                    self._profile,
-                    session_recent=self._recent_picks,
-                    oddball_rate=self.oddball_rate,
-                    rng=random.Random(),
-                )
+                    logger.warning("[recommendations] ListenBrainz unavailable, using local fallback: %s", exc)
+                    self._profile = None
+                if self._profile is not None:
+                    try:
+                        await self._ensure_recent()
+                    except Exception as exc:
+                        logger.warning("[recommendations] recent listens unavailable: %s", exc)
+                    pick = pick_neglected(
+                        self._albums,
+                        self._profile,
+                        session_recent=self._recent_picks,
+                        rng=random.Random(),
+                    )
+                else:
+                    pick = pick_local(
+                        self._albums,
+                        session_recent=self._recent_picks,
+                        rng=random.Random(),
+                    )
             else:
-                pick = pick_local(
-                    self._albums,
-                    session_recent=self._recent_picks,
-                    rng=random.Random(),
-                )
+                try:
+                    await self._ensure_profile()
+                except Exception as exc:
+                    logger.warning("[recommendations] ListenBrainz unavailable, using local fallback: %s", exc)
+                    self._profile = None
+
+                if self._profile is not None:
+                    try:
+                        await self._ensure_recent()
+                    except Exception as exc:
+                        logger.warning("[recommendations] recent listens unavailable: %s", exc)
+                    pick = pick_album(
+                        self._albums,
+                        self._profile,
+                        session_recent=self._recent_picks,
+                        oddball_rate=self.oddball_rate,
+                        rng=random.Random(),
+                    )
+                else:
+                    pick = pick_local(
+                        self._albums,
+                        session_recent=self._recent_picks,
+                        rng=random.Random(),
+                    )
 
             if pick is not None:
                 self._recent_picks.append(pick.album_id)
                 logger.info(
-                    "[recommendations] pick for %s: %s - %s (%s, score %.3f)",
+                    "[recommendations] %s pick for %s: %s - %s (%s, score %.3f)",
+                    mode,
                     device_name or "default",
                     pick.artist,
                     pick.album,
