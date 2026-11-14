@@ -13,8 +13,6 @@ class PlaylistItem:
     album: str
     year: str
     cover_url: str
-    album_id: str = ""
-    starred: bool = False
     
 
 @dataclass
@@ -23,6 +21,8 @@ class PlaylistManager:
     items: List[PlaylistItem] = field(default_factory=list)
     _current_index: int = 0
     _repeat_album: bool = False
+    album_id: str = ""
+    album_starred: bool = False
 
     def add_item(self, item: PlaylistItem):
         self.items.append(item)
@@ -79,6 +79,8 @@ class PlaylistManager:
         self.items.clear()
         self._current_index = 0
         self._repeat_album = False
+        self.album_id = ""
+        self.album_starred = False
 
     def to_dict(self):
         return [asdict(item) for item in self.items]

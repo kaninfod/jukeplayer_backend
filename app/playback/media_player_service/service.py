@@ -386,8 +386,6 @@ class MediaPlayerService:
                 "track_id": None,
                 "track_number": None,
                 "cover_url": None,
-                "album_id": None,
-                "album_starred": None,
                 **({
                     "duration": None,
                     "year": None,
@@ -403,8 +401,6 @@ class MediaPlayerService:
             "cover_url": track.cover_url,
             "year": track.year,
             "duration": track.duration,
-            "album_id": track.album_id,
-            "album_starred": track.starred,
         }
         
         return track_dict
@@ -432,6 +428,9 @@ class MediaPlayerService:
                 "status": self.status.value,
                 "muted": self.volume_manager.is_muted,
                 "current_index": self.playlist_manager.current_index,
+                "album_id": self.playlist_manager.album_id or None,
+                "album_starred": (self.playlist_manager.album_starred
+                                  if track is not None else None),
                 "repeat_album": self.playlist_manager._repeat_album,
                 "playlist": self.playlist_manager.to_dict() if self.playlist_manager else None,
                 "playlist_count": self.playlist_manager.count() if self.playlist_manager else 0,

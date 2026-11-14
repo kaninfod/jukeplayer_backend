@@ -96,6 +96,8 @@ class PlaybackService:
         if finish:
             finish("album_change")
         player.playlist_manager.clear()
+        player.playlist_manager.album_id = album.album_id
+        player.playlist_manager.album_starred = album.starred
         for track in album.tracks:
             spec = source.stream_url(track.track_id)
 
@@ -109,8 +111,6 @@ class PlaybackService:
                 album=album.title,
                 year=album.year,
                 cover_url=album.cover_url,
-                album_id=album.album_id,
-                starred=album.starred,
             )
             player.playlist_manager.add_item(item)
 

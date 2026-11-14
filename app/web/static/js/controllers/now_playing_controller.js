@@ -64,6 +64,7 @@ export default class extends Controller {
         if (!data) {
             console.log("No track data available; showing the empty player state.");
             this.renderState(false);
+            if (this.hasStarTarget) this._syncStar(null, null);
             return;
         }
 
@@ -119,7 +120,7 @@ export default class extends Controller {
                 `Track ${data.track_number} of ${window.appState.playlist.length}`;
         }
         if (this.hasStarTarget) {
-            this._syncStar(data.album_id, data.album_starred);
+            this._syncStar(window.appState.albumId, window.appState.albumStarred);
         }
     }
 
@@ -134,9 +135,10 @@ export default class extends Controller {
             return;
         }
 
-        // The context may be rebroadcast for the same album with a stale
-        // album_starred (the playlist item is loaded once). Do not overwrite
-        // a state we already have for this album; only resync on album change.
+        // The context may be rebroadcast for the same album with the
+        // album_starred snapshot taken when the queue was loaded. Do not
+        // overwrite a state we already have for this album; only resync on
+        // album change (or a reload, which starts with a fresh controller).
         if (albumId !== this._starAlbumId) {
             this._starAlbumId = albumId;
             this._starred = Boolean(starred);

@@ -5,6 +5,8 @@ export default class extends Controller {
         // This runs the moment the <body> is loaded
         window.appState = window.appState || {};
         window.appState.lastTrackData = null; // Initialize cache
+        window.appState.albumId = null;
+        window.appState.albumStarred = null;
         this.connectWebSocket();
     }
 
@@ -102,6 +104,8 @@ export default class extends Controller {
             
             window.appState.lastTrackData = msg.payload.current_track;
             window.appState.playlist = msg.payload.playlist;
+            window.appState.albumId = msg.payload.album_id;
+            window.appState.albumStarred = msg.payload.album_starred;
             window.appState.volume = msg.payload.volume;
             window.appState.deviceName = msg.payload.output_device;
             window.appState.mediaplayerInstanceName = msg.payload.mediaplayer_instance_name;
