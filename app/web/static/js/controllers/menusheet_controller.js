@@ -31,7 +31,10 @@ export default class extends Controller {
         window.dispatchEvent(new CustomEvent("ws:send", {
             detail: { type: "switch_device", payload: { device_id: speaker } }
         }))
-        window.showKioskToast(`Playback → ${speaker}`, { theme: "success" })
+        this.dispatch("toast", {
+            prefix: "app",
+            detail: { message: `Playback → ${speaker}`, theme: "success" }
+        })
         this.close()
     }
 

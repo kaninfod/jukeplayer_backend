@@ -261,6 +261,8 @@ span.kiosk-round-btn {
 
 /* Kiosk toast with larger font for 5" displays */
 .kiosk-toast {
+    min-width: 220px;
+    max-width: 320px;
     font-size: 18px;  /* Adjust this value to experiment with readability */
     line-height: 1.4;
     letter-spacing: 0.5px;

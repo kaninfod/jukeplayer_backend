@@ -17,7 +17,10 @@ export default class extends Controller {
             }
         }));
 
-        window.showKioskToast(`Reboot command sent to ${clientName}`, { theme: "success" });
+        this.dispatch("toast", {
+            prefix: "app",
+            detail: { message: `Reboot command sent to ${clientName}`, theme: "success" }
+        });
     }
 
     handleResponse(event) {
@@ -26,7 +29,13 @@ export default class extends Controller {
 
         if (response.status === "error") {
             console.error(`Reboot failed for ${event.params.clientId}: ${response.message}`);
-            window.showKioskToast(`Reboot failed: ${response.message || "client not connected"}`, { theme: "error" });
+            this.dispatch("toast", {
+                prefix: "app",
+                detail: {
+                    message: `Reboot failed: ${response.message || "client not connected"}`,
+                    theme: "error"
+                }
+            });
         }
     }
 }

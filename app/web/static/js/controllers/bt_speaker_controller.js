@@ -6,11 +6,19 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
     static params = ["speakerName"]
 
+    toast(message, theme = "info") {
+        this.dispatch("toast", { prefix: "app", detail: { message, theme } })
+    }
+
+    busy(on) {
+        this.dispatch("busy", { prefix: "app", detail: { on } })
+    }
+
     async toggle(event) {
         const name = event.params.speakerName
         console.info(`[bt] toggling connection for ${name} …`)
         try {
-            if (typeof window.setPageBusy === "function") window.setPageBusy(true);
+            this.busy(true)
             const resp = await fetch("/kiosk/devices/bt-toggle", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -20,18 +28,18 @@ export default class extends Controller {
             if (!resp.ok || body.error) {
                 const message = body.detail || body.error || `toggle failed (${resp.status})`
                 console.warn(`[bt] toggle failed for ${name}:`, message)
-                window.showKioskToast(message, { theme: "error" })
+                this.toast(message, "error")
                 return
             }
             const state = body.connected ? "connected" : "disconnected"
             console.info(`[bt] ${name} → ${state}`)
-            window.showKioskToast(`${name}: ${state}`, { theme: body.connected ? "success" : "info" })
+            this.toast(`${name}: ${state}`, body.connected ? "success" : "info")
             window.dispatchEvent(new CustomEvent("nav:go", { detail: "/kiosk/devices" }))
         } catch (e) {
             console.warn(`[bt] toggle failed for ${name}:`, e)
-            window.showKioskToast(`BT toggle failed: ${e.message}`, { theme: "error" })
+            this.toast(`BT toggle failed: ${e.message}`, "error")
         } finally {
-            if (typeof window.setPageBusy === "function") window.setPageBusy(false)
+            this.busy(false)
         }
     }
 }

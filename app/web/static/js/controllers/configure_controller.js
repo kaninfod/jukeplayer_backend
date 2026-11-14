@@ -36,6 +36,10 @@ export default class extends Controller {
         this.rawTarget.value = JSON.stringify(cfg, null, 2)
     }
 
+    toast(message, theme = "info") {
+        this.dispatch("toast", { prefix: "app", detail: { message, theme } })
+    }
+
     async apply(event) {
         const reboot = String(event.params.reboot) === "true"
         if (reboot && !confirm("Reboot the device after applying?")) return
@@ -45,7 +49,7 @@ export default class extends Controller {
             JSON.parse(config)
         } catch (e) {
             this.rawTarget.classList.add("is-invalid")
-            window.showKioskToast(`Invalid JSON: ${e.message}`, { theme: "error" })
+            this.toast(`Invalid JSON: ${e.message}`, "error")
             return
         }
 
@@ -56,13 +60,13 @@ export default class extends Controller {
                 body: config
             })
             if (!resp.ok) {
-                window.showKioskToast(`Apply failed: ${await resp.text()}`, { theme: "error" })
+                this.toast(`Apply failed: ${await resp.text()}`, "error")
                 return
             }
-            window.showKioskToast(reboot ? "Config sent — device rebooting" : "Config sent", { theme: "success" })
+            this.toast(reboot ? "Config sent — device rebooting" : "Config sent", "success")
             window.dispatchEvent(new CustomEvent("nav:go", { detail: "/kiosk/clients" }))
         } catch (e) {
-            window.showKioskToast(`Apply failed: ${e.message}`, { theme: "error" })
+            this.toast(`Apply failed: ${e.message}`, "error")
         }
     }
 

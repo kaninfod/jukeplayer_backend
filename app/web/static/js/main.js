@@ -17,6 +17,8 @@ import KeyboardController from "./controllers/keyboard_controller.js"
 import LibrarySearchController from "./controllers/library_search_controller.js"
 import DirFilterController from "./controllers/dir_filter_controller.js"
 import SoundProfileController from "./controllers/soundprofile_controller.js"
+import ToastController from "./controllers/toast_controller.js"
+import BusyController from "./controllers/busy_controller.js"
 
 const application = Application.start()
 
@@ -42,5 +44,7 @@ application.register("keyboard", KeyboardController)
 application.register("library-search", LibrarySearchController)
 application.register("dir-filter", DirFilterController)
 application.register("soundprofile", SoundProfileController)
+application.register("toast", ToastController)
+application.register("busy", BusyController)
 // 3. Optional: Global access for console debugging
 window.Stimulus = application

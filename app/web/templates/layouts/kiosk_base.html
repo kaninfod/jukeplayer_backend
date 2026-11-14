@@ -25,7 +25,7 @@
     {% block head_extra %}{% endblock %}
 </head>
 <body class=""
-    data-controller="websocket navigation playercontrols device nowplaying logging keyboard"
+    data-controller="websocket navigation playercontrols device nowplaying logging keyboard toast busy"
     data-action="
       ws:send@window->websocket#handleOutgoing
       nav:go@window->navigation#load
@@ -65,7 +65,7 @@
 
 
     <!-- Toast container for global notifications -->
-    <div id="kiosk-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;"></div>
+    <div id="kiosk-toast-container" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;" data-toast-target="container"></div>
     <!-- Global page-busy overlay: ONE spinner for the whole SPA -->
     <div id="page-busy" aria-hidden="true">
         <div class="page-busy-box text-center">
@@ -74,8 +74,6 @@
         </div>
     </div>
     
-    <!-- Kiosk-specific JavaScript -->
-    <script src="/static/js/kiosk-toast.js"></script>
     <!-- load htmx early so our new template fragments can use hx- attributes
          (harmless if the old loader is still in use) -->
     <script src="/static/vendor/htmx.min.js"></script>

@@ -17,7 +17,7 @@ templates = Jinja2Templates(directory="app/web/templates")
 
 def _with_toast(response, message: str, theme: str = "success"):
     """Attach an HX-Trigger header so the client flashes a toast notification
-    after the htmx swap (listener lives in static/js/kiosk-toast.js)."""
+    after the htmx swap (the toast controller listens for kioskToast)."""
     response.headers["HX-Trigger"] = json.dumps({"kioskToast": {"message": message, "theme": theme}})
     return response
 
