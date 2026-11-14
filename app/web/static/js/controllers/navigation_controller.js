@@ -42,8 +42,11 @@ export default class extends Controller {
         } else if (event?.detail && typeof event.detail === 'string') {
             url = event.detail; // CustomEvent: window.dispatchEvent
         } else if (event?.currentTarget) {
-            // Click Event: <button href="..."> or <a href="...">
-            url = event.currentTarget.getAttribute("href") || event.currentTarget.dataset.url;
+            // Click Event: <button href="..."> or <a href="...">, with the
+            // data-navigation-url-value form used by button-only actions.
+            url = event.currentTarget.getAttribute("href")
+                || event.currentTarget.dataset.url
+                || event.currentTarget.dataset.navigationUrlValue;
         }
 
         console.log("Navigation target resolved to:", url);
