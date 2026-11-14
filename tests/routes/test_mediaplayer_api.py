@@ -131,6 +131,74 @@ async def test_play_random_returns_the_pick(initialized_app, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_album_star_returns_the_new_state(initialized_app, monkeypatch):
+    from app.music_sources.base import SourceCapability
+
+    source = MagicMock()
+    source.capabilities = frozenset({SourceCapability.STAR})
+    source.set_album_starred = MagicMock(return_value=True)
+    registry = MagicMock()
+    registry.get.return_value = source
+    monkeypatch.setattr("app.routes.mediaplayer.get_service", lambda name: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/mediaplayer/album_star?album_id=subsonic:al-1&starred=true")
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "status": "success",
+        "message": "Album starred",
+        "speaker": None,
+        "volume": None,
+        "muted": None,
+        "repeat_album": None,
+        "album_id": "subsonic:al-1",
+        "starred": True,
+    }
+    source.set_album_starred.assert_called_once_with("subsonic:al-1", True)
+
+
+@pytest.mark.asyncio
+async def test_album_star_read_returns_the_state(initialized_app, monkeypatch):
+    from app.music_sources.base import SourceCapability
+
+    source = MagicMock()
+    source.capabilities = frozenset({SourceCapability.STAR})
+    source.is_album_starred = MagicMock(return_value=True)
+    registry = MagicMock()
+    registry.get.return_value = source
+    monkeypatch.setattr("app.routes.mediaplayer.get_service", lambda name: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/mediaplayer/album_star?album_id=subsonic:al-1")
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "success"
+    assert resp.json()["album_id"] == "subsonic:al-1"
+    assert resp.json()["starred"] is True
+    source.is_album_starred.assert_called_once_with("subsonic:al-1")
+
+
+@pytest.mark.asyncio
+async def test_album_star_rejects_a_source_without_the_capability(initialized_app, monkeypatch):
+    registry = MagicMock()
+    registry.get.return_value = MagicMock(capabilities=frozenset())
+    monkeypatch.setattr("app.routes.mediaplayer.get_service", lambda name: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/mediaplayer/album_star?album_id=subsonic:al-1&starred=true")
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "error"
+    assert "does not support" in resp.json()["message"]
+
+
+@pytest.mark.asyncio
 async def test_transport_speaker_param_targets_the_named_speaker(initialized_app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         _inject_speaker("living_room", default=True)
@@ -358,17 +426,15 @@ async def test_styleguide_page_renders(initialized_app):
         assert "swatch-grid" in partial.text
 
 @pytest.mark.asyncio
-async def test_menu_sheet_renders_speaker_quick_select(initialized_app):
-    """The mobile menu sheet: the speaker quick-select + the content links."""
+async def test_menu_sheet_renders_three_destination_cards(initialized_app):
+    """The mobile menu sheet: exactly three destination cards, no speaker list."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post("/kiosk/system/connect/add-cc", data={"name": "living_room"})
-
         resp = await client.get("/kiosk/menu-sheet", headers={"HX-Request": "true"})
         assert resp.status_code == 200
         html = " ".join(resp.text.split())
-        assert "menu-sheet-speaker" in html
-        assert "living_room" in html
-        assert "Media Library" in html and "Playlist" in html and "Output Devices" in html
+        assert "menu-sheet-speaker" not in html
+        assert "Media Library" in html and "Playlist" in html and "Speakers" in html
+        assert html.count('class="kiosk-link-card"') == 3
 
 @pytest.mark.asyncio
 async def test_bt_toggle_refusal_is_a_human_error_not_a_500(initialized_app):

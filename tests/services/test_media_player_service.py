@@ -124,3 +124,17 @@ async def test_stop_clears_the_queue(media_player_service):
     assert media_player_service.playlist_manager.count() == 0
     assert media_player_service.playlist_manager.current_track is None
     assert media_player_service.playlist_manager._repeat_album is False
+
+
+def test_context_carries_album_star_metadata(media_player_service):
+    """The web player needs the album id and star flag for the heart."""
+    from app.playback.media_player_service.playlist_manager import PlaylistItem
+    media_player_service.playlist_manager.add_item(PlaylistItem(
+        track_id="tr-1", stream_url="http://example/tr-1", duration="200",
+        track_number=1, title="Song", artist="A", album="Al", year="2000",
+        cover_url="", album_id="subsonic:al-1", starred=True))
+
+    context = media_player_service.get_context()
+
+    assert context["current_track"]["album_id"] == "subsonic:al-1"
+    assert context["current_track"]["album_starred"] is True

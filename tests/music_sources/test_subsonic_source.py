@@ -97,3 +97,42 @@ def _wrap(payload):
     resp = MagicMock()
     resp.json.return_value = payload
     return resp
+
+def test_load_album_parses_the_starred_flag(monkeypatch):
+    src = make_source()
+    payload = _album_payload()
+    payload["subsonic-response"]["album"]["starred"] = "2026-11-14T18:00:00Z"
+    monkeypatch.setattr(src.api, "_api_request", lambda *a, **k: _wrap(payload))
+
+    album = src.load_album("al-99")
+
+    assert album.starred is True
+
+
+def test_set_album_starred_uses_star_and_unstar_with_the_raw_id(monkeypatch):
+    src = make_source()
+    calls = []
+
+    def fake_request(endpoint, params):
+        calls.append((endpoint, params))
+        return _wrap({"subsonic-response": {"status": "ok"}})
+
+    monkeypatch.setattr(src.api, "_api_request", fake_request)
+
+    assert src.set_album_starred("subsonic:al-99", True) is True
+    assert src.set_album_starred("subsonic:al-99", False) is True
+
+    assert calls == [
+        ("star", {"id": "al-99"}),
+        ("unstar", {"id": "al-99"}),
+    ]
+
+
+def test_is_album_starred_reads_the_get_album_field(monkeypatch):
+    src = make_source()
+    monkeypatch.setattr(
+        src, "get_album_info",
+        lambda album_id: {"starred": "2026-11-14T18:00:00Z"} if album_id == "al-99" else {"name": "x"})
+
+    assert src.is_album_starred("subsonic:al-99") is True
+    assert src.is_album_starred("al-unstarred") is False

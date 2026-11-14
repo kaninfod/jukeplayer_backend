@@ -13,6 +13,8 @@ class PlaylistItem:
     album: str
     year: str
     cover_url: str
+    album_id: str = ""
+    starred: bool = False
     
 
 @dataclass

@@ -386,6 +386,8 @@ class MediaPlayerService:
                 "track_id": None,
                 "track_number": None,
                 "cover_url": None,
+                "album_id": None,
+                "album_starred": None,
                 **({
                     "duration": None,
                     "year": None,
@@ -401,6 +403,8 @@ class MediaPlayerService:
             "cover_url": track.cover_url,
             "year": track.year,
             "duration": track.duration,
+            "album_id": track.album_id,
+            "album_starred": track.starred,
         }
         
         return track_dict

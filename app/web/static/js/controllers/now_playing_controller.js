@@ -2,9 +2,13 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-nowplaying-target' in the HTML
-    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus", "speakerscard", "speakername", "speakerstate", "speakericon", "speakertile", "speakertype", "speakertypeicon", "speakertypetext", "speakerclients", "controls" ]
+    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus", "speakerscard", "speakername", "speakerstate", "speakericon", "speakertile", "speakertype", "speakertypeicon", "speakertypetext", "speakerclients", "controls", "star", "staricon" ]
 
     connect() {
+        this._starAlbumId = null
+        this._starred = false
+        this._starBusy = false
+        this._starSeq = 0
         console.log("Now Playing Controller connected to the DOM", window.appState.lastTrackData);
         window.dispatchEvent(new CustomEvent("ws:request-sync"));
 
@@ -113,6 +117,103 @@ export default class extends Controller {
         if (this.hasTracknumTarget && window.appState.playlist) {
             this.tracknumTarget.textContent =
                 `Track ${data.track_number} of ${window.appState.playlist.length}`;
+        }
+        if (this.hasStarTarget) {
+            this._syncStar(data.album_id, data.album_starred);
+        }
+    }
+
+    _syncStar(albumId, starred) {
+        if (!this.hasStarTarget) return;
+
+        if (!albumId) {
+            this._starAlbumId = null;
+            this._starred = false;
+            this._starBusy = false;
+            this.starTarget.classList.add("d-none");
+            return;
+        }
+
+        // The context may be rebroadcast for the same album with a stale
+        // album_starred (the playlist item is loaded once). Do not overwrite
+        // a state we already have for this album; only resync on album change.
+        if (albumId !== this._starAlbumId) {
+            this._starAlbumId = albumId;
+            this._starred = Boolean(starred);
+            this._starBusy = false;
+            this._renderStar();
+            this._refreshStar(albumId);
+            return;
+        }
+        this._renderStar();
+    }
+
+    async _refreshStar(albumId) {
+        const seq = ++this._starSeq;
+        try {
+            const response = await fetch(
+                `/api/mediaplayer/album_star?album_id=${encodeURIComponent(albumId)}`,
+            );
+            const data = await response.json();
+            if (!response.ok || data.status !== "success") return;
+            if (this._starAlbumId === albumId && seq === this._starSeq && !this._starBusy) {
+                this._starred = Boolean(data.starred);
+                this._renderStar();
+            }
+        } catch (error) {
+            console.warn("Could not refresh album star state:", error);
+        }
+    }
+
+    _renderStar() {
+        if (!this.hasStarTarget) return;
+
+        const visible = Boolean(this._starAlbumId);
+        this.starTarget.classList.toggle("d-none", !visible);
+        if (!visible) return;
+
+        this.starTarget.disabled = Boolean(this._starBusy);
+        this.starTarget.setAttribute("aria-pressed", String(this._starred));
+        this.starTarget.title = this._starred ? "Unstar album" : "Star album";
+        this.starTarget.setAttribute("aria-label", this.starTarget.title);
+        if (this.hasStariconTarget) {
+            this.stariconTarget.className = this._starred
+                ? "mdi mdi-heart text-danger"
+                : "mdi mdi-heart-outline";
+        }
+    }
+
+    async toggleStar() {
+        if (!this._starAlbumId || this._starBusy) return;
+
+        const albumId = this._starAlbumId;
+        const next = !this._starred;
+        this._starSeq += 1;
+        this._starBusy = true;
+        this._renderStar();
+
+        try {
+            const response = await fetch(
+                `/api/mediaplayer/album_star?album_id=${encodeURIComponent(albumId)}&starred=${next}`,
+                { method: "POST" },
+            );
+            const data = await response.json();
+            if (!response.ok || data.status !== "success") {
+                throw new Error(data.message || `HTTP ${response.status}`);
+            }
+            if (this._starAlbumId === albumId) {
+                this._starred = Boolean(data.starred);
+            }
+        } catch (error) {
+            this.dispatch("toast", {
+                prefix: "app",
+                detail: { message: `Could not update album star: ${error.message}`, theme: "error" },
+            });
+        } finally {
+            if (this._starAlbumId === albumId) {
+                this._starBusy = false;
+                this._renderStar();
+            }
         }
     }
 

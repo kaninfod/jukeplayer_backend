@@ -25,6 +25,7 @@ class SourceCapability(str, Enum):
     SEARCH = "search"        # the search-panel/crate surface
     SCROBBLE = "scrobble"    # now-playing notifications upstream
     COVER_ART = "cover_art"  # raw cover bytes for the CoverService cache
+    STAR = "star"            # album star/unstar (web-only today)
 
 
 @dataclass
@@ -51,6 +52,7 @@ class SourceAlbum:
     artist: str
     year: str = ""
     cover_url: Optional[str] = None   # the source's own preferred rendering (proxy url / thumb)
+    starred: bool = False
     tracks: List[SourceTrack] = field(default_factory=list)
 
 
@@ -120,4 +122,12 @@ class SourceProvider:
         the upstream service records the correct listen timestamp. Sources
         that only support now-playing return False.
         """
+        return False
+
+    def set_album_starred(self, album_id: str, starred: bool) -> bool:
+        """Star or unstar one album (only when STAR in capabilities)."""
+        return False
+
+    def is_album_starred(self, album_id: str) -> bool:
+        """Current album star state (only when STAR in capabilities)."""
         return False

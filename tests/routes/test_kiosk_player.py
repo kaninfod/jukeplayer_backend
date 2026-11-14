@@ -41,6 +41,12 @@ async def test_player_page_carries_speakers_card_and_map(initialized_app):
         # the status chip keeps its cast icon; the name lives in the span
         assert 'data-nowplaying-target="currentdevice"' in html
 
+        # the album heart sits in the transport row and starts hidden until
+        # current_track carries an album id
+        assert 'data-nowplaying-target="star"' in html
+        assert 'data-nowplaying-target="staricon"' in html
+        assert 'data-action="click->nowplaying#toggleStar"' in html
+
 
 @pytest.mark.asyncio
 async def test_player_partial_htmx_variants_carry_the_card(initialized_app):

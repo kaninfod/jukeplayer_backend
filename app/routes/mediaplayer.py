@@ -13,6 +13,7 @@ structured results make success/failure real instead of guessed.
 """
 from typing import Literal, Optional
 
+import asyncio
 import logging
 
 from app.core import Event, EventType, event_bus
@@ -42,6 +43,12 @@ class RandomPickResult(ActionResult):
     album: Optional[str] = None
     reason: Optional[str] = None
     mode: Optional[str] = None
+
+
+class AlbumStarResult(ActionResult):
+    """Album star response: the envelope plus the resulting state."""
+    album_id: Optional[str] = None
+    starred: Optional[bool] = None
 
 
 def _envelope(result: list) -> ActionResult:
@@ -181,6 +188,75 @@ async def play_random(client_id: Optional[str] = Query(None),
     payload = {"client_id": client_id, "device_name": speaker, "mode": mode}
     result = await event_bus.aemit(Event(type=EventType.PLAY_RANDOM, payload=payload))
     return _random_envelope(result)
+
+
+def _album_star_source(album_id: str):
+    """Resolve a STAR-capable source for a namespaced album id."""
+    from app.music_sources.base import SourceCapability, unqualify
+
+    registry = get_service("music_sources")
+    pid, _raw = unqualify(album_id)
+    source = registry.get(pid)
+    if source is None or SourceCapability.STAR not in getattr(
+            source, "capabilities", frozenset()):
+        raise ValueError("This music source does not support album stars")
+    return source
+
+
+@router.get("/album_star", response_model=AlbumStarResult)
+async def get_album_star(album_id: str = Query(..., min_length=1)):
+    """Read the current star state of one album (web-only surface)."""
+    try:
+        source = _album_star_source(album_id)
+        starred = await asyncio.to_thread(source.is_album_starred, album_id)
+        return AlbumStarResult(
+            status="success",
+            message="Album is starred" if starred else "Album is not starred",
+            album_id=album_id,
+            starred=starred,
+        )
+    except Exception as exc:
+        logger.error("album star read failed for %s: %s", album_id, exc, exc_info=True)
+        return AlbumStarResult(
+            status="error",
+            message=f"Could not read album star: {exc}",
+            album_id=album_id,
+        )
+
+
+@router.post("/album_star", response_model=AlbumStarResult)
+async def set_album_star(album_id: str = Query(..., min_length=1),
+                         starred: bool = Query(...)):
+    """Star or unstar one album (web-only convenience surface).
+
+    This is deliberately a REST call, not a WS command: it is an album
+    library mutation used by the web player, not a transport/player action.
+    The state also travels in ``current_track.album_starred``; the GET
+    endpoint exists so a reload can resync after a star/unstar.
+    """
+    try:
+        source = _album_star_source(album_id)
+        ok = await asyncio.to_thread(source.set_album_starred, album_id, starred)
+        if not ok:
+            return AlbumStarResult(
+                status="error",
+                message="Subsonic rejected the album star change",
+                album_id=album_id,
+                starred=not starred,
+            )
+        return AlbumStarResult(
+            status="success",
+            message="Album starred" if starred else "Album unstarred",
+            album_id=album_id,
+            starred=starred,
+        )
+    except Exception as exc:
+        logger.error("album star failed for %s: %s", album_id, exc, exc_info=True)
+        return AlbumStarResult(
+            status="error",
+            message=f"Could not update album star: {exc}",
+            album_id=album_id,
+        )
 
 
 # Full playback context of the resolved speaker. The HA integration's

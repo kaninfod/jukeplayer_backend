@@ -108,7 +108,9 @@ class PlaybackService:
                 artist=album.artist,
                 album=album.title,
                 year=album.year,
-                cover_url=album.cover_url
+                cover_url=album.cover_url,
+                album_id=album.album_id,
+                starred=album.starred,
             )
             player.playlist_manager.add_item(item)
 

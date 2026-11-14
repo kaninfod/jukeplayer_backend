@@ -88,6 +88,12 @@
                         title="Repeat" aria-label="Repeat">
                     <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
                 </button>
+                <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn d-none"
+                        data-nowplaying-target="star"
+                        data-action="click->nowplaying#toggleStar"
+                        title="Star album" aria-label="Star album" aria-pressed="false">
+                    <i data-nowplaying-target="staricon" class="mdi mdi-heart-outline"></i>
+                </button>
             </div>
 
             {# current-speaker card: devices-page anatomy in one horizontal row,

@@ -32,6 +32,7 @@ class SubsonicSource(SourceProvider):
     capabilities = frozenset({
         SourceCapability.BROWSE, SourceCapability.SEARCH,
         SourceCapability.SCROBBLE, SourceCapability.COVER_ART,
+        SourceCapability.STAR,
     })
 
     def __init__(self, config=None):
@@ -78,6 +79,7 @@ class SubsonicSource(SourceProvider):
             artist=info.get("artist", ""),
             year=str(info.get("year", "") or ""),
             cover_url=self.get_cover_proxy_url(album_id),
+            starred=bool(info.get("starred")),
             tracks=tracks,
         )
 
@@ -102,6 +104,37 @@ class SubsonicSource(SourceProvider):
         """
         _, raw = unqualify(track_id)
         return self.submit_scrobble(raw, played_at)
+
+    def set_album_starred(self, album_id: str, starred: bool) -> bool:
+        """Star/unstar an album in Subsonic (gonic forwards it to its store).
+
+        Subsonic's ``star``/``unstar`` endpoints take an id; gonic accepts an
+        album id on ``id`` and filters by the id type. The web client sends
+        the namespaced album id, so strip the source prefix first.
+        """
+        _, raw = unqualify(album_id)
+        endpoint = "star" if starred else "unstar"
+        try:
+            data = self.api._api_request(endpoint, {"id": raw}).json()
+        except Exception as exc:
+            logger.error("set_album_starred: %s failed for %s: %s", endpoint, raw, exc)
+            return False
+        status = data.get("subsonic-response", {}).get("status")
+        if status == "ok":
+            logger.info("set_album_starred: %s %s", "starred" if starred else "unstarred", raw)
+            return True
+        error = data.get("subsonic-response", {}).get("error", "Unknown error")
+        logger.warning("set_album_starred: %s failed for %s: %s", endpoint, raw, error)
+        return False
+
+    def is_album_starred(self, album_id: str) -> bool:
+        """Read the album star state from ``getAlbum`` (the same field the
+        album view uses). Raises ValueError when the album is unknown."""
+        _, raw = unqualify(album_id)
+        info = self.get_album_info(raw)
+        if not info:
+            raise ValueError(f"Album not found in Subsonic: {raw}")
+        return bool(info.get("starred"))
 
     # === THE GONIC FACULTY (verbatim from the old service; api indirection) ===
 
