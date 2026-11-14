@@ -7,7 +7,7 @@ export default class extends Controller {
     static targets = ["panel", "slider", "readout", "icon", "buttonreadout", "buttonmuteicon"]
 
     connect() {
-        this._onVolumeState = this._renderButton.bind(this)
+        this._onVolumeState = () => this._renderButton()
         window.addEventListener("nowplaying-update", this._onVolumeState)
         window.addEventListener("volume-change", this._onVolumeState)
         window.addEventListener("volume_mute_response", this._onVolumeState)
@@ -109,7 +109,8 @@ export default class extends Controller {
     }
 
     _renderButton(volumeOverride = null) {
-        const volume = volumeOverride ?? (parseInt(window.appState?.volume) || 0)
+        const forced = typeof volumeOverride === "number" ? volumeOverride : null
+        const volume = forced ?? (parseInt(window.appState?.volume) || 0)
         const muted = Boolean(window.appState?.isMuted)
 
         if (this.hasButtonreadoutTarget) {
