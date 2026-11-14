@@ -11,14 +11,6 @@ class FakeSource:
         return self.rows
 
 
-class FakeRegistry:
-    def __init__(self, source):
-        self.source = source
-
-    def get(self, pid=None):
-        return self.source
-
-
 class FakeConfig:
     def __init__(self, username="mhinge"):
         self.username = username
@@ -93,7 +85,7 @@ async def test_pick_uses_listenbrainz_and_excludes_top_and_quarter(monkeypatch):
     monkeypatch.setattr(
         "app.recommendations.service.ListenBrainzClient", FakeListenBrainz
     )
-    service = RecommendationService(FakeRegistry(FakeSource(_rows())), FakeConfig())
+    service = RecommendationService(FakeSource(_rows()), FakeConfig())
     pick = await service.pick("living_room")
     assert pick is not None
     assert pick.album_id in {"neglected", "never"}
@@ -102,7 +94,7 @@ async def test_pick_uses_listenbrainz_and_excludes_top_and_quarter(monkeypatch):
 @pytest.mark.asyncio
 async def test_pick_falls_back_to_local_without_listenbrainz(monkeypatch):
     service = RecommendationService(
-        FakeRegistry(FakeSource(_rows())), FakeConfig(username="")
+        FakeSource(_rows()), FakeConfig(username="")
     )
     pick = await service.pick("living_room")
     assert pick is not None
@@ -115,7 +107,7 @@ async def test_session_picks_are_not_repeated(monkeypatch):
         "app.recommendations.service.ListenBrainzClient", FakeListenBrainz
     )
     service = RecommendationService(
-        FakeRegistry(FakeSource(_rows())), FakeConfig(), oddball_rate=0.0
+        FakeSource(_rows()), FakeConfig(), oddball_rate=0.0
     )
     first = await service.pick()
     second = await service.pick()
@@ -129,7 +121,7 @@ async def test_pick_random_mode_needs_no_listenbrainz(monkeypatch):
         "app.recommendations.service.ListenBrainzClient", FakeListenBrainz
     )
     service = RecommendationService(
-        FakeRegistry(FakeSource(_rows())), FakeConfig(username="")
+        FakeSource(_rows()), FakeConfig(username="")
     )
 
     pick = await service.pick("living_room", mode="random")
@@ -144,7 +136,7 @@ async def test_pick_neglected_mode_uses_the_hard_exclusions(monkeypatch):
     monkeypatch.setattr(
         "app.recommendations.service.ListenBrainzClient", FakeListenBrainz
     )
-    service = RecommendationService(FakeRegistry(FakeSource(_rows())), FakeConfig())
+    service = RecommendationService(FakeSource(_rows()), FakeConfig())
 
     pick = await service.pick("living_room", mode="neglected")
 
@@ -167,7 +159,7 @@ async def test_warm_survives_a_broken_source(monkeypatch):
             raise RuntimeError("gonic down")
 
     service = RecommendationService(
-        FakeRegistry(BrokenSource()), FakeConfig(username="")
+        BrokenSource(), FakeConfig(username="")
     )
     await service.warm()  # must not raise
 

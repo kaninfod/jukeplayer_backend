@@ -190,17 +190,14 @@ async def play_random(client_id: Optional[str] = Query(None),
     return _random_envelope(result)
 
 
-def _album_star_source(album_id: str):
-    """Resolve a STAR-capable source for a namespaced album id."""
-    from app.music_sources.base import SourceCapability, unqualify
+def _raw_album_id(album_id: str) -> str:
+    """Accept namespaced and legacy bare ids until the id migration."""
+    from app.music_sources.ids import unqualify
 
-    registry = get_service("music_sources")
-    pid, _raw = unqualify(album_id)
-    source = registry.get(pid)
-    if source is None or SourceCapability.STAR not in getattr(
-            source, "capabilities", frozenset()):
-        raise ValueError("This music source does not support album stars")
-    return source
+    pid, raw = unqualify(album_id)
+    if pid not in (None, "subsonic"):
+        raise ValueError(f"Unknown music source '{pid}'")
+    return raw
 
 
 @router.post("/album_star", response_model=AlbumStarResult)
@@ -216,7 +213,8 @@ async def set_album_star(album_id: str = Query(..., min_length=1),
     is updated so ``get_context()`` stays correct without a live read.
     """
     try:
-        source = _album_star_source(album_id)
+        _raw_album_id(album_id)
+        source = get_service("subsonic_service")
         ok = await asyncio.to_thread(source.set_album_starred, album_id, starred)
         if not ok:
             return AlbumStarResult(

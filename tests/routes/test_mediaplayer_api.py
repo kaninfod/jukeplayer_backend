@@ -132,20 +132,15 @@ async def test_play_random_returns_the_pick(initialized_app, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_album_star_returns_the_new_state(initialized_app, monkeypatch):
-    from app.music_sources.base import SourceCapability
-
     source = MagicMock()
-    source.capabilities = frozenset({SourceCapability.STAR})
     source.set_album_starred = MagicMock(return_value=True)
-    registry = MagicMock()
-    registry.get.return_value = source
     resolved = MagicMock()
     resolved.mediaplayer.set_album_starred = MagicMock(return_value=True)
     broker = MagicMock()
     broker.resolve_speaker.return_value = resolved
 
     def service(name):
-        return registry if name == "music_sources" else broker
+        return source if name == "subsonic_service" else broker
 
     monkeypatch.setattr("app.routes.mediaplayer.get_service", service)
 
@@ -171,10 +166,10 @@ async def test_album_star_returns_the_new_state(initialized_app, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_album_star_rejects_a_source_without_the_capability(initialized_app, monkeypatch):
-    registry = MagicMock()
-    registry.get.return_value = MagicMock(capabilities=frozenset())
-    monkeypatch.setattr("app.routes.mediaplayer.get_service", lambda name: registry)
+async def test_album_star_surfaces_a_source_rejection(initialized_app, monkeypatch):
+    source = MagicMock()
+    source.set_album_starred = MagicMock(return_value=False)
+    monkeypatch.setattr("app.routes.mediaplayer.get_service", lambda name: source)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -183,7 +178,7 @@ async def test_album_star_rejects_a_source_without_the_capability(initialized_ap
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "error"
-    assert "does not support" in resp.json()["message"]
+    assert "rejected" in resp.json()["message"]
 
 
 @pytest.mark.asyncio

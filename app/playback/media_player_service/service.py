@@ -276,25 +276,22 @@ class MediaPlayerService:
         """Submit a completed play without blocking the player."""
         try:
             from app.core.service_container import get_service
-            from app.music_sources.base import SourceCapability, unqualify
+            from app.music_sources.ids import unqualify
 
             pid, _raw_track_id = unqualify(track_id)
-            source = get_service("music_sources").get(pid)
-            if SourceCapability.SCROBBLE not in getattr(source, "capabilities", frozenset()):
+            if pid not in (None, "subsonic"):
                 return
-            if not hasattr(source, "scrobble_completed"):
-                logger.debug("Source '%s' cannot submit completed plays", getattr(source, "id", pid))
-                return
+            subsonic_service = get_service("subsonic_service")
 
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
-                self._submit_scrobble_blocking(source, track_id, track_title, played_at)
+                self._submit_scrobble_blocking(subsonic_service, track_id, track_title, played_at)
                 return
 
             loop.run_in_executor(
                 None, self._submit_scrobble_blocking,
-                source, track_id, track_title, played_at,
+                subsonic_service, track_id, track_title, played_at,
             )
         except Exception as e:
             logger.error("Error queueing completed scrobble for '%s': %s", track_title, e)
@@ -316,31 +313,23 @@ class MediaPlayerService:
         HTTP call runs in the default executor, errors are logged there."""
         try:
             from app.core.service_container import get_service
-            from app.music_sources.base import SourceCapability, unqualify
+            from app.music_sources.ids import unqualify
 
-            # The queue's track ids are namespaced ("subsonic:tr-…") since the
-            # music-source seam: pick the source the queue item actually
-            # belongs to and scrobble only when that source scrobbles.
+            # Queue ids are still namespaced until the id migration; scrobble
+            # with the bare track id the Subsonic API expects.
             pid, raw_track_id = unqualify(track_id)
-            source = get_service("music_sources").get(pid)
-            if SourceCapability.SCROBBLE not in getattr(source, "capabilities", frozenset()):
-                logger.debug(f"_scrobble_track_now_playing: source '{source.id}' does not scrobble — skipping '{track_title}'")
+            if pid not in (None, "subsonic"):
                 return
-            subsonic_service = source
-            track_id = raw_track_id
-
-            if not subsonic_service:
-                logger.warning(f"_scrobble_track_now_playing: SubsonicService not available, skipping scrobble for '{track_title}'")
-                return
+            subsonic_service = get_service("subsonic_service")
 
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
                 # No running loop (called from sync context) — do it inline
-                self._scrobble_blocking(subsonic_service, track_id, track_title)
+                self._scrobble_blocking(subsonic_service, raw_track_id, track_title)
                 return
 
-            loop.run_in_executor(None, self._scrobble_blocking, subsonic_service, track_id, track_title)
+            loop.run_in_executor(None, self._scrobble_blocking, subsonic_service, raw_track_id, track_title)
         except Exception as e:
             # Non-critical: never let scrobbling affect playback
             logger.error(f"_scrobble_track_now_playing: Error queueing scrobble for '{track_title}': {e}")

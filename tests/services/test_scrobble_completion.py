@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.music_sources.subsonic import SubsonicSource
+from app.music_sources.subsonic import SubsonicService
 from app.playback.media_player_service.playlist_manager import PlaylistItem
 
 
@@ -76,7 +76,7 @@ async def test_stop_finishes_the_current_track(media_player_service, mock_playba
 
 
 def test_subsonic_completed_scrobble_sets_submission_true():
-    source = object.__new__(SubsonicSource)
+    source = object.__new__(SubsonicService)
     source.api = MagicMock()
     source.api._api_request.return_value.json.return_value = {
         "subsonic-response": {"status": "ok"}

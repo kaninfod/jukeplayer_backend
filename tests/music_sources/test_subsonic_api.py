@@ -1,10 +1,10 @@
 """Tests for the subsonic transport's retry behaviour and scrobble semantics
-(moved with the music-source seam — app/music_sources/subsonic/api.py)."""
+(app/music_sources/subsonic/api.py)."""
 import pytest
 import requests
 from unittest.mock import MagicMock
 
-from app.music_sources.subsonic import SubsonicSource
+from app.music_sources.subsonic import SubsonicService
 
 
 def make_service():
@@ -15,7 +15,7 @@ def make_service():
     config.SUBSONIC_CLIENT = "test"
     config.SUBSONIC_API_VERSION = "1.16.1"
     config.HTTP_REQUEST_TIMEOUT = 10
-    return SubsonicSource(config)
+    return SubsonicService(config)
 
 
 def _resp_json(payload):

@@ -40,8 +40,8 @@ def normalize_mode(mode: str | None) -> str:
 class RecommendationService:
     """Pick a neglected owned album that fits the current listening context."""
 
-    def __init__(self, music_sources, config_service, *, oddball_rate: float = ODDBALL_RATE):
-        self.music_sources = music_sources
+    def __init__(self, subsonic_service, config_service, *, oddball_rate: float = ODDBALL_RATE):
+        self.subsonic_service = subsonic_service
         self.config_service = config_service
         self.oddball_rate = oddball_rate
         self._albums: list[Album] = []
@@ -156,23 +156,14 @@ class RecommendationService:
             return pick
 
     # --- data loading -------------------------------------------------------
-    def _source(self):
-        if self.music_sources is None:
-            return None
-        try:
-            return self.music_sources.get(None)
-        except Exception:
-            return None
-
     async def _ensure_albums(self) -> None:
         if self._albums and (time.monotonic() - self._albums_at) < ALBUM_TTL:
             return
-        source = self._source()
-        if source is None or not hasattr(source, "list_all_albums"):
+        if self.subsonic_service is None:
             self._albums = []
             self._albums_at = time.monotonic()
             return
-        raw = await asyncio.to_thread(source.list_all_albums)
+        raw = await asyncio.to_thread(self.subsonic_service.list_all_albums)
         albums = [album for album in (_album_from_raw(item) for item in raw or []) if album]
         self._albums = albums
         self._albums_at = time.monotonic()

@@ -13,16 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 class PlaybackService:
-    def __init__(self, music_sources, event_bus):
-        """
-        Initialize PlaybackService with dependency injection.
-
-        Args:
-            music_sources: SourceRegistry (app/music_sources) for album/stream
-                resolution — one seam, many sources
-            event_bus: EventBus instance for event communication
-        """
-        self.music_sources = music_sources
+    def __init__(self, subsonic_service, event_bus):
+        """Initialize PlaybackService with the concrete Subsonic service."""
+        self.subsonic_service = subsonic_service
         self.event_bus = event_bus
         self._setup_event_subscriptions()
 
@@ -32,12 +25,14 @@ class PlaybackService:
         """Setup all event subscriptions using injected event_bus"""
         self.event_bus.subscribe(EventType.RFID_READ, self.load_rfid)
 
-    def _resolve_source(self, album_id):
-        """ album_id may carry a namespace ('subsonic:al-678' — phase-2 cards)
-        or be bare ('al-678' — every card encoded to date) → (source, raw_id)."""
-        from app.music_sources.base import unqualify
+    @staticmethod
+    def _raw_album_id(album_id):
+        """Accept both namespaced and legacy bare ids until the id migration."""
+        from app.music_sources.ids import unqualify
         pid, raw_album_id = unqualify(album_id)
-        return self.music_sources.get(pid), raw_album_id
+        if pid not in (None, "subsonic"):
+            raise ValueError(f"Unknown music source '{pid}'")
+        return raw_album_id
 
     def _resolve_default_player(self):
         """Return the default speaker's player, or None (logs why)."""
@@ -47,7 +42,7 @@ class PlaybackService:
 
     async def load_from_album_id(self, album_id, player=None, start_track_index=0):
         """
-        Load and start playback from an album_id via the music-source seam.
+        Load and start playback from an album_id via the Subsonic service.
         Args:
             album_id: The album identifier — bare (legacy cards/web routes,
                 default source) or namespaced ("source:al-…", phase-2 cards)
@@ -66,13 +61,13 @@ class PlaybackService:
 
         logger.info(f"Loading playlist for album_id: {album_id} into {player.device_name} (starting at track {start_track_index})")
         try:
-            source, raw_album_id = self._resolve_source(album_id)
+            raw_album_id = self._raw_album_id(album_id)
 
             # Offloaded to a thread: this is a blocking HTTP call, and it used
             # to freeze the event loop (stalling every connected WS client).
-            album = await asyncio.to_thread(source.load_album, raw_album_id)
+            album = await asyncio.to_thread(self.subsonic_service.load_album, raw_album_id)
         except ValueError as e:
-            logger.error(f"Album {album_id} could not be resolved via the source seam: {e}")
+            logger.error(f"Album {album_id} could not be resolved via Subsonic: {e}")
             return False
         except Exception as e:
             logger.error(f"Failed to load album_id {album_id} (start_track_index={start_track_index}): {e}")
@@ -85,7 +80,7 @@ class PlaybackService:
         try:
             # Ensure static cover variants exist (180/512) — the subsonic
             # proxy-route contract for now. Non-blocking if it fails.
-            if album.id and (album_id.startswith("subsonic:") or ":" not in album_id):
+            if album.album_id and (album_id.startswith("subsonic:") or ":" not in album_id):
                 from app.core.service_container import get_service
                 cover_service = get_service("cover_service")
                 await asyncio.to_thread(cover_service.ensure_cover_variants, raw_album_id, (180, 512))
@@ -99,11 +94,11 @@ class PlaybackService:
         player.playlist_manager.album_id = album.album_id
         player.playlist_manager.album_starred = album.starred
         for track in album.tracks:
-            spec = source.stream_url(track.track_id)
+            stream_url = self.subsonic_service.stream_url(track.track_id)
 
             item = PlaylistItem(
                 track_id=track.track_id,
-                stream_url=spec.url if spec and spec.url else '',
+                stream_url=stream_url or '',
                 duration=track.duration,
                 track_number=track.track_number,
                 title=track.title,

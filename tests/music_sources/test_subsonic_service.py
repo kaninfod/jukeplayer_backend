@@ -1,10 +1,10 @@
-"""SubsonicSource's seam contract: album → a namespaced queue, stream_url,
-covers, scrobble, readiness — mocked at the transport (no real gonic)."""
+"""SubsonicService contract: album → a namespaced queue, stream URLs,
+scrobbles, readiness — mocked at the transport (no real gonic)."""
 from unittest.mock import MagicMock
 
 import pytest
 
-from app.music_sources.subsonic import SubsonicSource
+from app.music_sources.subsonic import SubsonicService
 
 
 def make_source():
@@ -15,7 +15,7 @@ def make_source():
     config.SUBSONIC_CLIENT = "test"
     config.SUBSONIC_API_VERSION = "1.16.1"
     config.HTTP_REQUEST_TIMEOUT = 10
-    return SubsonicSource(config)
+    return SubsonicService(config)
 
 
 def _album_payload(name="Physical Graffiti", artist="Led Zeppelin", year=1975):
@@ -64,12 +64,11 @@ def test_load_album_empty_raises(monkeypatch):
 
 def test_stream_url_unqualifies_the_queue_id():
     src = make_source()
-    spec = src.stream_url("subsonic:tr-8880")
-    assert spec.url.startswith("http://gonic:4747/rest/stream?")
-    assert "id=tr-8880" in spec.url
-    assert "u=jukebox" in spec.url and "t=" in spec.url
-    assert "f=" not in spec.url          # binary endpoints carry no format param
-    assert spec.external is False
+    url = src.stream_url("subsonic:tr-8880")
+    assert url.startswith("http://gonic:4747/rest/stream?")
+    assert "id=tr-8880" in url
+    assert "u=jukebox" in url and "t=" in url
+    assert "f=" not in url          # binary endpoints carry no format param
 
 
 def test_is_ready_probes_ping(monkeypatch):
@@ -81,16 +80,6 @@ def test_is_ready_probes_ping(monkeypatch):
         raise RuntimeError("connection refused")
     monkeypatch.setattr(src.api, "_api_request", boom)
     assert src.is_ready() is False
-
-
-def test_scrobble_strips_the_namespace(monkeypatch):
-    src = make_source()
-    seen = {}
-    monkeypatch.setattr(src, "scrobble_now_playing", lambda tid: seen.setdefault("id", tid))
-
-    src.scrobble("subsonic:tr-42")
-
-    assert seen["id"] == "tr-42"
 
 
 def _wrap(payload):

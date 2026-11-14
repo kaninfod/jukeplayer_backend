@@ -1,39 +1,27 @@
-"""SubsonicSource — the first music source: the gonic/subsonic library.
+"""SubsonicService — the concrete gonic/subsonic client.
 
-Structure (the services-drawer breakup, phase 1):
-- the SEAM (SourceProvider): load_album / stream_url / cover_art / scrobble /
-  is_ready — ids are namespaced through base.qualify/unqualify;
-- the GONIC FACULTY: the kiosk-library and warm-up methods (list_artists,
-  list_all_albums, list_albums_by_genre, search_artists, artist_dominant_genre,
-  get_album_info …) live on as plain methods of this class — they are the
-  subsonic source's own browsing, NOT part of the multi-source seam;
-- the transport lives in subsonic.api (token params + the retry policy).
+This used to implement a multi-source `SourceProvider` seam. Since Subsonic
+is the only source, the class is now concrete: it owns album loading,
+stream URLs, scrobbles, stars and the gonic browsing/warm-up methods.
 
-All `/api/subsonic/*` API routes (the ESP32 kiosk's contract) and the
-CoverService keep working unchanged: the container registers this instance
-under its old "subsonic_service" key.
+The transport lives in subsonic.api (token params + retry policy). The
+container registers this instance under the historical `subsonic_service`
+key; `/api/subsonic/*`, CoverService and ArtistMetadataService use it
+directly. Namespaced ids are still accepted until the later id migration.
 """
 import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from app.music_sources.base import (
-    SourceCapability, SourceProvider, SourceAlbum, SourceTrack,
-    StreamSpec, qualify, unqualify,
-)
+from app.music_sources.ids import qualify, unqualify
 from app.music_sources.subsonic.api import SubsonicAPI
+from app.music_sources.subsonic.models import SubsonicAlbum, SubsonicTrack
 
 logger = logging.getLogger(__name__)
 
 
-class SubsonicSource(SourceProvider):
-    id = "subsonic"
-    name = "Subsonic (gonic)"
-    capabilities = frozenset({
-        SourceCapability.BROWSE, SourceCapability.SEARCH,
-        SourceCapability.SCROBBLE, SourceCapability.COVER_ART,
-        SourceCapability.STAR,
-    })
+class SubsonicService:
+    id = "subsonic"     # still used by qualify() until the id migration
 
     def __init__(self, config=None):
         self.api = SubsonicAPI(config)
@@ -44,7 +32,7 @@ class SubsonicSource(SourceProvider):
         self.client = self.api.client
         self.api_version = self.api.api_version
 
-    # === THE SEAM ============================================================
+    # === SERVICE API ========================================================
 
     def is_ready(self) -> bool:
         """One cheap ping: auth + reachability in one round-trip."""
@@ -55,8 +43,8 @@ class SubsonicSource(SourceProvider):
             logger.debug(f"subsonic is_ready probe failed: {e}")
             return False
 
-    def load_album(self, album_id: str) -> SourceAlbum:
-        """getAlbum + the album's songs → a namespaced SourceAlbum."""
+    def load_album(self, album_id: str) -> SubsonicAlbum:
+        """getAlbum + the album's songs → a namespaced SubsonicAlbum."""
         info = self.get_album_info(album_id)
         if not info:
             raise ValueError(f"Album not found in Subsonic: {album_id}")
@@ -64,7 +52,7 @@ class SubsonicSource(SourceProvider):
         if not raw_tracks:
             raise ValueError(f"No tracks found in Subsonic for album_id {album_id}")
         tracks = [
-            SourceTrack(
+            SubsonicTrack(
                 track_id=qualify(self.id, t.get("id")),
                 title=t.get("title"),
                 artist=info.get("artist", ""),
@@ -73,7 +61,7 @@ class SubsonicSource(SourceProvider):
             )
             for t in raw_tracks
         ]
-        return SourceAlbum(
+        return SubsonicAlbum(
             album_id=qualify(self.id, album_id),
             title=info.get("name", ""),
             artist=info.get("artist", ""),
@@ -83,18 +71,9 @@ class SubsonicSource(SourceProvider):
             tracks=tracks,
         )
 
-    def stream_url(self, track_id: str) -> StreamSpec:
+    def stream_url(self, track_id: str) -> str:
         _, raw = unqualify(track_id)
-        return StreamSpec(url=self.get_stream_url({"id": raw}), external=False)
-
-    def cover_art(self, album_id: str) -> bytes:
-        """Namespace-aware raw-cover fetch feeding the CoverService cache."""
-        _, raw = unqualify(album_id)
-        return self.cover_art_bytes(raw)
-
-    def scrobble(self, track_id: str) -> bool:
-        _, raw = unqualify(track_id)
-        return self.scrobble_now_playing(raw)
+        return self.get_stream_url({"id": raw})
 
     def scrobble_completed(self, track_id: str, played_at: float | None = None) -> bool:
         """Submit a finished play (Subsonic ``submission=true``).
