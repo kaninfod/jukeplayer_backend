@@ -8,7 +8,6 @@ export default class extends Controller {
         this._starAlbumId = null
         this._starred = false
         this._starBusy = false
-        this._starSeq = 0
         console.log("Now Playing Controller connected to the DOM", window.appState.lastTrackData);
         window.dispatchEvent(new CustomEvent("ws:request-sync"));
 
@@ -135,37 +134,15 @@ export default class extends Controller {
             return;
         }
 
-        // The context may be rebroadcast for the same album with the
-        // album_starred snapshot taken when the queue was loaded. Do not
-        // overwrite a state we already have for this album; only resync on
-        // album change (or a reload, which starts with a fresh controller).
+        // The POST writes the result through to the queue snapshot; only
+        // re-seed from context when the album changes. Same-album rebroadcasts
+        // keep the local state that the POST response set.
         if (albumId !== this._starAlbumId) {
             this._starAlbumId = albumId;
             this._starred = Boolean(starred);
             this._starBusy = false;
-            this._renderStar();
-            this._refreshStar(albumId);
-            return;
         }
         this._renderStar();
-    }
-
-    async _refreshStar(albumId) {
-        const seq = ++this._starSeq;
-        try {
-            const response = await fetch(
-                `/api/mediaplayer/album_star?album_id=${encodeURIComponent(albumId)}`,
-                { cache: "no-store" },
-            );
-            const data = await response.json();
-            if (!response.ok || data.status !== "success") return;
-            if (this._starAlbumId === albumId && seq === this._starSeq && !this._starBusy) {
-                this._starred = Boolean(data.starred);
-                this._renderStar();
-            }
-        } catch (error) {
-            console.warn("Could not refresh album star state:", error);
-        }
     }
 
     _renderStar() {
@@ -191,15 +168,20 @@ export default class extends Controller {
 
         const albumId = this._starAlbumId;
         const next = !this._starred;
-        this._starSeq += 1;
         this._starBusy = true;
         this._renderStar();
 
         try {
-            const response = await fetch(
-                `/api/mediaplayer/album_star?album_id=${encodeURIComponent(albumId)}&starred=${next}`,
-                { method: "POST" },
-            );
+            const params = new URLSearchParams({
+                album_id: albumId,
+                starred: String(next),
+            });
+            if (window.appState.deviceName) {
+                params.set("speaker", window.appState.deviceName);
+            }
+            const response = await fetch(`/api/mediaplayer/album_star?${params}`, {
+                method: "POST",
+            });
             const data = await response.json();
             if (!response.ok || data.status !== "success") {
                 throw new Error(data.message || `HTTP ${response.status}`);

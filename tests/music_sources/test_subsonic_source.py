@@ -126,13 +126,3 @@ def test_set_album_starred_uses_star_and_unstar_with_the_raw_id(monkeypatch):
         ("star", {"id": "al-99"}),
         ("unstar", {"id": "al-99"}),
     ]
-
-
-def test_is_album_starred_reads_the_get_album_field(monkeypatch):
-    src = make_source()
-    monkeypatch.setattr(
-        src, "get_album_info",
-        lambda album_id: {"starred": "2026-11-14T18:00:00Z"} if album_id == "al-99" else {"name": "x"})
-
-    assert src.is_album_starred("subsonic:al-99") is True
-    assert src.is_album_starred("al-unstarred") is False

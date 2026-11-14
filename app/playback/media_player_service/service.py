@@ -445,6 +445,19 @@ class MediaPlayerService:
             return context
     
 
+    def set_album_starred(self, album_id: str, starred: bool) -> bool:
+        """Write-through the star result into this queue's context snapshot.
+
+        The star flag is loaded once with the album; after a web star/unstar
+        the route calls this on the resolved speaker so the next
+        ``get_context()`` (and any later broadcast) is correct. Returns True
+        only when this queue is currently playing that album.
+        """
+        if self.playlist_manager.album_id != album_id:
+            return False
+        self.playlist_manager.album_starred = bool(starred)
+        return True
+
 
     def emit_update(self):
         """Publish a state-change notification so broker listeners push fresh

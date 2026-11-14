@@ -144,3 +144,18 @@ def test_context_carries_album_star_metadata_at_the_top_level(media_player_servi
     assert "album_starred" not in context["current_track"]
     assert all("album_id" not in item and "starred" not in item
                for item in context["playlist"])
+
+
+def test_set_album_starred_updates_only_the_matching_queue(media_player_service):
+    from app.playback.media_player_service.playlist_manager import PlaylistItem
+    media_player_service.playlist_manager.add_item(PlaylistItem(
+        track_id="tr-1", stream_url="http://example/tr-1", duration="200",
+        track_number=1, title="Song", artist="A", album="Al", year="2000",
+        cover_url=""))
+    media_player_service.playlist_manager.album_id = "subsonic:al-1"
+
+    assert media_player_service.set_album_starred("subsonic:al-1", True) is True
+    assert media_player_service.playlist_manager.album_starred is True
+
+    assert media_player_service.set_album_starred("subsonic:al-2", False) is False
+    assert media_player_service.playlist_manager.album_starred is True

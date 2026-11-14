@@ -139,12 +139,20 @@ async def test_album_star_returns_the_new_state(initialized_app, monkeypatch):
     source.set_album_starred = MagicMock(return_value=True)
     registry = MagicMock()
     registry.get.return_value = source
-    monkeypatch.setattr("app.routes.mediaplayer.get_service", lambda name: registry)
+    resolved = MagicMock()
+    resolved.mediaplayer.set_album_starred = MagicMock(return_value=True)
+    broker = MagicMock()
+    broker.resolve_speaker.return_value = resolved
+
+    def service(name):
+        return registry if name == "music_sources" else broker
+
+    monkeypatch.setattr("app.routes.mediaplayer.get_service", service)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/api/mediaplayer/album_star?album_id=subsonic:al-1&starred=true")
+            "/api/mediaplayer/album_star?album_id=subsonic:al-1&starred=true&speaker=living_room")
 
     assert resp.status_code == 200
     assert resp.json() == {
@@ -158,28 +166,8 @@ async def test_album_star_returns_the_new_state(initialized_app, monkeypatch):
         "starred": True,
     }
     source.set_album_starred.assert_called_once_with("subsonic:al-1", True)
-
-
-@pytest.mark.asyncio
-async def test_album_star_read_returns_the_state(initialized_app, monkeypatch):
-    from app.music_sources.base import SourceCapability
-
-    source = MagicMock()
-    source.capabilities = frozenset({SourceCapability.STAR})
-    source.is_album_starred = MagicMock(return_value=True)
-    registry = MagicMock()
-    registry.get.return_value = source
-    monkeypatch.setattr("app.routes.mediaplayer.get_service", lambda name: registry)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/mediaplayer/album_star?album_id=subsonic:al-1")
-
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "success"
-    assert resp.json()["album_id"] == "subsonic:al-1"
-    assert resp.json()["starred"] is True
-    source.is_album_starred.assert_called_once_with("subsonic:al-1")
+    broker.resolve_speaker.assert_called_once_with(client_id=None, device_name="living_room")
+    resolved.mediaplayer.set_album_starred.assert_called_once_with("subsonic:al-1", True)
 
 
 @pytest.mark.asyncio

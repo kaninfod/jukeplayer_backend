@@ -127,15 +127,6 @@ class SubsonicSource(SourceProvider):
         logger.warning("set_album_starred: %s failed for %s: %s", endpoint, raw, error)
         return False
 
-    def is_album_starred(self, album_id: str) -> bool:
-        """Read the album star state from ``getAlbum`` (the same field the
-        album view uses). Raises ValueError when the album is unknown."""
-        _, raw = unqualify(album_id)
-        info = self.get_album_info(raw)
-        if not info:
-            raise ValueError(f"Album not found in Subsonic: {raw}")
-        return bool(info.get("starred"))
-
     # === THE GONIC FACULTY (verbatim from the old service; api indirection) ===
 
     def get_stream_url(self, track: dict) -> str:

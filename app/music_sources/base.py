@@ -127,7 +127,3 @@ class SourceProvider:
     def set_album_starred(self, album_id: str, starred: bool) -> bool:
         """Star or unstar one album (only when STAR in capabilities)."""
         return False
-
-    def is_album_starred(self, album_id: str) -> bool:
-        """Current album star state (only when STAR in capabilities)."""
-        return False

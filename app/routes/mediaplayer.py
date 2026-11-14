@@ -203,36 +203,17 @@ def _album_star_source(album_id: str):
     return source
 
 
-@router.get("/album_star", response_model=AlbumStarResult)
-async def get_album_star(album_id: str = Query(..., min_length=1)):
-    """Read the current star state of one album (web-only surface)."""
-    try:
-        source = _album_star_source(album_id)
-        starred = await asyncio.to_thread(source.is_album_starred, album_id)
-        return AlbumStarResult(
-            status="success",
-            message="Album is starred" if starred else "Album is not starred",
-            album_id=album_id,
-            starred=starred,
-        )
-    except Exception as exc:
-        logger.error("album star read failed for %s: %s", album_id, exc, exc_info=True)
-        return AlbumStarResult(
-            status="error",
-            message=f"Could not read album star: {exc}",
-            album_id=album_id,
-        )
-
-
 @router.post("/album_star", response_model=AlbumStarResult)
 async def set_album_star(album_id: str = Query(..., min_length=1),
-                         starred: bool = Query(...)):
-    """Star or unstar one album (web-only convenience surface).
+                         starred: bool = Query(...),
+                         client_id: Optional[str] = Query(None),
+                         speaker: Optional[str] = Query(None)):
+    """Star or unstar one album and write the result into the queue context.
 
     This is deliberately a REST call, not a WS command: it is an album
     library mutation used by the web player, not a transport/player action.
-    The state also travels in ``current_track.album_starred``; the GET
-    endpoint exists so a reload can resync after a star/unstar.
+    After Subsonic accepts the change, the resolved speaker's queue snapshot
+    is updated so ``get_context()`` stays correct without a live read.
     """
     try:
         source = _album_star_source(album_id)
@@ -244,6 +225,16 @@ async def set_album_star(album_id: str = Query(..., min_length=1),
                 album_id=album_id,
                 starred=not starred,
             )
+
+        # Write-through only the requesting queue; no all-speaker iteration.
+        try:
+            broker = get_service("speaker_broker_service")
+            resolved = broker.resolve_speaker(client_id=client_id, device_name=speaker)
+            if resolved and resolved.mediaplayer:
+                resolved.mediaplayer.set_album_starred(album_id, starred)
+        except Exception as exc:
+            logger.warning("album star context update failed for %s: %s", album_id, exc)
+
         return AlbumStarResult(
             status="success",
             message="Album starred" if starred else "Album unstarred",
