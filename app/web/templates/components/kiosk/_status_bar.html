@@ -11,11 +11,6 @@
             <i data-nowplaying-target="playerstatus" class="mdi mdi-play"></i>
         </button>
 
-        <button data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState" class="kiosk-device-selector btn btn-sm player-quick-control d-none d-md-inline-flex" >
-            <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
-            
-        </button>
-
         <button data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState" class="kiosk-device-selector btn btn-sm player-quick-control d-none d-md-inline-flex" >
             <i data-nowplaying-target="volumetext mutestate" class="mdi mdi-volume-high">27%</i>
             
@@ -26,7 +21,7 @@
             <i data-nowplaying-target="wsstatus" class="mdi mdi-search_web"></i>
         </button>
 
-        <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" data-action="click->navigation#load" title="Active speaker — manage">
+        <button href="/kiosk/devices" class="kiosk-device-selector btn btn-sm player-quick-control d-none d-md-inline-flex" data-action="click->navigation#load" title="Active speaker — manage">
             <i class="mdi mdi-cast"></i>
             <span data-nowplaying-target="currentdevice">Active Device</span>
         </button>

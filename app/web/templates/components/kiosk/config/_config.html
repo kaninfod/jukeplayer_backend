@@ -14,6 +14,22 @@
         <!-- SPEAKERS: live speaker manager (Phase B) -->
         {% include "components/kiosk/config/_speakers_card.html" %}
 
+        <div class="card mb-3">
+            <div class="card-body py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h6 class="text-muted mb-1"><i class="mdi mdi-tune"></i> Player controls</h6>
+                    <small class="text-muted">
+                        The bottom transport bar is hidden by default. Show it temporarily here;
+                        it will be removed entirely later.
+                    </small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        data-action="click->playercontrols#toggleviewControls">
+                    <i class="mdi mdi-toggle-switch-off-outline"></i> Show / hide bottom bar
+                </button>
+            </div>
+        </div>
+
         <form method="post" action="/kiosk/config/save/subsonic" class="card mb-3"
          hx-post="/kiosk/config/save/subsonic" hx-target="#config-panel" hx-swap="outerHTML">
             <div class="card-body">
