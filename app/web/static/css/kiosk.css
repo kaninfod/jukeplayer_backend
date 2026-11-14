@@ -1,94 +1,16 @@
 /**
- * Kiosk Mode Styles
- * 
- * Optimized for 5" DSI touchscreen display (720×1280 portrait)
- * Applied when body has .kiosk-layout class (via ?kiosk=1 parameter)
- * 
- * Fixed Height Layout (720px total):
- * ┌─────────────────────────┐
- * │  Status Bar (62px)      │ <- Breadcrumb + Device Selector (+25%)
- * ├────┬────────────────────┤
- * │    │                    │
- * │ N  │  Main Content      │ <- Album Art + Track Info (558px)
- * │ a  │  (558px)           │
- * │ v  │                    │
- * │(90)│                    │
- * ├────┴────────────────────┤
- * │  Controls (100px)       │ <- Media Buttons
- * └─────────────────────────┘
- * Total: 62 + 558 + 100 = 720px
- * Nav width: 90px (+50% for better touch)
+ * Kiosk skin — 720×1280 portrait reference.
+ *
+ * The frame is Bootstrap flexbox (100vh); this file owns the kiosk's
+ * composite components and the few overrides Bootstrap does not express.
+ * Design tokens live in kiosk-theme.css.
  */
 
-/* ============================================
-   LAYOUT CONTROL - Show/Hide Desktop vs Kiosk
-   ============================================ */
-
-.app-container {
-  /* display: flex;
-  flex-direction: column;
-  height: 100vh;  */
-  overflow: hidden; 
-}
-
-.status-bar, .media-controls {
-  flex-shrink: 0; /* Never let these get squashed */
-  height: 60px;   /* Or whatever fixed height you like */
-}
-
-.content-area {
-  flex-grow: 1;   /* Take up ALL remaining space */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-
-/* Kiosk mode: Fixed 720px height, exact sizing */
-html.kiosk-mode,
-body.kiosk-layout {
+/* Kiosk mode owns the viewport; the base layout is Bootstrap flexbox. */
+html.kiosk-mode {
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
-    /* width: 1280px !important;
-    height: 720px !important; */
-    /* display: flex; */
-    /* flex-direction: column; */
-}
-
-/* Desktop layout: visible by default */
-.desktop-layout {
-    display: block !important;
-}
-
-/* Kiosk layout: hidden by default */
-.kiosk-only-layout {
-    display: none !important;
-}
-
-/* When kiosk mode is active: hide desktop, show kiosk */
-.kiosk-layout .desktop-layout {
-    display: none !important;
-}
-
-/* This class is deprecated - kiosk layout is now on body */
-.kiosk-layout .kiosk-only-layout {
-    display: none !important;
-}
-
-/* Hide navigation bar to maximize screen space */
-.kiosk-layout .navbar {
-    display: none !important;
-}
-
-/* Remove container padding for full-screen layout */
-.kiosk-layout main.container {
-    display: none !important;
-}
-
-/* Ensure no extra containers interfere */
-.kiosk-layout > * {
-    max-width: 100% !important;
 }
 
 /* ============================================
@@ -1113,7 +1035,7 @@ body:has(.htmx-request) #page-busy {
 }
 
 /* System menu: per-action accent glyphs */
-.system-action-card .mdi { color: var(--bs-secondary-color); }
+.system-action-card .mdi { color: var(--bs-secondary-color); font-size: 48px; }
 .system-action-card.glyph-reload .mdi { color: #fbbf24; }
 .system-action-card.glyph-fullscreen .mdi { color: #4cd7f6; }
 .system-action-card.glyph-clients .mdi { color: #c0c1ff; }
