@@ -442,3 +442,110 @@
     height: 100%;
     border: none;
 }
+
+/* ============================================================
+   NOW PLAYING — cover/info/transport/speaker
+   The frame is Bootstrap grid/flex; this section owns only the
+   cover geometry, type scale and the square control hit areas.
+   ============================================================ */
+.kiosk-player-screen {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.kiosk-player-cover {
+    width: min(100%, 440px, 55vh);
+    aspect-ratio: 1 / 1;
+    border-radius: .75rem;
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(99, 102, 241, .2) 0%, rgba(6, 182, 212, .2) 100%), #111827;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+}
+
+.kiosk-player-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.kiosk-player-no-cover {
+    color: var(--bs-secondary-color);
+    font-size: 4rem;
+}
+
+.kiosk-player-info {
+    min-width: 0;
+}
+
+.kiosk-player-artist {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -.02em;
+    color: var(--bs-body-color);
+    margin-bottom: .35rem;
+}
+
+.kiosk-player-title {
+    font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--bs-primary);
+    margin-bottom: .25rem;
+}
+
+.kiosk-player-album {
+    font-size: 1rem;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0;
+}
+
+.kiosk-player-btn {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kiosk-player-btn-play {
+    width: 58px;
+    height: 58px;
+}
+
+.kiosk-player-btn i {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.kiosk-player-btn-play i {
+    font-size: 2rem;
+}
+
+/* The player owns the transport on this screen: hide the global footer
+   and the duplicate status-bar quick controls. :has is already used for
+   the htmx busy state, so this stays CSS-only. */
+body:has(.kiosk-player-screen) .kiosk-controls {
+    display: none;
+}
+
+body:has(.kiosk-player-screen) .player-quick-control {
+    display: none !important;
+}
+
+@media (max-width: 767.98px) {
+    .kiosk-player-screen {
+        overflow-y: auto;
+    }
+
+    .kiosk-player-cover {
+        width: min(100%, 360px, 42vh);
+        margin-inline: auto;
+    }
+
+    .kiosk-player-controls {
+        justify-content: center !important;
+    }
+}

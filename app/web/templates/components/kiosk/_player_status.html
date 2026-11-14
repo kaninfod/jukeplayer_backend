@@ -1,76 +1,101 @@
-<!-- Kiosk Player Status Component -->
-<!-- Album art + track info display in horizontal layout -->
-<div class="container kiosk-player-status d-flex align-items-center justify-content-center h-100">
+<!-- Kiosk Now Playing screen — cover + track info + integrated transport.
+     Desktop: two columns (cover | info/controls/speaker). Mobile: one column. -->
+{% from "components/kiosk/shared/_volume_popover.html" import volume_popover %}
+<div class="kiosk-player-screen h-100 d-flex flex-column p-3 p-md-4">
 
-    <div class="flex-row d-flex flex-md-row flex-column w-100">
+    <div class="row g-4 align-items-stretch h-100 flex-grow-1">
 
-        <div data-nowplaying-target="cover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center d-none h-100">
-            <img data-nowplaying-target="coverimg" src="" alt="Album Cover" class="h-100 object-fit-cover" />
-        </div>
-
-        <div data-nowplaying-target="nocover" class="col-md-6 kiosk-album-art d-flex align-items-center justify-content-center ">
-            <div class="kiosk-no-cover d-flex align-items-center justify-content-center w-100">
-                <i class="mdi mdi-music-off"></i>
+        {# left: cover #}
+        <div class="col-12 col-md-5 d-flex align-items-center justify-content-center">
+            <div data-nowplaying-target="cover" class="kiosk-player-cover d-none">
+                <img data-nowplaying-target="coverimg" src="" alt="Album Cover"
+                     class="w-100 h-100 object-fit-cover" />
+            </div>
+            <div data-nowplaying-target="nocover"
+                 class="kiosk-player-cover kiosk-player-no-cover d-flex align-items-center justify-content-center">
+                <i class="mdi mdi-music-off display-1 text-secondary"></i>
             </div>
         </div>
-        
-        <div data-nowplaying-target="trackinfo" class="col-md-6 kiosk-track-details ">
-            <div  class="">
-                <h1 class="display-1" data-nowplaying-target="artist"></h1>
-                <h3 data-nowplaying-target="title" class=""></h3>
-                <h4 data-nowplaying-target="album" class=""></h4>
-                <h5 data-nowplaying-target="tracknum" class=""></h5>
-            </div>
-        </div>
-        
-        <div data-nowplaying-target="notrackinfo" class="col-md-6 kiosk-track-details">
-            <h1 class="display-1" class="">No Music Playing</h1>
-            <h3  class="">Insert a card...</h3>
-        </div>
-    </div>
 
-    {# current-speaker card: the devices-page anatomy in one horizontal row
-       (glyph · display name + type/clients meta · live state pill). The
-       speakers-map attr carries single quotes so the JSON's double quotes
-       can't terminate it; the controller re-dresses the card live on device
-       switches — no reload. Tapping navigates to /kiosk/devices. #}
-    <div class="np-speaker-card card device-card"
-         data-nowplaying-target="speakerscard"
-         data-action="click->navigation#load" href="/kiosk/devices"
-         data-nowplaying-speakers-map='{{ speakers_map|tojson }}'
-         title="The speaker playback is running on — tap to manage speakers">
-        <div class="icon-tile tile-cc flex-shrink-0" data-nowplaying-target="speakertile">
-            <i class="mdi mdi-cast" data-nowplaying-target="speakericon"></i>
-        </div>
-        <div class="np-speaker-name-col">
-            <div class="np-speaker-name fw-bold" data-nowplaying-target="speakername">—</div>
-            <div class="np-speaker-meta">
-                <span class="device-type-badge flex-shrink-0" data-nowplaying-target="speakertype">
-                    <i class="mdi mdi-cast" data-nowplaying-target="speakertypeicon"></i>
-                    <span data-nowplaying-target="speakertypetext">—</span>
+        {# right: info, transport, speaker #}
+        <div class="col-12 col-md-7 d-flex flex-column">
+
+            <div data-nowplaying-target="trackinfo" class="kiosk-player-info d-none">
+                <span class="badge rounded-2 text-bg-dark border border-secondary-subtle mb-3">
+                    <span data-nowplaying-target="tracknum">—</span>
                 </span>
-                <span class="device-meta">
-                    <i class="mdi mdi-account-multiple-outline me-1"></i><span data-nowplaying-target="speakerclients">0 clients</span>
-                </span>
+                <h1 class="kiosk-player-artist text-truncate" data-nowplaying-target="artist"></h1>
+                <h2 class="kiosk-player-title text-truncate" data-nowplaying-target="title"></h2>
+                <p class="kiosk-player-album text-truncate" data-nowplaying-target="album"></p>
+            </div>
+
+            <div data-nowplaying-target="notrackinfo" class="kiosk-player-info">
+                <h1 class="kiosk-player-artist">No Music Playing</h1>
+                <p class="kiosk-player-album">Insert a card...</p>
+            </div>
+
+            {# transport left, auxiliary controls right #}
+            <div class="kiosk-player-controls d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4">
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
+                            data-action="click->playercontrols#previous" title="Previous Track"
+                            aria-label="Previous Track">
+                        <i class="mdi mdi-skip-previous"></i>
+                    </button>
+                    <button type="button" class="btn btn-primary rounded-3 kiosk-player-btn kiosk-player-btn-play"
+                            data-action="click->playercontrols#playPause" title="Play/Pause"
+                            aria-label="Play or pause">
+                        <i data-nowplaying-target="playerstatus" class="mdi mdi-play"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
+                            data-action="click->playercontrols#next" title="Next Track"
+                            aria-label="Next Track">
+                        <i class="mdi mdi-skip-next"></i>
+                    </button>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    {{ volume_popover(button_class="btn btn-outline-secondary rounded-3 kiosk-player-btn volume-btn",
+                                      show_mute=False) }}
+                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
+                            data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState"
+                            title="Mute" aria-label="Mute">
+                        <i data-nowplaying-target="mutestate" class="mdi mdi-volume-high"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
+                            data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState"
+                            title="Repeat" aria-label="Repeat">
+                        <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
+                    </button>
+                </div>
+            </div>
+
+            {# current-speaker card: devices-page anatomy in one horizontal row #}
+            <div class="mt-4 mt-md-auto pt-md-3">
+                <div class="np-speaker-card card device-card"
+                     data-nowplaying-target="speakerscard"
+                     data-action="click->navigation#load" href="/kiosk/devices"
+                     data-nowplaying-speakers-map='{{ speakers_map|tojson }}'
+                     title="The speaker playback is running on — tap to manage speakers">
+                    <div class="icon-tile tile-cc flex-shrink-0" data-nowplaying-target="speakertile">
+                        <i class="mdi mdi-cast" data-nowplaying-target="speakericon"></i>
+                    </div>
+                    <div class="np-speaker-name-col">
+                        <div class="np-speaker-name fw-bold" data-nowplaying-target="speakername">—</div>
+                        <div class="np-speaker-meta">
+                            <span class="device-type-badge flex-shrink-0" data-nowplaying-target="speakertype">
+                                <i class="mdi mdi-cast" data-nowplaying-target="speakertypeicon"></i>
+                                <span data-nowplaying-target="speakertypetext">—</span>
+                            </span>
+                            <span class="device-meta">
+                                <i class="mdi mdi-account-multiple-outline me-1"></i><span data-nowplaying-target="speakerclients">0 clients</span>
+                            </span>
+                        </div>
+                    </div>
+                    <span class="device-player-pill player-idle flex-shrink-0" data-nowplaying-target="speakerstate">—</span>
+                    <i class="mdi mdi-chevron-right np-speaker-chevron flex-shrink-0"></i>
+                </div>
             </div>
         </div>
-        <span class="device-player-pill player-idle flex-shrink-0" data-nowplaying-target="speakerstate">—</span>
-        <i class="mdi mdi-chevron-right np-speaker-chevron flex-shrink-0"></i>
-    </div>
-
-    {# M4: repeat quick-toggle (mobile-only; mute lives in the volume popover) #}
-    <div class="d-md-none d-flex justify-content-center mt-2">
-        <button type="button" class="device-link-pill link-action"
-                data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState"
-                title="Repeat">
-            <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
-        </button>
-    </div>
-
-    <div class="row kiosk-progress-container w-100 d-none">
-        <div class="col-12 kiosk-progress-bar">
-            <div id="kiosk-progress-fill" class="kiosk-progress-fill"></div>
-        </div>
-        <div id="kiosk-progress-time" class="kiosk-progress-time">0:00 / 0:00</div>
     </div>
 </div>

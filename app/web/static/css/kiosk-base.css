@@ -273,7 +273,7 @@ html.kiosk-mode {
     width: 80px;
     height: 80px;
     font-size: 32px;
-    border-radius: 50%;
+    border-radius: .5rem;
     --bs-btn-bg: #0a2735;
     --bs-btn-color: #22d3ee;
     --bs-btn-border-color: rgba(34, 211, 238, .25);

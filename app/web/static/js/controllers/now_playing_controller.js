@@ -120,7 +120,9 @@ export default class extends Controller {
             this.titleTarget.textContent = data.title;
         }
         if (this.hasAlbumTarget) {
-            this.albumTarget.textContent = data.album;
+            const album = data.album || "";
+            const year = data.year ? ` (${data.year})` : "";
+            this.albumTarget.textContent = `${album}${year}`;
         }
         if (this.hasTracknumTarget && window.appState.playlist) {
             this.tracknumTarget.textContent =
@@ -317,30 +319,27 @@ export default class extends Controller {
 
     updateMuteState() {
         const state = window.appState.isMuted;
-        if (this.hasMutestateTarget) {
-            const muteStr = state ? 'mdi mdi-volume-off' : 'mdi mdi-volume-high';
-            this.mutestateTarget.className = muteStr;
-        }
+        if (!this.hasMutestateTarget) return;
 
-    }   
+        const muteStr = state ? 'mdi mdi-volume-off' : 'mdi mdi-volume-high';
+        this.mutestateTargets.forEach((element) => {
+            element.className = muteStr;
+        });
+    }
 
 
     updatePlayerstatus() {
-        console.log("Updating player status in UI", window.appState.playerStatus, this.hasPlayerstatusTarget);
-        if (this.hasPlayerstatusTarget) {
-            const iconMap = {
-                    'playing': 'mdi mdi-play',
-                    'paused':  'mdi mdi-pause',
-                    'idle':    'mdi mdi-stop'
-                };
-            
-            const statusStr = iconMap[window.appState.playerStatus] || window.appState.playerStatus;
-            console.log(`Updating player status icon to: ${statusStr}`);
-            if (this.hasPlayerstatusTarget) {
-                this.playerstatusTarget.className = statusStr;
-            }
-        }
+        if (!this.hasPlayerstatusTarget) return;
 
+        const iconMap = {
+            'playing': 'mdi mdi-pause',
+            'paused':  'mdi mdi-play',
+            'idle':    'mdi mdi-play'
+        };
+        const statusStr = iconMap[window.appState.playerStatus] || window.appState.playerStatus;
+        this.playerstatusTargets.forEach((element) => {
+            element.className = statusStr;
+        });
     }
 
     handleExternalUpdate(evt) {

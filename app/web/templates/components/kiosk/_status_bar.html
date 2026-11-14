@@ -7,16 +7,16 @@
     </div>
 
     <div class="d-flex justify-content-end gap-2 align-items-center">
-        <button class="kiosk-device-selector btn btn-sm" data-action="click->playercontrols#playPause" >
+        <button class="kiosk-device-selector btn btn-sm player-quick-control" data-action="click->playercontrols#playPause" >
             <i data-nowplaying-target="playerstatus" class="mdi mdi-play"></i>
         </button>
 
-        <button data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" >
+        <button data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState" class="kiosk-device-selector btn btn-sm player-quick-control d-none d-md-inline-flex" >
             <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
             
         </button>
 
-        <button data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState" class="kiosk-device-selector btn btn-sm d-none d-md-inline-flex" >
+        <button data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState" class="kiosk-device-selector btn btn-sm player-quick-control d-none d-md-inline-flex" >
             <i data-nowplaying-target="volumetext mutestate" class="mdi mdi-volume-high">27%</i>
             
         </button>
