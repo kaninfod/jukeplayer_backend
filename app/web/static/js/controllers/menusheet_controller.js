@@ -1,11 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
 
-// The ≡ menu sheet (mobile): a full-screen slide-over carrying the
-// speaker quick-select and the content links. System pages stay
-// desktop-kiosk surfaces (first mobile slice).
+// The ≡ menu sheet (mobile): a short destination list — Media Library,
+// Playlist and Speakers. The speaker selector is its own page.
 export default class extends Controller {
     static targets = ["panel", "body"]
-    static params = ["speaker"]
 
     async open(event) {
         if (event) event.stopPropagation()
@@ -24,18 +22,6 @@ export default class extends Controller {
     close() {
         this.panelTarget.classList.remove("open")
         this.panelTarget.classList.add("hidden")
-    }
-
-    switch(event) {
-        const speaker = event.params.speaker
-        window.dispatchEvent(new CustomEvent("ws:send", {
-            detail: { type: "switch_device", payload: { device_id: speaker } }
-        }))
-        this.dispatch("toast", {
-            prefix: "app",
-            detail: { message: `Playback → ${speaker}`, theme: "success" }
-        })
-        this.close()
     }
 
     navigate(event) {

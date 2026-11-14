@@ -95,40 +95,45 @@
     border-bottom: 1px solid var(--bs-border-color);
     padding-bottom: .5rem;
 }
-.menu-sheet-speakers { display: flex; flex-direction: column; gap: .5rem; }
-.menu-sheet-speaker {
+.menu-sheet-links {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+.menu-sheet-link {
     display: flex;
     align-items: center;
-    gap: .5rem;
-    padding: .65rem .75rem;
-    border-radius: .6rem;
+    gap: .85rem;
+    padding: .85rem .9rem;
+    border-radius: .75rem;
     background: var(--bs-tertiary-bg);
     border: 1px solid var(--bs-border-color);
     color: var(--bs-body-color);
-    text-align: left;
-}
-.menu-sheet-speaker:hover { border-color: rgba(76, 215, 246, .35); }
-.menu-sheet-speaker.is-current {
-    border-color: rgba(76, 215, 246, .45);
-    box-shadow: 0 0 10px rgba(6, 182, 212, .25);
-}
-.menu-sheet-links {
-    margin-top: auto;
-    border-top: 1px solid var(--bs-border-color);
-    padding-top: .75rem;
-    display: flex;
-    flex-direction: column;
-    gap: .25rem;
-}
-.menu-sheet-links a {
-    display: flex;
-    align-items: center;
-    padding: .6rem .5rem;
-    border-radius: .5rem;
-    color: var(--bs-body-color);
     text-decoration: none;
 }
-.menu-sheet-links a:hover { background: var(--bs-tertiary-bg); }
+.menu-sheet-link:hover {
+    border-color: rgba(76, 215, 246, .35);
+    background: var(--bs-secondary-bg);
+}
+.menu-sheet-link .icon-tile {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+}
+.menu-sheet-link-body { min-width: 0; }
+.menu-sheet-link-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+.menu-sheet-link-sub {
+    color: var(--bs-secondary-color);
+    font-size: .8rem;
+    margin-top: .1rem;
+}
+.menu-sheet-link .mdi-chevron-right {
+    color: var(--bs-secondary-color);
+    font-size: 1.25rem;
+}
 
 /* Fixes: the popovers start hidden; the top-bar buttons compact on mobile */
 .volume-pop.hidden { display: none; }
@@ -573,5 +578,58 @@ body:has(.kiosk-player-screen) .player-quick-control {
 
     .volume-pop.volume-pop-fixed {
         right: 1rem;
+    }
+}
+
+/* Mobile speaker list: compact rows instead of the desktop three-band stack. */
+@media (max-width: 767.98px) {
+    .devices-page .card-grid .device-card:not(.album-card) {
+        width: 100% !important;
+        aspect-ratio: auto !important;
+    }
+
+    .devices-page .card-grid .device-card:not(.album-card) .card-body {
+        display: grid !important;
+        grid-template-columns: auto 1fr;
+        gap: .35rem .75rem;
+        align-items: center;
+        padding: .6rem .75rem !important;
+    }
+
+    .devices-page .device-card-top {
+        grid-column: 1 / -1;
+    }
+
+    .devices-page .device-card-center {
+        grid-column: 1 / -1;
+        display: grid !important;
+        grid-template-columns: auto 1fr;
+        gap: .15rem .75rem;
+        align-items: center;
+        margin: 0 !important;
+        text-align: left !important;
+        min-width: 0;
+    }
+
+    .devices-page .device-card-center .icon-tile {
+        grid-row: 1 / span 3;
+        margin: 0 !important;
+        width: 48px;
+        height: 48px;
+        font-size: 1.5rem;
+    }
+
+    .devices-page .device-card-center .device-tech-name,
+    .devices-page .device-card-center > .device-meta {
+        display: none !important;
+    }
+
+    .devices-page .device-card-center > .d-flex {
+        justify-content: flex-start !important;
+    }
+
+    .devices-page .device-card-footer {
+        grid-column: 1 / -1;
+        margin-top: .25rem;
     }
 }

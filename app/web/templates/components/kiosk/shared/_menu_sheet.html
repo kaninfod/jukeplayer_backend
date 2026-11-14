@@ -1,19 +1,35 @@
 <div class="menu-sheet-head">
-    <span class="fw-semibold">Speakers</span>
+    <span class="fw-semibold">Menu</span>
     <button type="button" class="btn btn-sm btn-link text-muted p-0" data-action="click->menusheet#close" title="Close">×</button>
 </div>
-<div class="menu-sheet-speakers">
-    {% for s in speakers %}
-    <button type="button" class="menu-sheet-speaker {{ 'is-current' if s.is_default else '' }}"
-            data-action="click->menusheet#switch" data-menusheet-speaker-param="{{ s.name }}">
-        <i class="mdi mdi-speaker"></i>
-        <span>{{ s.display_name or s.name }}</span>
-        {% if s.is_default %}<span class="device-meta ms-auto">fallback</span>{% endif %}
-    </button>
-    {% endfor %}
-</div>
+
 <div class="menu-sheet-links">
-    <a href="/kiosk/library" data-action="click->menusheet#navigate"><i class="mdi mdi-folder-music me-2"></i>Media Library</a>
-    <a href="/kiosk/playlist" data-navigation-url-value="/kiosk/playlist" data-action="click->menusheet#playlist"><i class="mdi mdi-playlist-music me-2"></i>Playlist</a>
-    <a href="/kiosk/devices" data-action="click->menusheet#navigate"><i class="mdi mdi-speaker-multiple me-2"></i>Output Devices</a>
+    <a href="/kiosk/library" class="menu-sheet-link" data-action="click->menusheet#navigate">
+        <span class="icon-tile tile-cc flex-shrink-0"><i class="mdi mdi-folder-music"></i></span>
+        <span class="menu-sheet-link-body flex-grow-1">
+            <span class="menu-sheet-link-title d-block">Media Library</span>
+            <span class="menu-sheet-link-sub d-block">Browse albums and artists</span>
+        </span>
+        <i class="mdi mdi-chevron-right"></i>
+    </a>
+
+    <a href="/kiosk/playlist" class="menu-sheet-link"
+       data-navigation-url-value="/kiosk/playlist"
+       data-action="click->menusheet#playlist">
+        <span class="icon-tile tile-bt flex-shrink-0"><i class="mdi mdi-playlist-music"></i></span>
+        <span class="menu-sheet-link-body flex-grow-1">
+            <span class="menu-sheet-link-title d-block">Playlist</span>
+            <span class="menu-sheet-link-sub d-block">Current queue</span>
+        </span>
+        <i class="mdi mdi-chevron-right"></i>
+    </a>
+
+    <a href="/kiosk/devices" class="menu-sheet-link" data-action="click->menusheet#navigate">
+        <span class="icon-tile tile-audio flex-shrink-0"><i class="mdi mdi-speaker-multiple"></i></span>
+        <span class="menu-sheet-link-body flex-grow-1">
+            <span class="menu-sheet-link-title d-block">Speakers</span>
+            <span class="menu-sheet-link-sub d-block">Choose output</span>
+        </span>
+        <i class="mdi mdi-chevron-right"></i>
+    </a>
 </div>

@@ -628,19 +628,11 @@ async def kiosk_player_partial(request: Request):
 
 @router.get("/kiosk/menu-sheet", response_class=HTMLResponse)
 async def kiosk_menu_sheet(request: Request):
-    """The mobile menu sheet content: the speaker quick-select + the
-    content links. Fetched by the menu sheet controller on open."""
-    manager = get_service("speaker_manager")
-    speakers = []
-    for entry in manager.configured():
-        speakers.append({
-            "name": entry["name"],
-            "display_name": entry.get("display_name") or "",
-            "is_default": entry.get("is_default", False),
-        })
+    """The mobile menu sheet: three destination cards (library, playlist,
+    speakers). Fetched by the menu sheet controller on open."""
     return templates.TemplateResponse(request=request,
         name="components/kiosk/shared/_menu_sheet.html",
-        context={"request": request, "speakers": speakers})
+        context={"request": request})
 
 
 @router.get("/kiosk/styleguide", response_class=HTMLResponse)
