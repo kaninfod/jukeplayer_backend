@@ -1,12 +1,17 @@
-{% macro volume_popover(button_class="btn btn-primary btn-media-control volume-btn", show_mute=True) -%}
+{% macro volume_popover(button_class="btn btn-primary btn-media-control volume-btn", show_mute=True, show_readout=False, panel_class="") -%}
 <div class="volume-pop-wrap" data-controller="volumepop"
      data-action="click@window->volumepop#close">
     <button type="button" class="{{ button_class }}"
             data-action="click->volumepop#toggle:stop" title="Speaker volume"
             aria-label="Speaker volume">
+        {% if show_readout %}
+        <span data-volumepop-target="buttonreadout" class="volume-btn-readout">—</span>
+        <i data-volumepop-target="buttonmuteicon" class="mdi mdi-volume-off d-none"></i>
+        {% else %}
         <i data-volumepop-target="icon" class="mdi mdi-volume-high"></i>
+        {% endif %}
     </button>
-    <div data-volumepop-target="panel" class="volume-pop hidden">
+    <div data-volumepop-target="panel" class="volume-pop hidden {{ panel_class }}">
         <small data-volumepop-target="readout" class="device-meta">—</small>
         <button type="button" class="device-link-pill link-action" data-action="click->volumepop#volumeUp" title="Volume up">
             <i class="mdi mdi-plus"></i>

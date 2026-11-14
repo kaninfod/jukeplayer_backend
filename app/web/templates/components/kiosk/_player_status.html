@@ -3,10 +3,10 @@
 {% from "components/kiosk/shared/_volume_popover.html" import volume_popover %}
 <div class="kiosk-player-screen h-100 d-flex flex-column p-3 p-md-4">
 
-    <div class="row g-4 align-items-stretch h-100 flex-grow-1">
+    <div class="row g-4 align-items-start">
 
         {# left: cover #}
-        <div class="col-12 col-md-5 d-flex align-items-center justify-content-center">
+        <div class="col-12 col-md-6 col-lg-7 d-flex align-items-start justify-content-center">
             <div data-nowplaying-target="cover" class="kiosk-player-cover d-none">
                 <img data-nowplaying-target="coverimg" src="" alt="Album Cover"
                      class="w-100 h-100 object-fit-cover" />
@@ -17,8 +17,8 @@
             </div>
         </div>
 
-        {# right: info, transport, speaker #}
-        <div class="col-12 col-md-7 d-flex flex-column">
+        {# right: compact info / transport / speaker stack #}
+        <div class="col-12 col-md-6 col-lg-5 d-flex flex-column gap-3 kiosk-player-stack">
 
             <div data-nowplaying-target="trackinfo" class="kiosk-player-info d-none">
                 <span class="badge rounded-2 text-bg-dark border border-secondary-subtle mb-3">
@@ -34,44 +34,37 @@
                 <p class="kiosk-player-album">Insert a card...</p>
             </div>
 
-            {# transport left, auxiliary controls right #}
-            <div class="kiosk-player-controls d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4">
-                <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
-                            data-action="click->playercontrols#previous" title="Previous Track"
-                            aria-label="Previous Track">
-                        <i class="mdi mdi-skip-previous"></i>
-                    </button>
-                    <button type="button" class="btn btn-primary rounded-3 kiosk-player-btn kiosk-player-btn-play"
-                            data-action="click->playercontrols#playPause" title="Play/Pause"
-                            aria-label="Play or pause">
-                        <i data-nowplaying-target="playerstatus" class="mdi mdi-play"></i>
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
-                            data-action="click->playercontrols#next" title="Next Track"
-                            aria-label="Next Track">
-                        <i class="mdi mdi-skip-next"></i>
-                    </button>
-                </div>
+            {# transport and auxiliary controls in one left-aligned row #}
+            <div class="kiosk-player-controls d-flex flex-wrap align-items-center gap-2">
+                <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
+                        data-action="click->playercontrols#previous" title="Previous Track"
+                        aria-label="Previous Track">
+                    <i class="mdi mdi-skip-previous"></i>
+                </button>
+                <button type="button" class="btn btn-primary rounded-3 kiosk-player-btn kiosk-player-btn-play"
+                        data-action="click->playercontrols#playPause" title="Play/Pause"
+                        aria-label="Play or pause">
+                    <i data-nowplaying-target="playerstatus" class="mdi mdi-play"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
+                        data-action="click->playercontrols#next" title="Next Track"
+                        aria-label="Next Track">
+                    <i class="mdi mdi-skip-next"></i>
+                </button>
 
-                <div class="d-flex align-items-center gap-2">
-                    {{ volume_popover(button_class="btn btn-outline-secondary rounded-3 kiosk-player-btn volume-btn",
-                                      show_mute=False) }}
-                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
-                            data-action="click->playercontrols#toggleMute volume_mute_response@window->nowplaying#updateMuteState"
-                            title="Mute" aria-label="Mute">
-                        <i data-nowplaying-target="mutestate" class="mdi mdi-volume-high"></i>
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
-                            data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState"
-                            title="Repeat" aria-label="Repeat">
-                        <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
-                    </button>
-                </div>
+                {{ volume_popover(button_class="btn btn-outline-secondary rounded-3 kiosk-player-btn volume-btn",
+                                  show_mute=True, show_readout=True,
+                                  panel_class="volume-pop-fixed") }}
+
+                <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
+                        data-action="click->playercontrols#toggleRepeat toggle-repeat-changed@window->nowplaying#updateRepeatState"
+                        title="Repeat" aria-label="Repeat">
+                    <i data-nowplaying-target="repeatstatus" class="mdi mdi-repeat"></i>
+                </button>
             </div>
 
             {# current-speaker card: devices-page anatomy in one horizontal row #}
-            <div class="mt-4 mt-md-auto pt-md-3">
+            <div>
                 <div class="np-speaker-card card device-card"
                      data-nowplaying-target="speakerscard"
                      data-action="click->navigation#load" href="/kiosk/devices"

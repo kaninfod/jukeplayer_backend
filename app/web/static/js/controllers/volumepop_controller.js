@@ -4,7 +4,21 @@ import { Controller } from "@hotwired/stimulus"
 // opens a slider + mute flyout. Controls the SPEAKER's volume (cast
 // device / BT sink) via WS — the phone's hardware volume does not.
 export default class extends Controller {
-    static targets = ["panel", "slider", "readout", "icon"]
+    static targets = ["panel", "slider", "readout", "icon", "buttonreadout", "buttonmuteicon"]
+
+    connect() {
+        this._onVolumeState = this._renderButton.bind(this)
+        window.addEventListener("nowplaying-update", this._onVolumeState)
+        window.addEventListener("volume-change", this._onVolumeState)
+        window.addEventListener("volume_mute_response", this._onVolumeState)
+        this._renderButton()
+    }
+
+    disconnect() {
+        window.removeEventListener("nowplaying-update", this._onVolumeState)
+        window.removeEventListener("volume-change", this._onVolumeState)
+        window.removeEventListener("volume_mute_response", this._onVolumeState)
+    }
 
     toggle(event) {
         if (event) event.stopPropagation()
@@ -26,7 +40,7 @@ export default class extends Controller {
     setVolume(event) {
         const value = parseInt(event.target.value) || 0
         this.readoutTarget.textContent = `${value}%`
-        this._iconFor(value)
+        this._renderButton(value)
         // debounce: dragging fires one input event per step - the speaker
         // would be spammed with every intermediate value. Send once after
         // the drag settles (300ms); the readout stays live.
@@ -66,7 +80,7 @@ export default class extends Controller {
         const value = Math.min(100, Math.max(0, (parseInt(this.sliderTarget.value) || 0) + delta))
         this.sliderTarget.value = value
         this.readoutTarget.textContent = `${value}%`
-        this._iconFor(value)
+        this._renderButton(value)
         window.dispatchEvent(new CustomEvent("ws:send", {
             detail: { type: delta > 0 ? "volume_up" : "volume_down", payload: {} }
         }))
@@ -92,5 +106,22 @@ export default class extends Controller {
             : value < 40 ? "mdi-volume-low"
             : value < 70 ? "mdi-volume-medium" : "mdi-volume-high"
         this.iconTarget.className = `mdi ${icon}`
+    }
+
+    _renderButton(volumeOverride = null) {
+        const volume = volumeOverride ?? (parseInt(window.appState?.volume) || 0)
+        const muted = Boolean(window.appState?.isMuted)
+
+        if (this.hasButtonreadoutTarget) {
+            this.buttonreadoutTarget.textContent = `${volume}%`
+            this.buttonreadoutTarget.classList.toggle("d-none", muted)
+        }
+        if (this.hasButtonmuteiconTarget) {
+            this.buttonmuteiconTarget.classList.toggle("d-none", !muted)
+        }
+        if (this.hasIconTarget) {
+            if (muted) this.iconTarget.className = "mdi mdi-volume-off"
+            else this._iconFor(volume)
+        }
     }
 }

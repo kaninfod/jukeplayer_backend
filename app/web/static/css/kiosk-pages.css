@@ -454,7 +454,7 @@
 }
 
 .kiosk-player-cover {
-    width: min(100%, 440px, 55vh);
+    width: min(100%, 520px, 70vh);
     aspect-ratio: 1 / 1;
     border-radius: .75rem;
     overflow: hidden;
@@ -472,6 +472,11 @@
 .kiosk-player-no-cover {
     color: var(--bs-secondary-color);
     font-size: 4rem;
+}
+
+.kiosk-player-stack {
+    width: 100%;
+    max-width: 34rem;
 }
 
 .kiosk-player-info {
@@ -520,6 +525,23 @@
     line-height: 1;
 }
 
+.volume-btn-readout {
+    font-size: .72rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.volume-pop.volume-pop-fixed {
+    position: fixed;
+    top: 50%;
+    right: 1.25rem;
+    bottom: auto;
+    left: auto;
+    transform: translateY(-50%);
+    height: min(60vh, 520px);
+    z-index: 1200;
+}
+
 .kiosk-player-btn-play i {
     font-size: 2rem;
 }
@@ -547,5 +569,9 @@ body:has(.kiosk-player-screen) .player-quick-control {
 
     .kiosk-player-controls {
         justify-content: center !important;
+    }
+
+    .volume-pop.volume-pop-fixed {
+        right: 1rem;
     }
 }
