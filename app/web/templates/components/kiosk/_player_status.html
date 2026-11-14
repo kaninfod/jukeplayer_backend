@@ -13,7 +13,7 @@
             </div>
             <div data-nowplaying-target="nocover"
                  class="kiosk-player-cover kiosk-player-no-cover d-flex align-items-center justify-content-center">
-                <i class="mdi mdi-music-off display-1 text-secondary"></i>
+                <i class="mdi mdi-music-note-off kiosk-player-empty-glyph"></i>
             </div>
         </div>
 
@@ -30,12 +30,39 @@
             </div>
 
             <div data-nowplaying-target="notrackinfo" class="kiosk-player-info">
-                <h1 class="kiosk-player-artist">No Music Playing</h1>
-                <p class="kiosk-player-album">Insert a card...</p>
+                <div class="mb-2">
+                    <span class="badge rounded-2 text-bg-dark border border-secondary-subtle">No music loaded</span>
+                </div>
+                <div class="d-flex flex-column gap-2">
+                    <a href="/kiosk/library" class="kiosk-link-card" data-action="click->navigation#load">
+                        <span class="icon-tile tile-cc flex-shrink-0"><i class="mdi mdi-folder-music"></i></span>
+                        <span class="kiosk-link-card-body flex-grow-1">
+                            <span class="kiosk-link-card-title d-block">Load from library</span>
+                            <span class="kiosk-link-card-sub d-block">Browse albums and artists</span>
+                        </span>
+                        <i class="mdi mdi-chevron-right"></i>
+                    </a>
+                    <button type="button" class="kiosk-link-card" data-action="click->playercontrols#playRandom">
+                        <span class="icon-tile tile-bt flex-shrink-0"><i class="mdi mdi-shuffle"></i></span>
+                        <span class="kiosk-link-card-body flex-grow-1">
+                            <span class="kiosk-link-card-title d-block">Load a random album</span>
+                            <span class="kiosk-link-card-sub d-block">Pick something neglected</span>
+                        </span>
+                        <i class="mdi mdi-chevron-right"></i>
+                    </button>
+                    <div class="kiosk-link-card kiosk-link-card-muted" aria-disabled="true">
+                        <span class="icon-tile tile-audio flex-shrink-0"><i class="mdi mdi-nfc-variant"></i></span>
+                        <span class="kiosk-link-card-body flex-grow-1">
+                            <span class="kiosk-link-card-title d-block">Insert a music card</span>
+                            <span class="kiosk-link-card-sub d-block">Scan an NFC card</span>
+                        </span>
+                        <i class="mdi mdi-chevron-right"></i>
+                    </div>
+                </div>
             </div>
 
             {# transport and auxiliary controls in one left-aligned row #}
-            <div class="kiosk-player-controls d-flex flex-wrap align-items-center gap-2">
+            <div data-nowplaying-target="controls" class="kiosk-player-controls d-flex flex-wrap align-items-center gap-2 d-none">
                 <button type="button" class="btn btn-outline-secondary rounded-3 kiosk-player-btn"
                         data-action="click->playercontrols#previous" title="Previous Track"
                         aria-label="Previous Track">

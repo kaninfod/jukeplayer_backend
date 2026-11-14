@@ -100,7 +100,10 @@
     flex-direction: column;
     gap: .75rem;
 }
-.menu-sheet-link {
+.kiosk-link-card {
+    width: 100%;
+    text-align: left;
+    font: inherit;
     display: flex;
     align-items: center;
     gap: .85rem;
@@ -111,28 +114,32 @@
     color: var(--bs-body-color);
     text-decoration: none;
 }
-.menu-sheet-link:hover {
+.kiosk-link-card:not(.kiosk-link-card-muted):hover {
     border-color: rgba(76, 215, 246, .35);
     background: var(--bs-secondary-bg);
 }
-.menu-sheet-link .icon-tile {
+.kiosk-link-card .icon-tile {
     width: 48px;
     height: 48px;
     font-size: 1.5rem;
 }
-.menu-sheet-link-body { min-width: 0; }
-.menu-sheet-link-title {
+.kiosk-link-card-body { min-width: 0; }
+.kiosk-link-card-title {
     font-weight: 600;
     font-size: 1.05rem;
 }
-.menu-sheet-link-sub {
+.kiosk-link-card-sub {
     color: var(--bs-secondary-color);
     font-size: .8rem;
     margin-top: .1rem;
 }
-.menu-sheet-link .mdi-chevron-right {
+.kiosk-link-card .mdi-chevron-right {
     color: var(--bs-secondary-color);
     font-size: 1.25rem;
+}
+.kiosk-link-card-muted {
+    opacity: .6;
+    cursor: default;
 }
 
 /* Fixes: the popovers start hidden; the top-bar buttons compact on mobile */
@@ -477,6 +484,10 @@
 .kiosk-player-no-cover {
     color: var(--bs-secondary-color);
     font-size: 4rem;
+}
+.kiosk-player-empty-glyph {
+    font-size: clamp(4rem, 10vw, 8rem);
+    color: var(--bs-secondary-color);
 }
 
 .kiosk-player-stack {

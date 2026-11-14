@@ -24,6 +24,14 @@ export default class extends Controller {
         window.dispatchEvent(event);
     }  
 
+    playRandom() {
+        // The smart-random picker replies with random_pick/current_track; we
+        // are already on Now Playing, so no navigation is needed.
+        window.dispatchEvent(new CustomEvent("ws:send", {
+            detail: { type: "play_random", payload: {} }
+        }));
+    }
+
     next() {
         console.log("Next button clicked - Sending via WS");
         

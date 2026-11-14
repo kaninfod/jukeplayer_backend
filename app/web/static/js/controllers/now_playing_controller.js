@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
     // These names map to 'data-nowplaying-target' in the HTML
-    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus", "speakerscard", "speakername", "speakerstate", "speakericon", "speakertile", "speakertype", "speakertypeicon", "speakertypetext", "speakerclients" ]
+    static targets = [ "artist", "title", "album", "tracknum", "cover", "status", "repeat", "trackinfo", "notrackinfo", "notrackinfo", "nocover", "coverimg", "repeatstatus", "playerstatus", "volumefill", "volumetext", "currentdevice", "mutestate", "wsstatus", "speakerscard", "speakername", "speakerstate", "speakericon", "speakertile", "speakertype", "speakertypeicon", "speakertypetext", "speakerclients", "controls" ]
 
     connect() {
         console.log("Now Playing Controller connected to the DOM", window.appState.lastTrackData);
@@ -58,7 +58,8 @@ export default class extends Controller {
     update() {
         const data = window.appState.lastTrackData;
         if (!data) {
-            console.log("No track data available to update Now Playing.");
+            console.log("No track data available; showing the empty player state.");
+            this.renderState(false);
             return;
         }
 
@@ -95,21 +96,6 @@ export default class extends Controller {
         });
         const active = document.querySelector(".kiosk-playlist-item.active");
         if (active) active.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-
-    renderState(hasTrack) {
-        if (this.hasTrackinfoTarget) {
-            this.trackinfoTarget.classList.toggle("d-none", !hasTrack);
-        }
-        if (this.hasCoverTarget) {
-            this.coverTarget.classList.toggle("d-none", !hasTrack);
-        }
-        if (this.hasNotrackinfoTarget) {
-            this.notrackinfoTarget.classList.toggle("d-none", hasTrack);
-        }
-        if (this.hasNocoverTarget) {
-            this.nocoverTarget.classList.toggle("d-none", hasTrack);
-        }
     }
 
     updateTrackInfo(data) {
@@ -175,6 +161,9 @@ export default class extends Controller {
         }
         if (this.hasNocoverTarget) {
             this.nocoverTarget.classList.toggle("d-none", hasTrack);
+        }
+        if (this.hasControlsTarget) {
+            this.controlsTarget.classList.toggle("d-none", !hasTrack);
         }
     }
 
