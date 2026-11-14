@@ -153,6 +153,7 @@ export default class extends Controller {
         try {
             const response = await fetch(
                 `/api/mediaplayer/album_star?album_id=${encodeURIComponent(albumId)}`,
+                { cache: "no-store" },
             );
             const data = await response.json();
             if (!response.ok || data.status !== "success") return;
