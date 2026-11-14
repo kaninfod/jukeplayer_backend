@@ -1,0 +1,444 @@
+/* Kiosk pages — mobile layouts, overlays, library filters and styleguide
+   refinements. */
+
+/* ============================================================
+   MOBILE (phone browsers, <768px) — UI harmonisation phase M1
+   The wall display keeps its fixed 720px kiosk layout; phones go
+   fluid. The vertical nav hides (access moves to the menu sheet in
+   M3); the status bar compacts; safe areas respected.
+   ============================================================ */
+@media (max-width: 767.98px) {
+    /* svh: the SMALL viewport height - sized for the browser-UI-shown
+       state, so bottom toolbars/address bars never overlap the layout
+       (Firefox overlays its toolbar; dvh would grow under it) */
+    body.kiosk-layout {
+        height: 100svh !important;
+        width: 100vw !important;
+    }
+    html.kiosk-mode { height: 100svh; }
+
+    /* the root containers use bootstrap's vh-100 (100vh = taller than the
+       visible screen on phones) - pin them to the small viewport */
+    .vh-100 { height: 100svh !important; }
+    .min-vh-100 { min-height: 100svh !important; }
+
+    /* status bar → compact now-playing line */
+    .kiosk-status-bar {
+        height: 46px !important;
+        max-height: 46px !important;
+        min-height: 46px !important;
+        padding: 0 10px !important;
+        padding-top: env(safe-area-inset-top) !important;
+        box-sizing: border-box;
+    }
+    .kiosk-breadcrumb { font-size: 15px; }
+
+    /* the vertical nav sidebar hides — Library/Playlist/Devices move to
+       the menu sheet (phase M3); the player is the now-playing anchor tap */
+    .kiosk-nav-sidebar { display: none !important; }
+
+    /* volume sidebar hides: the volume returns as the popover (M2) */
+    .kiosk-volume-sidebar { display: none !important; }
+
+    /* media controls → thumb-sized band with safe-area bottom */
+    .media-controls {
+        height: auto !important;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+    }
+    .btn-media-control {
+        width: 54px;
+        height: 54px;
+        font-size: 20px;
+    }
+
+    /* content container: tighter padding on phones */
+    .kiosk-component-container { padding: 12px; }
+}
+
+/* Volume popover (replaces the vol+/vol- pair) */
+.volume-pop-wrap { position: relative; display: inline-flex; }
+.volume-pop {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12rem;
+    padding: .75rem;
+    border-radius: .75rem;
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+    z-index: 1100;
+}
+.volume-pop-slider { accent-color: #22d3ee; }
+
+/* Menu sheet: full-screen slide-over (mobile) */
+.menu-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    background: var(--bs-secondary-bg);
+    border-left: 1px solid var(--bs-border-color);
+    padding: calc(1rem + env(safe-area-inset-top)) 1.25rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transform: translateX(100%);
+    transition: transform .2s ease;
+}
+.menu-sheet.open { transform: translateX(0); }
+.menu-sheet.hidden { display: none; }
+.menu-sheet-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--bs-border-color);
+    padding-bottom: .5rem;
+}
+.menu-sheet-speakers { display: flex; flex-direction: column; gap: .5rem; }
+.menu-sheet-speaker {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .65rem .75rem;
+    border-radius: .6rem;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    color: var(--bs-body-color);
+    text-align: left;
+}
+.menu-sheet-speaker:hover { border-color: rgba(76, 215, 246, .35); }
+.menu-sheet-speaker.is-current {
+    border-color: rgba(76, 215, 246, .45);
+    box-shadow: 0 0 10px rgba(6, 182, 212, .25);
+}
+.menu-sheet-links {
+    margin-top: auto;
+    border-top: 1px solid var(--bs-border-color);
+    padding-top: .75rem;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+.menu-sheet-links a {
+    display: flex;
+    align-items: center;
+    padding: .6rem .5rem;
+    border-radius: .5rem;
+    color: var(--bs-body-color);
+    text-decoration: none;
+}
+.menu-sheet-links a:hover { background: var(--bs-tertiary-bg); }
+
+/* Fixes: the popovers start hidden; the top-bar buttons compact on mobile */
+.volume-pop.hidden { display: none; }
+@media (max-width: 767.98px) {
+    .kiosk-status-bar .kiosk-device-selector {
+        width: 38px;
+        height: 34px;
+        font-size: 1rem;
+        justify-content: center;
+    }
+}
+
+/* Volume popover: slim column — % readout above, vertical slider,
+   mute below; anchored to the right edge so it never leaves the screen */
+.volume-pop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    padding: .6rem .45rem;
+    width: 3.5rem;
+    right: 0;
+    left: auto;
+    transform: none;
+    /* ≈75% of the content area between the status bar and the controls on
+       the kiosk display — the parent anchor is the tiny footer, so vh it is */
+    height: 60vh;
+}
+.volume-pop-slider {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 2rem;
+    margin: 0;
+    accent-color: #22d3ee;
+    /* eat the popup's extra height */
+    flex: 1 1 auto;
+    min-height: 8rem;
+}
+.volume-pop-meta {
+    display: contents;
+}
+
+/* keyboard navigation focus ring — same marker style as the active speaker
+   card in the devices view: a border (inside the card edge, so the container's
+   overflow never clips it) plus its emerald glow */
+.kb-focus {
+    border: 3px solid #10B981;
+    box-shadow: 0 0 15px rgba(16, 185, 129, .35);
+}
+
+/* library filter bar: search / genres / A-Z segments share ONE row; the
+   attribute decides which expands, the other two stay compact icon toggles */
+.dir-bar { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.dir-seg-toggle {
+    flex-shrink: 0; width: 42px; height: 38px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 9px; border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg); color: var(--bs-secondary-color);
+    font-size: 19px; cursor: pointer; padding: 0;
+}
+.dir-seg-toggle:hover { color: var(--bs-body-color); background: var(--bs-secondary-bg); }
+/* the segments also carry their legacy classes (.alpha-bar/.genre-chip-row
+   = display:flex) — bar-scoping + the attribute-open rules must out-rank
+   those single-class rules or they'd be visible all at once */
+.dir-bar .dir-seg { display: none; flex: 1 1 auto; min-width: 0; }
+.dir-bar[data-dir-filter-open-value="alpha"] .dir-seg-alpha { display: flex; }
+.dir-bar[data-dir-filter-open-value="genres"] .dir-seg-genres { display: flex; }
+.dir-bar[data-dir-filter-open-value="search"] .dir-seg-search { display: block; }
+.dir-bar[data-dir-filter-open-value="alpha"]  .dir-seg-toggle[data-seg="alpha"],
+.dir-bar[data-dir-filter-open-value="genres"] .dir-seg-toggle[data-seg="genres"],
+.dir-bar[data-dir-filter-open-value="search"] .dir-seg-toggle[data-seg="search"] {
+    color: #4cd7f6; border-color: rgba(76, 215, 246, .45);
+    background: rgba(76, 215, 246, .07);
+}
+.dir-seg-genres { padding: .3rem .4rem; border-radius: 10px; background: var(--bs-tertiary-bg); }
+.dir-search-field {
+    width: 100%; font-size: 17px; padding: 8px 14px;
+    border-radius: 9px; border: 1px solid var(--bs-border-color);
+    background: var(--bs-tertiary-bg); color: var(--bs-body-color);
+}
+.dir-search-field:focus {
+    outline: none; border-color: #22d3ee;
+    box-shadow: 0 0 12px rgba(34, 211, 238, .25);
+}
+.dir-search-field::placeholder { color: var(--bs-secondary-color); }
+
+/* artist directory: one-row filter bar + packed rows */
+.artist-directory { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+
+.alpha-bar, .genre-chip-row {
+    display: flex; gap: .25rem; overflow-x: auto;
+    padding: .3rem .4rem; border-radius: 10px;
+    background: var(--bs-tertiary-bg);
+    scrollbar-width: thin;
+}
+.alpha-bar { justify-content: space-between; }
+.alpha-btn {
+    flex: 1 0 auto; min-width: 2rem;
+    border: 0; background: transparent; color: var(--bs-secondary-color);
+    font-size: 17px; font-weight: 600; padding: .35rem .1rem;
+    border-radius: 6px; cursor: pointer;
+}
+.alpha-btn:hover { background: var(--bs-secondary-bg); color: var(--bs-body-color); }
+
+.genre-chip-row { gap: .4rem; }
+.genre-chip {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .45rem .8rem; border-radius: 999px;
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg); color: var(--bs-body-color);
+    font-size: 15px; text-decoration: none; cursor: pointer;
+}
+.genre-chip small { color: var(--bs-secondary-color); }
+.genre-chip:hover { border-color: rgba(76, 215, 246, .45); }
+
+/* .dir-rows = the scroll container AND the keyboard-walk container; each
+   letter-section is a real box (sticky head range + scroll anchor) packing
+   its own rows into the same auto-fill grid — column counts match across
+   sections, so the walk's spatial math (read via data-keyboard-cols-from)
+   holds across letter boundaries */
+.dir-rows {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+}
+
+.dir-letter-section { margin-bottom: .5rem; }
+.dir-rows-grid {
+    display: grid; gap: .15rem .6rem;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    align-content: start;
+}
+.dir-letter-head {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: .75rem;
+    padding: .45rem .75rem; margin-bottom: .25rem;
+    background: color-mix(in srgb, var(--bs-secondary-bg) 88%, transparent);
+    backdrop-filter: blur(6px);
+    border-radius: 8px;
+}
+.dir-letter { font-weight: 800; font-size: 21px; color: #22d3ee; }
+
+.artist-row {
+    display: flex; align-items: center; gap: .9rem;
+    width: 100%;
+    padding: .55rem .8rem;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.artist-row:hover { background: var(--bs-secondary-bg); }
+
+.monogram {
+    flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+    background: color-mix(in srgb, #6366F1 30%, transparent);
+    color: #c7d2fe;
+}
+.artist-row .row-main { min-width: 0; flex: 1; }
+.artist-row .row-sub { font-size: 14px; }
+.artist-row .mdi-chevron-right { color: var(--bs-secondary-color); }
+
+/* sound-profile dialog (the speakers card's per-row EQ button) */
+.sound-profile-dialog {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    min-width: min(420px, 92vw);
+}
+.sound-profile-dialog::backdrop { background: rgba(6, 8, 16, .55); backdrop-filter: blur(2px); }
+.sp-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .5rem .75rem;
+    margin-bottom: .5rem;
+}
+.sp-grid label {
+    display: flex; flex-direction: column; gap: .25rem;
+    font-size: .78rem; color: var(--bs-secondary-color);
+}
+.sp-grid .sp-pre { grid-column: 1 / 2; color: var(--bs-body-color); font-weight: 600; }
+.sp-grid input { width: 100%; }
+.sp-preset select { min-width: 180px; }
+.sound-chain-pill { cursor: pointer; }   /* the one clickable state pill → DSP dialog */
+
+/* current-speaker card on the now-playing page: devices-anatomy horizontal
+   (not square), fixed max width, centered under cover+info in both fold
+   modes. Class vocabulary is the shared one (tile/badge/pill); the JS
+   re-dresses pill/type/glyph live from appState + the speakers map. */
+.np-speaker-card {
+    width: min(480px, 100%);
+    margin: 1.25rem auto 0;
+    display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: .8rem;
+    text-align: left;
+    aspect-ratio: auto !important;
+    padding: .65rem .9rem;
+    cursor: pointer;
+}
+.np-speaker-card .icon-tile { width: 44px; height: 44px; font-size: 1.4rem; }
+.np-speaker-name-col { min-width: 0; flex: 1; }
+.np-speaker-name {
+    font-size: 1.02rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.np-speaker-meta {
+    display: flex; align-items: center; gap: .6rem;
+    margin-top: .15rem; min-width: 0;
+}
+.np-speaker-chevron { color: var(--bs-secondary-color); }
+.icon-tile.tile-audio {
+    background: rgba(148, 163, 184, .12);
+    border-color: rgba(148, 163, 184, .25);
+    color: #cbd5e1;
+}
+
+/* ============================================================
+   M4 — mobile page layouts: cards become phone-sized
+   ============================================================ */
+@media (max-width: 767.98px) {
+    /* device cards: full-width rows (the bands reflow; not square) */
+    .device-card {
+        width: 100% !important;
+        aspect-ratio: auto !important;
+        min-height: 0;
+    }
+    /* library cards (albums/artists/groups): 2-up squares */
+    .card-grid .list-card, .album-card, .device-card.album-card {
+        width: calc(50% - .375rem) !important;
+        aspect-ratio: 1 / 1 !important;
+    }
+
+    /* player page: the art leads, the details stack under it */
+    .kiosk-player-status { flex-direction: column; }
+    .kiosk-player-status > .flex-row { flex-direction: column !important; gap: .5rem; }
+    .kiosk-album-art { padding: .5rem; max-width: 60%; margin: 0 auto; }
+    .kiosk-track-details h1 { font-size: 1.6rem; }
+    .kiosk-track-details h3 { font-size: 1.15rem; }
+    .kiosk-track-details h4 { font-size: 1rem; }
+
+    /* playlist: tighter rows */
+    .kiosk-component-container { padding: 12px; }
+}
+
+/* ============================================================
+   M4b — mobile library: slim rows instead of squares
+   ============================================================ */
+@media (max-width: 767.98px) {
+    /* page header: smaller title block */
+    .page-header h3 { font-size: 1.15rem; }
+    .page-header .text-muted { font-size: .8rem; }
+
+    /* groups + artists: slim full-width rows */
+    .card-grid .device-card:not(.album-card) {
+        width: 100% !important;
+        aspect-ratio: auto !important;
+    }
+    .card-grid .device-card:not(.album-card) .card-body {
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        gap: .75rem;
+        padding: .5rem .75rem !important;
+    }
+    .card-grid .device-card:not(.album-card) .card-body i.mdi {
+        font-size: 1.5rem !important;
+    }
+    .card-grid .device-card:not(.album-card) .card-body h5 {
+        font-size: 1rem;
+        margin: 0 !important;
+        min-width: 0;
+    }
+    .card-grid .device-card:not(.album-card) .card-body small { display: none; }
+
+    /* albums: cover left, name right — nfc + year hidden */
+    .device-card.album-card {
+        display: flex !important;
+        flex-direction: row !important;
+        width: 100% !important;
+        aspect-ratio: auto !important;
+    }
+    .device-card.album-card .album-cover { width: 4.5rem !important; flex-shrink: 0; }
+    .device-card.album-card .album-cover .album-cover-play { display: none !important; }
+    .device-card.album-card .card-body {
+        display: flex !important;
+        align-items: center !important;
+        padding: .3rem .6rem !important;
+        min-width: 0;
+    }
+    .device-card.album-card .card-body > div:first-child {
+        overflow: hidden;
+    }
+    .device-card.album-card .device-card-footer { display: none !important; }
+}
+
+/* Styleguide: the live phone-preview frame (M6) */
+.styleguide-phone {
+    width: 390px;
+    max-width: 100%;
+    height: 720px;
+    border-radius: 2rem;
+    border: 6px solid #1c1f2a;
+    box-shadow: 0 0 0 2px rgba(76, 215, 246, .3), 0 8px 24px rgba(0, 0, 0, .5);
+    overflow: hidden;
+    background: #0B0F19;
+}
+.styleguide-phone iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}

@@ -1,9 +1,9 @@
 /* ============================================================
    kiosk-theme.css — "Acoustic Midnight" (DESIGN.md token mapping)
-   Loaded AFTER bootstrap.min.css + kiosk.css: the tokens override the
-   Bootstrap variables and our kiosk classes read them. The dark theme
-   is active via data-bs-theme="dark" on <html>; removing that
-   attribute restores the light palette.
+   Loaded AFTER bootstrap.min.css and the kiosk base/components/kit/pages:
+   the tokens override the Bootstrap variables and our kiosk classes read
+   them. The dark theme is active via data-bs-theme="dark" on <html>;
+   removing that attribute restores the light palette.
    ============================================================ */
 
 :root {

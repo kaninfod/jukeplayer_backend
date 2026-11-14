@@ -1,7 +1,7 @@
 {# NFC encoder selection — the device-grid idiom: the shared page_header +
    card_grid (keyboard navigation comes free via its .card.device-card
    selector) + the device-card anatomy on each encoder card. The old custom
-   card CSS is gone (kiosk.css's kit drives the look now); the technical
+   card CSS is gone (the shared kiosk kit drives the look now); the technical
    client_id lives in the hover-title only. The error band hides when
    clients exist and takes the stage when the route renders with none. #}
 {% from "components/kiosk/shared/ui.html" import page_header, card_grid %}

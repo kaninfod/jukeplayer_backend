@@ -1,0 +1,198 @@
+/* Kiosk kit — shared card grid/contract, page-busy, setup/connect and
+   protocol tints. */
+
+/* Global page-busy overlay — ONE spinner for the whole SPA (blocks the
+   container during htmx requests and controller fetches). */
+#page-busy {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(11, 15, 25, .6);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+#page-busy .page-busy-box {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .15);
+}
+body.page-loading #page-busy,
+body:has(.htmx-request) #page-busy {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Speakers setup table */
+.speakers-table { font-size: .9rem; }
+.speakers-th {
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    border-bottom-color: var(--bs-border-color) !important;
+}
+
+/* Connect page — scan cards */
+.scan-card {
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    padding: 1rem;
+}
+.scan-card-glyph {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: .75rem;
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    color: var(--bs-secondary-color);
+}
+
+/* Shared card contract: square geometry + three-band anatomy.
+   Band classes (device-type-badge / device-player-pill / device-link-pill /
+   icon-tile / device-card-footer) are the shared vocabulary every card
+   partial renders; per-type content lives in the bands. */
+.card-square {
+    width: 15rem;
+    aspect-ratio: 1 / 1;
+}
+.device-link-pill.link-action {
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+    border-color: var(--bs-border-color);
+    cursor: pointer;
+    text-decoration: none;
+}
+.device-link-pill.link-action:hover {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+}
+
+/* Library — album card: the cover is the play button (click = play). */
+.album-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: var(--bs-secondary-bg);
+    overflow: hidden;
+    cursor: pointer;
+}
+.album-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.album-cover .album-cover-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: #fff;
+    background: rgba(0, 0, 0, .35);
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+.album-cover:hover .album-cover-play { opacity: 1; }
+
+/* Pang: protocol-tinted identity elements (bright accents on dark) */
+.device-type-badge.type-cc {
+    background: #6366F1;
+    color: #F8FAFC;
+    border-color: transparent;
+    box-shadow: 0 0 10px rgba(99, 102, 241, .4);
+}
+.device-type-badge.type-bt {
+    background: #06B6D4;
+    color: #0B0F19;
+    border-color: transparent;
+    box-shadow: 0 0 10px rgba(6, 182, 212, .4);
+}
+.icon-tile.tile-cc {
+    background: rgba(99, 102, 241, .18);
+    border-color: rgba(99, 102, 241, .45);
+    color: #a5b4fc;
+}
+.icon-tile.tile-bt {
+    background: rgba(6, 182, 212, .15);
+    border-color: rgba(6, 182, 212, .4);
+    color: #22d3ee;
+}
+.device-player-pill.player-idle {
+    background: rgba(99, 102, 241, .14);
+    color: #c0c1ff;
+    border-color: rgba(99, 102, 241, .3);
+}
+
+/* Pang: protocol-tinted glyph tiles (connect page) */
+.scan-card-glyph.glyph-cc {
+    background: rgba(99, 102, 241, .16);
+    border-color: rgba(99, 102, 241, .3);
+    color: #c0c1ff;
+}
+.scan-card-glyph.glyph-bt {
+    background: rgba(76, 215, 246, .14);
+    border-color: rgba(76, 215, 246, .3);
+    color: #4cd7f6;
+}
+.device-link-pill.glyph-cc {
+    background: rgba(99, 102, 241, .14);
+    color: #c0c1ff;
+    border-color: rgba(99, 102, 241, .3);
+}
+.device-link-pill.glyph-bt {
+    background: rgba(76, 215, 246, .12);
+    color: #4cd7f6;
+    border-color: rgba(76, 215, 246, .28);
+}
+
+/* Glyph dropdown: scrollable, ~3 options visible */
+.speakers-table .dropdown-menu {
+    max-height: 8rem;
+    overflow-y: auto;
+}
+
+/* Protocol tints: config table protocol badges */
+.device-type-badge.type-audio {
+    background: rgba(148, 163, 184, .12);
+    color: #94A3B8;
+    border-color: rgba(148, 163, 184, .25);
+}
+
+/* System menu: per-action accent glyphs */
+.system-action-card .mdi { color: var(--bs-secondary-color); font-size: 48px; }
+.system-action-card.glyph-reload .mdi { color: #fbbf24; }
+.system-action-card.glyph-fullscreen .mdi { color: #4cd7f6; }
+.system-action-card.glyph-clients .mdi { color: #c0c1ff; }
+.system-action-card.glyph-controls .mdi { color: #34d399; }
+.system-action-card.glyph-config .mdi { color: #c0c1ff; }
+.system-action-card.glyph-connect .mdi { color: #4cd7f6; }
+
+/* Styleguide page — token swatches */
+.swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+.swatch { width: 8rem; }
+.swatch-chip {
+    height: 3rem;
+    border-radius: .5rem;
+    border: 1px solid var(--bs-border-color);
+    margin-bottom: .35rem;
+}
+
+.system-action-card.glyph-palette .mdi { color: #a78bfa; }
+

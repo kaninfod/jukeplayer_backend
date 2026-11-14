@@ -1,8 +1,9 @@
 /* NFC kiosk styles — the card styling moved to the shared device-card
-   kit in kiosk.css (device-card / device-type-badge / device-player-pill /
-   icon-tile / device-card-footer are the shared vocabulary); this file
-   keeps what is nfc-specific: the NFC tile flavour, the keyframe
-   animations, and the encode-flow state screens' album hero. */
+   kit in kiosk-components.css (device-card / device-type-badge /
+   device-player-pill / icon-tile / device-card-footer are the shared
+   vocabulary); this file keeps what is nfc-specific: the NFC tile
+   flavour, the keyframe animations, and the encode-flow state screens'
+   album hero. */
 
 .icon-tile.tile-nfc {
     background: rgba(0, 116, 217, .16);
