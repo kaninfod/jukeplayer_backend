@@ -92,6 +92,9 @@ class PlaybackService:
         except Exception:
             pass
 
+        finish = getattr(player, "finish_current_track", None)
+        if finish:
+            finish("album_change")
         player.playlist_manager.clear()
         for track in album.tracks:
             spec = source.stream_url(track.track_id)

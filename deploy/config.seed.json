@@ -24,5 +24,6 @@
   },
   "logging": {"level": "INFO"},
   "server": {"cors_allow_origins": "*", "public_base_url": ""},
-  "chromecast": {"discovery_timeout": 3, "wait_timeout": 10}
+  "chromecast": {"discovery_timeout": 3, "wait_timeout": 10},
+  "listenbrainz": {"username": "mhinge", "token": ""}
 }

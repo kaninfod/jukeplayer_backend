@@ -16,6 +16,7 @@ class SpeakerBrokerService:
         self.event_bus.subscribe(EventType.ASSIGN_SPEAKER, self.handle_assign_speaker)
 
         self.event_bus.subscribe(EventType.PLAY_ALBUM, self.handle_play_album)
+        self.event_bus.subscribe(EventType.PLAY_RANDOM, self.handle_play_random)
         self.event_bus.subscribe(EventType.PLAY_PAUSE, self.handle_play_pause)
         self.event_bus.subscribe(EventType.PREVIOUS_TRACK, self.handle_previous_track)
         self.event_bus.subscribe(EventType.NEXT_TRACK, self.handle_next_track)
@@ -258,6 +259,63 @@ class SpeakerBrokerService:
 
         # Pass it to the helper
         return await self._execute_media_action(event, "play_album", custom_action=play_album_action)
+
+    async def handle_play_random(self, event: Event):
+        """Pick an album on the resolved speaker and play it.
+
+        ``mode`` is smart/random/neglected; absent means the default
+        (neglected). The picker is stateless (in-memory catalog/profile
+        only); if ListenBrainz is unavailable it falls back to gonic play
+        counts. The result carries the chosen album and the reason, so the
+        HTTP/WS transport can show it.
+        """
+        from app.core.service_container import get_service
+        from app.recommendations import normalize_mode
+
+        payload = event.payload
+        mode = normalize_mode(payload.get("mode"))
+        speaker = self.resolve_speaker(
+            client_id=payload.get("client_id"),
+            device_name=payload.get("device_name"),
+        )
+        if speaker is None:
+            return {"ok": False,
+                    "error": "No speaker could be resolved (no routing context and no speakers configured)"}
+        if not speaker.mediaplayer:
+            return {"ok": False, "speaker": speaker.speaker_name,
+                    "error": f"Speaker '{speaker.speaker_name}' has no media player instance"}
+
+        try:
+            recommendation_service = get_service("recommendation_service")
+            pick = await recommendation_service.pick(
+                device_name=speaker.speaker_name, mode=mode
+            )
+        except Exception as exc:
+            logger.error("[SpeakerBrokerService] random pick failed: %s", exc, exc_info=True)
+            return {"ok": False, "speaker": speaker.speaker_name,
+                    "error": f"Random pick failed: {exc}"}
+        if pick is None:
+            return {"ok": False, "speaker": speaker.speaker_name,
+                    "error": "No album is available to pick right now"}
+
+        playback_service = get_service("playback_service")
+        loaded = await playback_service.load_from_album_id(
+            pick.album_id, player=speaker.mediaplayer)
+        if not loaded:
+            return {"ok": False, "speaker": speaker.speaker_name,
+                    "error": f"Could not load album '{pick.album}'"}
+
+        await self.broadcast_context_to_clients(speaker)
+        return {
+            "ok": True,
+            "speaker": speaker.speaker_name,
+            "album_id": pick.album_id,
+            "artist": pick.artist,
+            "album": pick.album,
+            "reason": pick.reason,
+            "mode": mode,
+            "message": f"Random album: {pick.artist} — {pick.album}",
+        }
 
     async def handle_play_pause(self, event: Event):
         return await self._execute_media_action(event, "play_pause")

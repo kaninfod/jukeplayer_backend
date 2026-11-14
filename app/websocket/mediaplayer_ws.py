@@ -257,6 +257,46 @@ class WebSocketConnection:
             "start_track_index": start_track_index
         }
         await self._handle_player_action(EventType.PLAY_ALBUM, payload)            
+
+    async def handle_play_random(self, payload):
+        """Pick and play an album; reply with the pick and its reason.
+
+        The hardware button sends ``{"type": "play_random", "payload":
+        {"device_name": "living_room"}}``; no mode means the default
+        ``neglected``. An optional ``mode`` of ``smart``/``random``/
+        ``neglected`` is for testing. The broker also broadcasts the new
+        ``current_track``; ``random_pick`` is the extra "what/why" echo.
+        """
+        try:
+            from app.core import event_bus, EventType, Event
+            payload = dict(payload or {})
+            payload["client_id"] = self.client_id
+            result = await event_bus.aemit(Event(EventType.PLAY_RANDOM, payload))
+            first = result[0] if result else None
+            if isinstance(first, dict) and first.get("ok"):
+                await self.send_message({
+                    "type": "random_pick",
+                    "payload": {
+                        "speaker": first.get("speaker"),
+                        "album_id": first.get("album_id"),
+                        "artist": first.get("artist"),
+                        "album": first.get("album"),
+                        "reason": first.get("reason"),
+                        "mode": first.get("mode"),
+                    },
+                })
+            else:
+                error = first.get("error") if isinstance(first, dict) else "No handler ran for this action"
+                await self.send_message({
+                    "type": "notification",
+                    "payload": {"status": "error", "message": str(error)},
+                })
+        except Exception as e:
+            logger.error(f"Error handling play_random: {e}")
+            await self.send_message({
+                "type": "notification",
+                "payload": {"status": "error", "message": str(e)},
+            })
     
     async def handle_switch_device(self, payload):
         from app.core import EventType
@@ -366,6 +406,8 @@ class WebSocketConnection:
                         await self.handle_play_rfid(payload)
                     elif msg_type == "play_album":
                         await self.handle_play_album(payload)
+                    elif msg_type == "play_random":
+                        await self.handle_play_random(payload)
                     elif msg_type == "play_track":
                         await self.handle_play_track(payload)                     
                     elif msg_type == "next_track":

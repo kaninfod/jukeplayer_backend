@@ -88,6 +88,16 @@ def create_playback_service(container):
         event_bus=container.get('event_bus')
     )
 
+
+def create_recommendation_service(container):
+    """The smart-random picker: in-memory catalog + ListenBrainz profile."""
+    from app.recommendations.service import RecommendationService
+    return RecommendationService(
+        music_sources=container.get('music_sources'),
+        config_service=container.get('config_service'),
+    )
+
+
 def create_speaker_broker_service(container):
     from app.speakers.speaker_broker_service import SpeakerBrokerService
     control_clients = container.get('control_clients_service')
@@ -145,6 +155,7 @@ def setup_service_container():
     container.register_singleton('bluetooth_service', create_bluetooth_service)
 
     container.register_singleton('playback_service', create_playback_service)
+    container.register_singleton('recommendation_service', create_recommendation_service)
 
     return container
 

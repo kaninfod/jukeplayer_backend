@@ -94,6 +94,15 @@ class SubsonicSource(SourceProvider):
         _, raw = unqualify(track_id)
         return self.scrobble_now_playing(raw)
 
+    def scrobble_completed(self, track_id: str, played_at: float | None = None) -> bool:
+        """Submit a finished play (Subsonic ``submission=true``).
+
+        Gonic forwards this to ListenBrainz as a ``single`` listen, whereas
+        ``submission=false`` only becomes a ``playing_now`` notice.
+        """
+        _, raw = unqualify(track_id)
+        return self.submit_scrobble(raw, played_at)
+
     # === THE GONIC FACULTY (verbatim from the old service; api indirection) ===
 
     def get_stream_url(self, track: dict) -> str:
@@ -376,4 +385,35 @@ class SubsonicSource(SourceProvider):
 
         except Exception as e:
             logger.error(f"scrobble_now_playing: Failed to scrobble track {track_id}: {e}")
+            return False
+
+    def submit_scrobble(self, track_id: str, played_at: float | None = None) -> bool:
+        """Submit a completed play to Subsonic (``submission=true``).
+
+        ``played_at`` is epoch seconds (the wall-clock start of the track);
+        Subsonic wants milliseconds. Gonic/ListenBrainz uses this timestamp
+        for the listen, so a completed play appears in the history with the
+        right time rather than as a second "now playing".
+        """
+        try:
+            if not track_id:
+                logger.warning("submit_scrobble: No track_id provided")
+                return False
+
+            started = played_at if played_at is not None else time.time()
+            started_ms = int(started * 1000)
+            resp = self.api._api_request("scrobble", {
+                "id": track_id,
+                "submission": "true",
+                "time": str(started_ms),
+            })
+            data = resp.json()
+            if data.get("subsonic-response", {}).get("status") == "ok":
+                logger.info("submit_scrobble: Submitted completed play for track %s", track_id)
+                return True
+            error_msg = data.get("subsonic-response", {}).get("error", "Unknown error")
+            logger.warning("submit_scrobble: Failed to submit track %s: %s", track_id, error_msg)
+            return False
+        except Exception as e:
+            logger.error("submit_scrobble: Failed to submit track %s: %s", track_id, e)
             return False

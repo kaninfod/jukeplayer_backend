@@ -37,6 +37,10 @@ class MediaPlayerService:
 
         self.volume_manager = VolumeManager(self.playback_backend)
         self.track_timer = TrackTimer()
+        # Completed-scrobble bookkeeping: the wall-clock start of the current
+        # track and a one-shot guard so a track can only be submitted once.
+        self._track_started_at: Optional[float] = None
+        self._track_scrobbled = False
         
         logger.info(
             "MediaPlayerService initialized with playback backend=%s, device=%s",
@@ -50,11 +54,13 @@ class MediaPlayerService:
         return mode
     
     async def previous_track(self, event=None):
+        self.finish_current_track("previous")
         self.playlist_manager.previous_track()
         await self.play_current_track()
         return True
 
     async def next_track(self, event=None, force=False):
+        self.finish_current_track("next")
         state = self.playlist_manager.next_track()
         if state == False:
             await self.stop()
@@ -103,6 +109,7 @@ class MediaPlayerService:
         resurrected by a later cast (the espresso/HA lesson). Repeat-album
         state goes with the queue; the CC receiver app is torn down by the
         backend's own stop."""
+        self.finish_current_track("stop")
         await self.playback_backend.stop()
         self.status = PlayerStatus.STOP
         self.playlist_manager.clear()
@@ -151,6 +158,7 @@ class MediaPlayerService:
             return False
         
         if 0 <= track_index < self.playlist_manager.count():
+            self.finish_current_track("play_track")
             self.playlist_manager.current_index = track_index
             await self.play_current_track()
             return track_index
@@ -159,6 +167,8 @@ class MediaPlayerService:
             return False
 
     async def play_current_track(self):
+        self._track_started_at = None
+        self._track_scrobbled = False
         track = self.playlist_manager.current_track
     
         if track and track.stream_url:
@@ -215,6 +225,8 @@ class MediaPlayerService:
             self.track_timer.reset()
             self.track_timer.start()
             self.status = PlayerStatus.PLAY
+            self._track_started_at = time.time()
+            self._track_scrobbled = False
             
             track_id = track.track_id
             if track_id:
@@ -223,7 +235,82 @@ class MediaPlayerService:
             logger.info(f"Playing track {self.playlist_manager.current_index+1}/{self.playlist_manager.count()}: {track.title}")
         else:
             logger.error("No stream_url for current track.")
-    
+
+    def finish_current_track(self, reason: str = "track_change") -> bool:
+        """Submit the current track as a completed play when it qualifies.
+
+        Called before any transition (next/previous/album change/stop) and on
+        a natural backend ``TRACK_FINISHED``. The Last.fm/ListenBrainz rule
+        is half the track or four minutes, whichever is shorter; a track that
+        is skipped earlier is not submitted. The one-shot guard means a
+        natural finish followed by ``stop()`` cannot submit twice.
+        """
+        track = self.playlist_manager.current_track
+        if track is None or self._track_started_at is None or self._track_scrobbled:
+            return False
+
+        try:
+            elapsed = float(self.track_timer.get_elapsed() or 0.0)
+        except Exception:
+            elapsed = 0.0
+
+        duration = _duration_seconds(getattr(track, "duration", None))
+        threshold = min(duration / 2.0, 240.0) if duration > 0 else 30.0
+        if elapsed < threshold:
+            logger.debug(
+                "Not submitting '%s' (%s): played %.0fs of %.0fs threshold",
+                track.title, reason, elapsed, threshold,
+            )
+            return False
+
+        self._track_scrobbled = True
+        self._scrobble_track_completed(track.track_id, track.title, self._track_started_at)
+        logger.info(
+            "Completed play: '%s' (%.0fs, %s) — submitting scrobble",
+            track.title, elapsed, reason,
+        )
+        return True
+
+    def _scrobble_track_completed(self, track_id: str, track_title: str,
+                                  played_at: float) -> None:
+        """Submit a completed play without blocking the player."""
+        try:
+            from app.core.service_container import get_service
+            from app.music_sources.base import SourceCapability, unqualify
+
+            pid, _raw_track_id = unqualify(track_id)
+            source = get_service("music_sources").get(pid)
+            if SourceCapability.SCROBBLE not in getattr(source, "capabilities", frozenset()):
+                return
+            if not hasattr(source, "scrobble_completed"):
+                logger.debug("Source '%s' cannot submit completed plays", getattr(source, "id", pid))
+                return
+
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self._submit_scrobble_blocking(source, track_id, track_title, played_at)
+                return
+
+            loop.run_in_executor(
+                None, self._submit_scrobble_blocking,
+                source, track_id, track_title, played_at,
+            )
+        except Exception as e:
+            logger.error("Error queueing completed scrobble for '%s': %s", track_title, e)
+
+    @staticmethod
+    def _submit_scrobble_blocking(source, track_id: str, track_title: str,
+                                  played_at: float) -> None:
+        try:
+            success = source.scrobble_completed(track_id, played_at=played_at)
+            if success:
+                logger.info("Submitted completed scrobble for '%s'", track_title)
+            else:
+                logger.warning("Failed to submit completed scrobble for '%s'", track_title)
+        except Exception as e:
+            logger.error("Error submitting completed scrobble for '%s': %s", track_title, e)
+
     def _scrobble_track_now_playing(self, track_id: str, track_title: str = "Unknown") -> None:
         """Send a now-playing notification without blocking playback: the
         HTTP call runs in the default executor, errors are logged there."""
@@ -414,3 +501,11 @@ class TrackTimer:
             return self.pause_start - self.start_time - self.paused_time
         else:
             return time.monotonic() - self.start_time - self.paused_time
+
+
+def _duration_seconds(value) -> float:
+    """Track duration as seconds; unknown durations become 0 (30 s threshold)."""
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return 0.0

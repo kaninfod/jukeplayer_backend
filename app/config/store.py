@@ -43,6 +43,12 @@ SECTION_DEFAULTS: Dict[str, Any] = {
     "logging": {"level": "INFO"},
     "server": {"cors_allow_origins": "*", "public_base_url": "", "enable_https_redirect": False, "http_request_timeout": 10},
     "chromecast": {"discovery_timeout": 3, "wait_timeout": 10},
+    # ListenBrainz read access for the smart-random picker. Public profiles
+    # only need the username; a token is optional for private profiles.
+    "listenbrainz": {
+        "username": "",
+        "token": "",
+    },
     # global EQ presets (additive bands/shelves, layered over a speaker's
     # room correction) — seeded with four sensible starting points; the
     # values are additions to a speaker's own calibration, per the doc.
@@ -54,7 +60,7 @@ SECTION_DEFAULTS: Dict[str, Any] = {
     },
 }
 
-SECRET_KEYS = {("subsonic", "password")}
+SECRET_KEYS = {("subsonic", "password"), ("listenbrainz", "token")}
 
 VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
@@ -66,6 +72,7 @@ SECTION_APPLIES = {
     "server": "restart",
     "speakers": "live",  # live since Phase B: add/remove applies without restart
     "sound_presets": "live",
+    "listenbrainz": "live",  # the next picker refresh reads the new credentials
 }
 
 
@@ -297,6 +304,10 @@ class ConfigService:
 
     def server(self) -> Dict[str, Any]:
         return dict(self.store.section("server"))
+
+    def listenbrainz(self) -> Dict[str, Any]:
+        """Read-only ListenBrainz settings for the smart-random picker."""
+        return dict(self.store.section("listenbrainz"))
 
     def effective(self) -> Dict[str, Any]:
         """Full merged view, secrets masked, every key tagged with its source."""

@@ -112,3 +112,12 @@ class SourceProvider:
     def scrobble(self, track_id: str) -> bool:
         """Now-playing notification (only when SCROBBLE in capabilities)."""
         raise NotImplementedError
+
+    def scrobble_completed(self, track_id: str, played_at: Optional[float] = None) -> bool:
+        """Completed-play submission (only when SCROBBLE in capabilities).
+
+        ``played_at`` is the wall-clock start of the track (epoch seconds) so
+        the upstream service records the correct listen timestamp. Sources
+        that only support now-playing return False.
+        """
+        return False

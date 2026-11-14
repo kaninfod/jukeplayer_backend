@@ -34,6 +34,7 @@ def _mask_secrets(section: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in (payload or {}).items():
         if (section, key) in {
             ("subsonic", "password"),
+            ("listenbrainz", "token"),
         }:
             if value in (None, "", _MASKED):
                 continue  # keep existing value
@@ -73,6 +74,26 @@ async def update_logging(payload: Dict[str, Any] = Body(...)):
 async def update_server(payload: Dict[str, Any] = Body(...)):
     _store().update_section("server", payload or {})
     return {"status": "saved", "applies": "restart"}
+
+
+@router.put("/listenbrainz")
+async def update_listenbrainz(payload: Dict[str, Any] = Body(...)):
+    """Set the ListenBrainz username (and optional token) for smart random.
+
+    The picker reads this on its next refresh; no restart is needed. A blank
+    token means 'unchanged', so the masked value from GET /api/config can be
+    sent back safely.
+    """
+    values = _mask_secrets("listenbrainz", payload)
+    if "username" in values:
+        values["username"] = str(values["username"] or "").strip()
+    merged = _store().update_section("listenbrainz", values)
+    return {
+        "status": "saved",
+        "applies": "live",
+        "username": merged.get("username", ""),
+        "token_set": bool(merged.get("token")),
+    }
 
 
 # Speakers (Phase B): live-managed — add/remove applies without a restart.
