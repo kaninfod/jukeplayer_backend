@@ -477,8 +477,8 @@ known code bug) + orphaned-log cleanup.
   container runtime plumbing (PULSE_SERVER/PULSE_COOKIE/TZ) + bootstrap keys.
   `deploy/env.rpi.example` rewritten to the final bootstrap-only form
   (fulfils its own Phase-0-era promise). The env surface is documented as a
-  table in `docs/OPERATIONS.md` with a trim instruction for existing installs.
-- **Docs:** `docs/OPERATIONS.md` — web UI flow updated to the three-surface
+  table in the Obsidian Operations Guide with a trim instruction for existing installs.
+- **Docs:** Obsidian Operations Guide — web UI flow updated to the three-surface
   split (config = setup, system/connect = add, devices = runtime), watchdog
   + managed-names note, **Environment (bootstrap keys)** section, **BT500
   dongle swap** procedure (ready for the hardware follow-up), new
@@ -600,7 +600,7 @@ and properties. Consumer map: web UI (zero /api calls), ESP32 (WS-only), HA
   check (the Boom's bogus 1% is suppressed for real this time).
 - `requirements.txt`: + `dbus-fast` (the HA-ecosystem BlueZ stack). No
   Bluetooth tooling needed by the app anymore — bluetoothctl remains only
-  as the human debug tool in `docs/OPERATIONS.md`.
+  as the human debug tool in the Obsidian Operations Guide.
 - Tests: facade contract over a fake dbus layer (envelope shapes, targeting,
   discovery cycle, pair failure paths, battery filters, auto-connect rules);
   parser tests dropped with the parsers. Suite: **138 → 146 passed**.

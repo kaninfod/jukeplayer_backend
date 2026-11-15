@@ -62,7 +62,7 @@ services:
       - TZ=${TZ:-UTC}
       # --- bootstrap keys only: everything else (Subsonic, speakers, MPV,
       #     server behaviour) lives in the config store (data/config.json),
-      #     managed from the web UI. Full list: docs/OPERATIONS.md ---
+      #     managed from the web UI. Full list: Obsidian "Operations Guide" ---
       - DEBUG_MODE=${DEBUG_MODE:-false}
       - ENABLE_DOCS=${ENABLE_DOCS:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

@@ -1,9 +1,9 @@
 """Sound profiles: per-speaker equalization compiled to mpv's filter chain.
 
-The profile (documented in docs/SOUND_TUNING.md §9) rides the speaker's
-options in the config store:
+The profile (documented in the Obsidian note "Sound Tuning" §9) rides the
+speaker's options in the config store:
 
-    options.sound_profile = {
+    options.room_correction = {
         "preamp_db": -3.0,            # headroom; NEVER above 0 (anti-clip)
         "bands_db": {                 # the 10 ISO octave bands; -12..+12
             "31": 0.0, "63": 1.5, "125": 1.0, "250": 0.0, "500": 0.0,

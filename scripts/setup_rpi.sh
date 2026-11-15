@@ -4,7 +4,7 @@
 # Target: Raspberry Pi OS Lite 64-bit (Bookworm/Trixie), run as the default user.
 # Idempotent: safe to re-run. App dir default: /home/<user>/jukeplayer_backend
 #
-# Audio stack (see docs/OPERATIONS.md "Bluetooth / audio"): PulseAudio +
+# Audio stack (see the Obsidian "Operations Guide" → "Bluetooth / audio"): PulseAudio +
 # pulseaudio-module-bluetooth provide the A2DP endpoints; mpv plays via
 # ao=pulse. Do NOT re-enable the pipewire user services — their bluez monitor
 # does not register A2DP endpoints on this hardware/bluez combination.
